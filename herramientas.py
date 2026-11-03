@@ -69,6 +69,36 @@ def raid_dicha(dicho, nombre):
     return any(difflib.get_close_matches(c, palabras, n=1, cutoff=0.75) for c in claves or [_norm(canon)])
 
 
+_MESES = r"(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)"
+_HORA_NUM = r"(\d{1,2}|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce)"
+
+
+def dia_dicho(dicho):
+    """¿Dijo un día? («hoy», «el viernes», «mañana», «el 20 de noviembre», «14/11»)."""
+    t = _norm(dicho)
+    return bool(dia_en_texto(t) or _RE_DIA.search(t) or re.search(r"\bel \d{1,2}\b|\b\d{1,2} de " + _MESES + r"|\b\d{1,2}/\d{1,2}\b", t))
+
+
+def hora_dicha(dicho):
+    """¿Dijo una hora? («a las 9», «21:00», «9 de la noche», «a las nueve y media», «mediodía»)."""
+    t = _norm(dicho)
+    return bool(re.search(r"\ba (las|la) " + _HORA_NUM + r"\b|\b\d{1,2}:\d{2}\b|\b" + _HORA_NUM +
+                          r" ?(am|pm|hs|horas|de la (noche|tarde|manana))\b|mediodia|medianoche", t))
+
+
+PIDE_NOTA = re.compile(r"\bnotas?\b|requisit|\btrai?gan\b|\btraer\b|vengan|tienen que|tengan|minimo|obligatori|"
+                       r"\bgear\b|pre-?bis|equip|consumible|pocion|flask|\bilvl\b|\bsolo (gente|nivel|los)|\bnivel \d")
+
+
+def nota_limpia(dicho, nota):
+    """La nota solo si la pidió («en notas poné…», «que vengan con…»), y sin muletillas («viste», «o sea»)."""
+    if _vacio(nota) or not PIDE_NOTA.search(_norm(dicho)):
+        return ""
+    n = re.sub(r"[\s,;¿]*\b(viste|o sea|tipo|y eso|nada mas|cachai|sabes|entendes|me entendes)\b\??[\s.,;]*$", "",
+               str(nota).strip(), flags=re.I)
+    return n.strip(" ,;")
+
+
 _NUM = r"(\d{1,2}|cinco|diez|quince|veinte|veinticinco|treinta|cuarenta)"
 _PALABRA_CUPO = r"(cupos?|jugadores|personas|plazas|lugares|players|man)"
 _NUMEROS = {"cinco": 5, "diez": 10, "quince": 15, "veinte": 20, "veinticinco": 25, "treinta": 30, "cuarenta": 40}

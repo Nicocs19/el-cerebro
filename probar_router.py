@@ -234,6 +234,14 @@ def probar_rapido():
               ("sin cupos", H.cupos_dichos("hoy a las 9"), None),
               ("«estar previstos» = pre-BiS", dictado.limpiar("tienen que estar previstos"), "tienen que estar pre-BiS"),
               ("«está previsto» queda igual", dictado.limpiar("está previsto para las 9"), "está previsto para las 9"),
+              ("no dijo día", H.dia_dicho("registro de raid de molten core con 20 cupos"), False),
+              ("no dijo hora", H.hora_dicha("registro de raid de molten core para hoy"), False),
+              ("«el viernes a las nueve»", (H.dia_dicho("el viernes a las nueve"), H.hora_dicha("el viernes a las nueve")),
+               (True, True)),
+              ("nota que no pidió", H.nota_limpia("molten core hoy a las 9 con 20 cupos, encantado y encantado, viste",
+                                                  "Encantado y encantado, viste"), ""),
+              ("nota que pidió, sin «viste»", H.nota_limpia("en notas poné que vengan pre-BiS, viste",
+                                                            "Vengan pre-BiS, viste"), "Vengan pre-BiS"),
               ("pregunta normal sin «pendejo»", router._sin_groserias("¿qué es un tanque en wow?", "responder", {
                   "respuesta": "Un tanque, pendejo, es el que aguanta."})["respuesta"], "Un tanque es el que aguanta."),
               ("si lo bardea, sí", router._sin_groserias("cerebro, sos un inútil", "responder", {
@@ -280,6 +288,9 @@ def probar_flujo():
          and "qué raid" in vistos[-1].lower()),                       # no dijo qué raid: pregunta, no inventa
         ("molten core", lambda: pendiente("hogger", accion="raid", nombre="Molten Core", cupo=40)),
         ("no", lambda: not c.pendiente),
+        ("mandá un registro de raid de molten core con 20 cupos", lambda: not c.pendiente and c.contexto
+         and "qué día" in vistos[-1].lower()),                        # no dijo día ni hora: pregunta, no los saca de antes
+        ("cancelá", lambda: not c.pendiente and not c.contexto),
         ("cambiá el título solo en kick a raid nocturna con la guild", lambda: pendiente("titulo", plataformas=["kick"])),
         ("Simandalo, dale.", hecho),
         ("banea a tanlonzo", lambda: pendiente("moderar", accion="banear")),

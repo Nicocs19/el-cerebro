@@ -575,11 +575,25 @@ def _sin_si_en_el_texto(pendiente, nombre, args):
     return args
 
 
-def _raid_sin_inventos(texto, pendiente, args):
-    """La raid y los cupos son los que dijo Nicolas: si la IA los inventó, se le pregunta («¿Qué raid es?»)."""
+def _raid_sin_inventos(texto, pendiente, args, herramienta="crear_raid"):
+    """Raid, día, hora, cupos y nota son los que dijo Nicolas: si la IA los inventó, se le pregunta («¿Qué raid es?»)."""
     dicho = texto
-    if pendiente is not None and pendiente.tipo == "hogger" and pendiente.datos.get("accion") == "raid":
-        dicho += f". {pendiente.datos.get('nombre')}, {pendiente.datos.get('cupo')} cupos"   # corrige la que espera
+    corrige = pendiente is not None and pendiente.tipo == "hogger" and pendiente.datos.get("accion") in ("raid", "banda")
+    if corrige:              # corrige la que espera («mejor a las 10»): lo demás sale de esa
+        dicho += f". {pendiente.datos.get('nombre')}, {pendiente.datos.get('cupo')} cupos. Nota: {pendiente.datos.get('nota')}"
+    else:
+        if not H._vacio(args.get("fecha")) and not H.dia_dicho(dicho):
+            print(f"[router] la IA puso el día «{args['fecha']}», pero no lo dijiste: te pregunto")
+            args = {**args, "fecha": ""}
+        if not H._vacio(args.get("hora")) and not H.hora_dicha(dicho):
+            print(f"[router] la IA puso la hora «{args['hora']}», pero no la dijiste: te pregunto")
+            args = {**args, "hora": ""}
+    nota = H.nota_limpia(dicho, args.get("nota"))
+    if nota != str(args.get("nota") or ""):
+        print(f"[router] nota: «{args.get('nota')}» -> «{nota}»")
+        args = {**args, "nota": nota}
+    if herramienta != "crear_raid":
+        return args
     if not H._vacio(args.get("nombre")) and not H.raid_dicha(dicho, args["nombre"]):
         print(f"[router] la IA puso la raid «{args['nombre']}», pero no la dijiste: te pregunto")
         args = {**args, "nombre": ""}
@@ -637,8 +651,8 @@ def interpretar(texto, pendiente=None):
     nombre, args = llamada
     if origen == "ia":
         nombre, args = _pulir(texto, pendiente.datos if pendiente else None, nombre, args)
-    if nombre == "crear_raid":
-        args = _raid_sin_inventos(texto, pendiente, args)
+    if nombre in ("crear_raid", "crear_banda"):
+        args = _raid_sin_inventos(texto, pendiente, args, nombre)
     if nombre in ("crear_raid", "crear_banda"):
         # Lo que dijo Nicolas manda: si nombró un día claro, se usa ese aunque la IA haya puesto otro.
         fecha = H.corregir_dia(texto, args.get("fecha"))
