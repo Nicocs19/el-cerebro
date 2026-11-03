@@ -208,7 +208,17 @@ def esquemas():
         _f("cambiar_juego", "Cambia el juego (categoría) del directo en Kick.", {
             "juego": {"type": "string", "description": "Nombre del juego bien escrito, p. ej. World of Warcraft, Dead by Daylight, Just Chatting"},
         }, ["juego"]),
-        _f("consultar_titulo", "Dice el título actual del directo en Kick.", {}, []),
+        _f("cambiar_descripcion_stream", "Cambia la DESCRIPCIÓN del directo de YouTube (el texto largo debajo del video), "
+           "con los enlaces y hashtags que pida. Usala SIEMPRE que diga descripción.", {
+            "descripcion": {"type": "string", "description": "Lo redactás vos: 2 a 4 frases con onda sobre lo que pidió, en "
+                                                             "español latino, con emojis si queda bien y SIN enlaces"},
+            "enlaces": {"type": "array", "items": {"type": "string"},
+                        "description": "Nombres de los enlaces que pidió poner (discord, kick, tiktok, instagram…); vacío si no pidió"},
+            "hashtags": {"type": "array", "items": {"type": "string"},
+                         "description": "Si pidió hashtags: 3 a 6, sin # ni espacios (p. ej. WoWForever); vacío si no"},
+        }, ["descripcion"]),
+        _f("consultar_titulo", "Dice cómo está el directo: el título en Kick y en YouTube y la descripción de YouTube. "
+           "Usala si pregunta qué título tiene o pide revisar su directo o emisión.", {}, []),
         _f("restaurar_titulo", "Vuelve a poner el título anterior.", {}, []),
         _f("crear_miniatura", "Crea miniaturas con el estilo de la guild a partir de una captura de OBS.", {
             "titulo": {"type": "string", "description": "Texto grande, 2 a 6 palabras impactantes"},
@@ -569,6 +579,40 @@ def _falta_dia_u_hora(nombre, a):
 
 
 # ---------------------------------------------------------------- construir
+ICONOS_ENLACE = {"discord": "💬", "kick": "🟢", "tiktok": "🎵", "youtube": "▶️", "instagram": "📸", "insta": "📸",
+                 "twitter": "🐦", "x": "🐦", "facebook": "📘", "tienda": "🛒", "twitch": "🟣", "whatsapp": "📱"}
+ETIQUETAS_ENLACE = {"discord": f"Discord de la hermandad {config.NOMBRE_GUILD}", "kick": "Kick", "tiktok": "TikTok",
+                    "youtube": "YouTube", "instagram": "Instagram", "insta": "Instagram", "twitter": "X (Twitter)",
+                    "facebook": "Facebook", "tienda": "Tienda", "twitch": "Twitch", "whatsapp": "WhatsApp"}
+_URL_SUELTA = re.compile(r"(https?://\S+|www\.\S+|\b[\w-]+\.(?:com|gg|tv|net|org|io|me|ly)(?:/\S*)?)", re.I)
+
+
+def descripcion_completa(a):
+    """(texto, faltan): lo que redactó la IA + los enlaces reales (de enlaces.txt; nunca inventados) + los hashtags."""
+    import enlaces
+    texto = _URL_SUELTA.sub("", _txt(a, "descripcion", 3000, False)).strip()
+    texto = re.sub(r"[ \t]+\n", "\n", re.sub(r"[ \t]{2,}", " ", texto))
+    lineas, faltan, vistos = [], [], set()
+    for n in a.get("enlaces") or []:
+        k = sin_tildes(n).strip().lstrip("@#").split()[-1] if str(n).strip() else ""
+        if not k or k in vistos:
+            continue
+        vistos.add(k)
+        hallado = enlaces.buscar(k)
+        url = hallado[1] if hallado else (f"https://kick.com/{config.KICK_CANAL}" if k == "kick" and config.KICK_CANAL else "")
+        if not url:
+            faltan.append(k)
+            continue
+        lineas.append(f"{ICONOS_ENLACE.get(k, '🔗')} {ETIQUETAS_ENLACE.get(k, k.capitalize())}: {url}")
+    tags = []
+    for h in a.get("hashtags") or []:
+        t = re.sub(r"[^\w]", "", sin_tildes(h) if not str(h).isascii() else str(h))
+        if t and t.lower() not in {x.lower() for x in tags}:
+            tags.append(t)
+    partes = [texto] + (["\n".join(lineas)] if lineas else []) + ([" ".join("#" + t for t in tags[:8])] if tags else [])
+    return "\n\n".join(p for p in partes if p), faltan
+
+
 def construir(nombre, a):
     """Valida los argumentos del modelo y devuelve la Accion a ejecutar."""
     a = a or {}
@@ -658,6 +702,15 @@ def construir(nombre, a):
                     "idea": _txt(a, "miniatura_idea", 500, False)}
         juego = "" if _vacio(a.get("juego")) else _txt(a, "juego", 80, False)
         resumen = f"Título «{titulo}» en {', '.join(NOMBRES[p] for p in plataformas)}"
+        descripcion = None
+        if not _vacio(a.get("descripcion")):          # «cambiá el título y la descripción»: van juntos a YouTube
+            descripcion, faltan = descripcion_completa(a)
+            if "youtube" not in plataformas:
+                plataformas = plataformas + ["youtube"]
+                resumen = f"Título «{titulo}» en {', '.join(NOMBRES[p] for p in plataformas)}"
+            resumen += f"\nDescripción de YouTube:\n{descripcion}"
+            if faltan:
+                resumen += f"\n(No tengo guardado tu link de {', '.join(faltan)}.)"
         if juego:
             resumen += f"\nJuego en Kick: {juego}"
         if mini:
@@ -665,15 +718,23 @@ def construir(nombre, a):
             resumen += f" ({mini['idea']})" if mini["idea"] else ""
             resumen += " y la subo a YouTube" if "youtube" in plataformas or config.MINIATURA_SUBIR_YOUTUBE else ""
         # El título se ve en público: se confirma con «dale» igual que lo de Discord (salvo CONFIRMAR=nada)
-        return Accion("titulo", {"titulo": titulo, "plataformas": plataformas, "miniatura": mini, "juego": juego},
-                      resumen, publica)
+        datos = {"titulo": titulo, "plataformas": plataformas, "miniatura": mini, "juego": juego}
+        if descripcion:
+            datos["descripcion"] = descripcion
+        return Accion("titulo", datos, resumen, publica)
+
+    if nombre == "cambiar_descripcion_stream":
+        texto, faltan = descripcion_completa(a)
+        aviso = (f"\n(No tengo guardado tu link de {', '.join(faltan)}: copialo y decí «guardá este enlace como "
+                 f"{faltan[0]}».)" if faltan else "")
+        return Accion("descripcion", {"descripcion": texto}, f"Descripción del directo de YouTube:\n{texto}{aviso}", publica)
 
     if nombre == "cambiar_juego":
         j = _txt(a, "juego", 80)
         return Accion("juego", {"juego": j}, f"Juego del directo en Kick: {j}", publica)
 
     if nombre == "consultar_titulo":
-        return Accion("consultar_titulo", {}, "Consultar el título de Kick", False)
+        return Accion("consultar_titulo", {}, "Ver cómo está el directo (títulos y descripción)", False)
 
     if nombre == "restaurar_titulo":
         return Accion("restaurar_titulo", {}, "Restaurar el título anterior", todo)

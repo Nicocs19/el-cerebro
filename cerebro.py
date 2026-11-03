@@ -31,6 +31,17 @@ CORRIGE = re.compile(r"^(no|si|nel|mejor|pero|cambi|pone|ponele|que sea|solo|sac
                      r"viernes|sabado|domingo))\b")
 
 
+# «Lo hiciste mal», «te faltó el link», «pusiste X en vez de Y»: corrige lo ÚLTIMO que hizo (no es una orden nueva)
+QUEJA = re.compile(r"\b(lo hiciste mal|hiciste mal|esta mal|estuvo mal|salio mal|quedo mal|te equivocaste|te confundiste|"
+                   r"no era (eso|asi|ese|esa)|pusiste|no pusiste|has puesto|no has puesto|te falto|te olvidaste|falto|"
+                   r"corregi\w*|arreglal\w*|arregla|cambial[oa]|cambiale|en vez de|en lugar de|no es (eso|ese|esa|asi)|"
+                   r"hacelo de nuevo|rehac\w*|le falta|le falto|sacale|agregale|ponele|no dice|deberia decir|tenia que decir|"
+                   r"no tiene (el|mi|la))\b")
+CORREGIR_MINUTOS = 10
+# Lo que se puede corregir después de hecho (rehaciéndolo); charlas, búsquedas o bans no
+CORREGIBLE = ("overlay", "hogger", "titulo", "miniatura", "chat", "juego", "descripcion")
+
+
 class Cerebro:
     """La lógica: interpreta, pide confirmación y ejecuta. Corre en un solo hilo de trabajo."""
 
@@ -44,6 +55,7 @@ class Cerebro:
         self.pendiente_hasta = 0
         self.contexto = None            # orden incompleta mientras se responde una aclaración
         self.ultimo_relleno = 0.0       # para no decir «a ver…» a cada rato
+        self.hecha = None               # lo último que se hizo, por si dice «lo hiciste mal» (CORREGIR_MINUTOS)
 
     def manejar_texto(self, texto, auto_confirmar=False, estricto=False):
         texto = texto.strip()
@@ -67,8 +79,12 @@ class Cerebro:
         if config.VOZ_RELLENO and time.time() - self.ultimo_relleno > config.VOZ_RELLENO_PAUSA:
             relleno.start()           # si la IA tarda mucho, dice «a ver…» (como mucho uno por minuto)
         error = None
+        hecha = None
+        if (not self.pendiente and self.hecha is not None and QUEJA.search(router._norm(consulta))
+                and time.time() - getattr(self.hecha, "cuando", 0) < CORREGIR_MINUTOS * 60):
+            hecha = self.hecha            # «lo hiciste mal, no pusiste mi link»: corrige eso, no lo quita
         try:
-            accion, origen = router.interpretar(consulta, self.pendiente)
+            accion, origen = router.interpretar(consulta, self.pendiente, hecha=hecha)
         except Exception as e:  # noqa: BLE001
             error = e
         finally:
@@ -94,6 +110,9 @@ class Cerebro:
             if accion is None:
                 return None
 
+        if getattr(accion, "corrige", None) is not None:
+            self._preparar_correccion(accion)
+
         if accion.tipo == "aclaracion":
             log(f"PREGUNTA: {accion.resumen}")
             memoria.anotar("Vos", f"le preguntaste: {accion.resumen}")
@@ -110,12 +129,33 @@ class Cerebro:
             memoria.anotar("Vos", f"propusiste «{accion.resumen.splitlines()[0]}» y esperás su «dale» (todavía no se hizo)")
             pitido("pregunta")
             self.avisar("confirmar", accion)
-            pregunta = "¿Lo hago?" if accion.tipo in ("moderar", "overlay", "titulo", "juego") else "¿Publico?"
+            pregunta = "¿Lo hago?" if accion.tipo in ("moderar", "overlay", "titulo", "juego", "descripcion") else "¿Publico?"
             self.mostrar(f"{accion.resumen}\n\n{pregunta} Di «dale» o pulsa {config.CONFIRM_HOTKEY.upper()}. "
                          "«Cancela» para descartar; también puedes corregir.", "pregunta", config.CONFIRMAR_SEGUNDOS)
             self.escuchar()          # cuando termine de preguntar, te escucha solo (sin apretar la tecla)
             return None
         self._ejecutar(accion)
+
+    def _preparar_correccion(self, accion):
+        """Rehacer lo de recién: siempre con «dale», y en Discord se borra la publicación vieja antes de la nueva."""
+        vieja = accion.corrige
+        accion.confirmar = True
+        accion.reemplaza = False
+        ultima = (self.ejecutor.estado.get("ultima_publicacion") or {}).get("que")
+        if accion.tipo == "hogger" and vieja.tipo == "hogger" and accion.datos.get("accion") != "cerrar":
+            if ultima and ultima == vieja.resumen[:120]:
+                accion.reemplaza = True
+                accion.resumen = f"Corrijo lo de recién: {accion.resumen}\n(Borro la publicación anterior y publico esta.)"
+            else:
+                accion.resumen = (f"Corrijo lo de recién: {accion.resumen}\n(La publicación anterior no la puedo borrar "
+                                  "yo: quedan las dos.)")
+        elif accion.tipo == "overlay":
+            accion.resumen = f"Rehago el overlay: {accion.resumen}"
+        elif accion.tipo == "chat":
+            accion.resumen = f"Corrijo lo de recién: {accion.resumen}\n(El mensaje anterior queda en el chat.)"
+        else:
+            accion.resumen = f"Corrijo lo de recién: {accion.resumen}"
+        log(f"CORRIGE lo de recién: {vieja.resumen.splitlines()[0]}")
 
     def _corregir_de_nuevo(self, consulta, texto, accion):
         """Pediste un cambio («mejor en 20 minutos») y la IA devolvió lo mismo: se le pide otra vez, y si no, se cancela.
@@ -201,6 +241,9 @@ class Cerebro:
         if accion.tipo == "busqueda":
             sigue.start()             # si internet tarda, avisa que sigue buscando
         try:
+            if getattr(accion, "reemplaza", False):       # la corrección de una publicación: primero se borra la vieja
+                borrado = (ejecutor or self.ejecutor).ejecutar(H.construir("deshacer_ultima_publicacion", {}))
+                log(f"CORRECCIÓN: {borrado}")
             resultado = (ejecutor or self.ejecutor).ejecutar(accion)
         except Exception as e:  # noqa: BLE001
             sigue.cancel()
@@ -214,6 +257,10 @@ class Cerebro:
             memoria.anotar("Vos", f"dijiste en voz alta: {str(resultado).split(chr(10) + '(Fuente:')[0]}")
         else:
             memoria.anotar("Vos", f"hiciste: {str(resultado).splitlines()[0] if resultado else accion.resumen.splitlines()[0]}")
+        if (accion.tipo in CORREGIBLE and getattr(accion, "herramienta", None)
+                and accion.datos.get("accion") not in ("quitar", "ocultar", "cerrar")):
+            accion.cuando = time.time()
+            self.hecha = accion             # por si después dice «lo hiciste mal» o «te faltó…»
         pitido("ok")
         self.avisar("hecho", accion, resultado)
         self.mostrar(resultado, "ok", 8)

@@ -161,7 +161,10 @@ def frase(evento, accion=None, detalle=None):
             return f"Overlay {d.get('nombre')}, {str(d.get('posicion', '')).replace('-', ' ')}. ¿Lo diseño?"
         if tipo == "titulo":
             extra = (" Con el juego " + d["juego"] + "." if d.get("juego") else "") + (" Y te hago la miniatura." if d.get("miniatura") else "")
+            extra += " Y la descripción de YouTube: leela en pantalla." if d.get("descripcion") else ""
             return f"Título: {d.get('titulo')}.{extra} ¿Lo cambio?"
+        if tipo == "descripcion":
+            return "Te dejé la descripción en pantalla para que la leas. ¿La cambio en YouTube?"
         if tipo == "juego":
             return f"Juego {d.get('juego')} en Kick. ¿Lo cambio?"
         primera = (accion.resumen if accion else "").splitlines()[0] if accion else ""
@@ -180,7 +183,11 @@ def frase(evento, accion=None, detalle=None):
             return "Listo, lo borré."
         if tipo == "restaurar_titulo":
             return "Volví al título anterior."
-        if tipo in ("consultar_titulo", "respuesta"):
+        if tipo == "consultar_titulo":          # la descripción es larga: se lee en pantalla
+            return re.sub(r"\. Descripción: .*", ". La descripción te la dejo en pantalla.", str(detalle or ""))
+        if tipo == "descripcion":
+            return "Descripción cambiada en YouTube."
+        if tipo == "respuesta":
             return str(detalle or "")
         if tipo == "busqueda":
             return str(detalle or "").split("\n(Fuente:")[0]

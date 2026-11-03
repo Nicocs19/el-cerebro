@@ -14,6 +14,7 @@ import time
 import dictado
 import herramientas as H
 import router
+router.REGISTRAR = False          # las pruebas no ensucian data/router.log
 
 FRASES = [
     "lanza un anuncio a la guild que esta noche hacemos mazmorras a las 10, que vengan con pociones",
@@ -106,7 +107,7 @@ FRASES_CHAT = {
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
     modos = {"chat": probar_chat, "charla": probar_charla, "flujo": probar_flujo, "rapido": probar_rapido,
-             "todo": probar_todo}
+             "corregir": probar_corregir, "todo": probar_todo}
     if sys.argv[1:2] and sys.argv[1] in modos:
         bien, total = modos[sys.argv[1]]()
         return 0 if bien == total else 1
@@ -261,6 +262,13 @@ def probar_rapido():
               ("saludo a Lucas: frase fija con su nombre", "Lucas" in (router._saludo_fijo(
                   "Eh, Cerebro, mándale un saludo a Lucas.") or ""), True),
               ("saludo al chat: va a la IA", router._saludo_fijo("mandá un saludo al chat"), None),
+              ("contestó «Es Molten Core» a «¿Qué raid es?»", router._raid_en_el_texto(
+                  "mandes un anuncio de raid para que se registren, cupo de 20. Es Molten Core, amigo, me olvidé decirte."),
+               "Molten Core"),
+              ("«sacá el cartel» sí lo quita", router._no_quitar_sin_pedir("sacá el cartel", "overlay", {
+                  "accion": "quitar", "nombre": "raid"})[0], "overlay"),
+              ("«lo hiciste mal» no lo quita", router._no_quitar_sin_pedir("lo hiciste mal", "overlay", {
+                  "accion": "quitar", "nombre": "raid"})[0], "pedir_aclaracion"),
               ("saludo + otra orden: va a la IA", router._saludo_fijo("saludá a Lucas y decile que se suscriba"), None)]
     bien = 0
     for nombre, salio, esperado in casos:
@@ -269,6 +277,84 @@ def probar_rapido():
         if not ok:
             print(f"FALLO {nombre}: salió {salio!r}, tenía que ser {esperado!r}")
     print(f"{bien}/{len(casos)} bien (rápidas, sin IA).")
+    return bien, len(casos)
+
+
+# ---------------------------------------------------------------- corregir lo hecho (IA de mentira: no hace falta Ollama)
+def probar_corregir():
+    """«Creame un overlay con mi link de Discord» -> «lo hiciste mal…» -> rehace el MISMO overlay con el link real.
+
+    La IA se reemplaza por respuestas fijas (las que dio de verdad el 3 nov), así se prueba lo que hace el programa.
+    """
+    import acciones
+    import cerebro
+    import enlaces
+    callar = lambda *a, **k: None                    # noqa: E731
+    viejos = (router._llamar_ollama, enlaces.leer, acciones.log, cerebro.log, cerebro.pitido)
+    acciones.log = cerebro.log = callar
+    cerebro.pitido = callar
+    enlaces.leer = lambda: {"discord": "https://discord.gg/prueba", "tiktok": "https://tiktok.com/@prueba"}
+
+    def ia(texto, pendiente=None, solo=None, temperatura=0.2, nota="", hecha=None):
+        n = router._norm(texto)
+        if "nicolas" in n and solo == ["overlay"]:        # el reintento: ahora sí lo rehace
+            return "overlay", {"accion": "crear", "nombre": "discord nuevo", "descripcion": "Cartel que diga «Únete al Discord» "
+                               "con el enlace de discord"}
+        if "nicolas" in n:                                # lo que hizo de verdad: quitarlo
+            return "overlay", {"accion": "quitar", "nombre": "discord"}
+        if "overlay" in n and solo == ["overlay"]:
+            return "overlay", {"accion": "crear", "nombre": "discord", "descripcion": "Cartel que diga «Únete al Discord» con el "
+                               "enlace de Nicolas", "posicion": "arriba-derecha", "tamano": "mediano"}
+        if "overlay" in n:                                # a5da20e: lo mandaba al chat
+            return "mandar_al_chat", {"enlace": "discord", "texto": "", "plataformas": ["kick"]}
+        if "20 minutos" in n:
+            return "mensaje_discord", {"texto": "¡En 20 minutos arranco directo!", "canal": "general"}
+        if "10 minutos" in n:
+            return "mensaje_discord", {"texto": "¡En 10 minutos arranco directo!", "canal": "general"}
+        if "descripcion" in n:
+            return "cambiar_descripcion_stream", {"descripcion": "¡Subimos al Warrior en el lanzamiento! ⚔️", "enlaces": ["discord"]}
+        return "responder", {"respuesta": "¡Perdón, jefe!"}
+
+    router._llamar_ollama = ia
+    casos = []
+    try:
+        c = cerebro.Cerebro(lambda *a, **k: None, simular=True)
+        c.ejecutor.estado = {}
+        c.manejar_texto("Che, Cerebro, ¿podrías crearme un overlay que diga únete al Discord y colocar ahí mi enlace de Discord?")
+        p = c.pendiente
+        casos.append(("overlay con link: es overlay (no chat)", p and p.tipo, "overlay"))
+        casos.append(("overlay con el link real de enlaces.txt", "discord.gg/prueba" in str(p and p.datos.get("descripcion")), True))
+        c.confirmar()
+        casos.append(("recuerda lo que hizo", c.hecha and c.hecha.tipo, "overlay"))
+        c.manejar_texto("Amigo, está bien, pero has puesto enlace de Nicolás, no has puesto el enlace de Discord.")
+        p = c.pendiente
+        casos.append(("«lo hiciste mal» no lo quita: lo rehace", p and (p.tipo, p.datos.get("accion")), ("overlay", "crear")))
+        casos.append(("rehace el MISMO overlay", p and p.datos.get("nombre"), "discord"))
+        casos.append(("y pide «dale» antes", bool(p and p.confirmar and p.resumen.startswith("Rehago")), True))
+        c.cancelar()
+        c.manejar_texto("avisá en el discord que en 10 minutos empiezo")
+        c.confirmar()
+        c.ejecutor.estado["ultima_publicacion"] = {"via": "hogger", "link": "x", "que": c.hecha.resumen[:120]}
+        c.manejar_texto("te equivocaste, era en 20 minutos")
+        p = c.pendiente
+        casos.append(("corrige el mensaje de Discord", "20 minutos" in str(p and p.datos.get("texto")), True))
+        casos.append(("borra el viejo y publica el nuevo", bool(p and getattr(p, "reemplaza", False)), True))
+        c.cancelar()
+        c.manejar_texto("cambia la descripción de la transmisión, que ponga el Discord de la hermandad, mi Kick y mi TikTok")
+        p = c.pendiente
+        d = str(p and p.datos.get("descripcion"))
+        casos.append(("descripción con Discord, Kick y TikTok reales",
+                      all(x in d for x in ("discord.gg/prueba", "kick.com/", "tiktok.com/@prueba")), True))
+        c.cancelar()
+    finally:
+        router._llamar_ollama, enlaces.leer, acciones.log, cerebro.log, cerebro.pitido = viejos
+    bien = 0
+    for nombre, salio, esperado in casos:
+        ok = salio == esperado
+        bien += ok
+        if not ok:
+            print(f"FALLO {nombre}: salió {salio!r}, tenía que ser {esperado!r}")
+    print(f"{bien}/{len(casos)} bien (corregir lo hecho, con IA de mentira).")
     return bien, len(casos)
 
 
@@ -337,7 +423,8 @@ def probar_flujo():
 def probar_todo():
     import memoria
     resultados = []
-    for nombre, f in (("rápidas", probar_rapido), ("Discord y títulos", probar_general), ("chat", probar_chat),
+    for nombre, f in (("rápidas", probar_rapido), ("corregir", probar_corregir), ("Discord y títulos", probar_general),
+                      ("chat", probar_chat),
                       ("flujo", probar_flujo), ("charla", probar_charla)):
         print(f"\n========== {nombre} ==========")
         memoria.olvidar()

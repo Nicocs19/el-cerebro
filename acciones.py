@@ -107,8 +107,8 @@ class Ejecutor:
                     self.kick.cambiar_titulo(titulo, cat["id"] if cat else None)
                     hechas.append(f"Kick (juego: {cat['name']})" if cat else "Kick")
                 elif p == "youtube":
-                    anteriores["youtube"] = self.yt.cambiar_titulo(titulo)
-                    hechas.append("YouTube")
+                    anteriores["youtube"] = self.yt.cambiar_titulo(titulo, accion.datos.get("descripcion"))
+                    hechas.append("YouTube (con la descripción)" if accion.datos.get("descripcion") else "YouTube")
                 elif p == "tiktok":
                     hechas.append(f"TikTok ({tiktok.cambiar_titulo(titulo)})")
             except Exception as e:  # noqa: BLE001
@@ -136,7 +136,29 @@ class Ejecutor:
         return f"Juego cambiado en Kick a {cat['name']}. En YouTube y TikTok el juego se cambia a mano."
 
     def _consultar_titulo(self, accion):
-        return f"Kick: «{self.kick.titulo_actual()}»"
+        partes = []
+        try:
+            t = self.kick.titulo_actual()
+            partes.append(f"Kick: «{t}»" if t else "Kick: no me devuelve el título (puede que tenga que estar en vivo)")
+        except Exception as e:  # noqa: BLE001
+            partes.append(f"Kick: no pude verlo ({e})")
+        try:
+            vid, sn = self.yt._video()
+            desc = " ".join(str(sn.get("description") or "").split())
+            partes.append(f"YouTube: «{sn.get('title', '')}»" + (f". Descripción: {desc[:160]}{'…' if len(desc) > 160 else ''}"
+                                                                 if desc else ". Sin descripción"))
+        except Exception as e:  # noqa: BLE001
+            partes.append(f"YouTube: {e}")
+        return "\n".join(partes)
+
+    def _descripcion(self, accion):
+        if self.simular:
+            return f"[simulado] {accion.resumen.splitlines()[0]}"
+        vid, sn = self.yt._video()
+        self.estado["descripcion_anterior"] = {"youtube": sn.get("description", "")}
+        self._guardar()
+        self.yt.cambiar_titulo(sn["title"], accion.datos["descripcion"], video_id=vid)
+        return "Descripción cambiada en YouTube. (Kick y TikTok no tienen descripción que se pueda cambiar.)"
 
     def _restaurar_titulo(self, accion):
         anteriores = self.estado.get("titulos_anteriores") or {}

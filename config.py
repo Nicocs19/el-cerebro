@@ -85,6 +85,7 @@ KICK_CLIENT_ID = _s("KICK_CLIENT_ID")
 KICK_CLIENT_SECRET = _s("KICK_CLIENT_SECRET")
 KICK_REDIRECT_URI = _s("KICK_REDIRECT_URI", "http://localhost:8765/callback")
 KICK_CATEGORY_ID = _s("KICK_CATEGORY_ID")
+KICK_CANAL = _s("KICK_CANAL", "misterache")              # tu canal (para el link de Kick en la descripción)
 KICK_TOKENS = DATA / "kick_tokens.json"
 # --- Chat del stream (moderación por voz y enlaces) ---
 CHAT_KICK = _b("CHAT_KICK", True)                       # escuchar el chat de Kick para encontrar a quién moderar
