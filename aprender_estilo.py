@@ -21,6 +21,18 @@ from overlays import SIN_HERRAMIENTAS, SOLO_ESTO, buscar_claude
 
 EXTENSIONES = (".jpg", ".jpeg", ".png", ".webp")
 MAXIMO = 16
+# Ejemplos que NO se toman de modelo (una por línea, el nombre del archivo o una parte): recursos/no_usar.txt
+NO_USAR = config.RECURSOS / "no_usar.txt"
+
+
+def _clave(t):
+    return re.sub(r"[^a-z0-9]", "", str(t).lower())
+
+
+def no_usar():
+    if not NO_USAR.exists():
+        return []
+    return [_clave(x) for x in NO_USAR.read_text(encoding="utf-8").splitlines() if _clave(x) and not x.startswith("#")]
 
 PEDIDO = """En esta carpeta hay {n} miniaturas de YouTube que hizo Mr. H, un streamer de World of Warcraft (hermandad
 The H's). Le encantan. Archivos: {lista}
@@ -40,7 +52,13 @@ Respondé solo con la guía."""
 def copiar(origen, destino):
     """Copias en chico de los ejemplos más nuevos. Devuelve los nombres."""
     destino.mkdir(parents=True, exist_ok=True)
-    fotos = sorted((f for f in origen.rglob("*") if f.suffix.lower() in EXTENSIONES),
+    fuera = no_usar()
+    for copia in destino.iterdir():              # copias nuestras de ejemplos que ya no se usan (tus originales no se tocan)
+        if any(x in _clave(copia.stem) for x in fuera):
+            copia.unlink()
+            print(f"  (saco de los ejemplos: {copia.name})")
+    fotos = sorted((f for f in origen.rglob("*") if f.suffix.lower() in EXTENSIONES
+                    and not any(x in _clave(f.stem) for x in fuera)),
                    key=lambda f: f.stat().st_mtime, reverse=True)[:MAXIMO]
     nombres = []
     for f in fotos:
