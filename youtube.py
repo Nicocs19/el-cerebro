@@ -20,7 +20,9 @@ def credenciales():
             try:
                 c.refresh(Request())
             except Exception as e:  # noqa: BLE001
-                raise YoutubeError(f"Google rechazó la renovación ({e}). Vuelve a ejecutar conectar_youtube.bat")
+                # Se aparta el permiso vencido para que conectar_plataformas.bat vuelva a pedirlo
+                config.YOUTUBE_TOKEN.replace(config.YOUTUBE_TOKEN.with_suffix(".vencido"))
+                raise YoutubeError(f"La conexión con YouTube venció ({e}). Doble clic en conectar_plataformas.bat")
             config.YOUTUBE_TOKEN.write_text(c.to_json(), encoding="utf-8")
         else:
             raise YoutubeError("La sesión de YouTube caducó. Ejecuta conectar_youtube.bat")

@@ -61,13 +61,17 @@ Si ves el botón «Comenzar» (Get started), tocálo y completá:
    Público (Audience):        Externo (External)
    Información de contacto:   tu correo
    Aceptá la política y tocá «Crear».
-Si en vez de «Comenzar» ves un resumen, ya estaba hecho: seguí al paso 2.""")
+Si en vez de «Comenzar» ves «Información de marca»: dejá vacíos el logotipo, los vínculos y los dominios
+(si subís un logo, Google pide revisar la app y tarda días). Al final, en «Información de contacto
+del desarrollador», poné tu correo y tocá «Guardar».""")
     webbrowser.open(f"https://console.cloud.google.com/auth/overview{q}")
     guia.esperar_enter()
 
     guia.paso(2, 4, """
 Ahora se abre «Público» (Audience). Tocá «Publicar app» (Publish app) y confirmá.
-Así la conexión no se corta cada 7 días. Si ya dice «En producción», está listo.""")
+Así la conexión no se corta cada 7 días. Si ya dice «En producción», está listo.
+Si «Publicar app» sigue gris: en «Usuarios de prueba» tocá «+ Add users», poné el correo de tu canal
+de YouTube y guardá. Funciona igual, pero cada 7 días hay que volver a abrir conectar_plataformas.bat.""")
     webbrowser.open(f"https://console.cloud.google.com/auth/audience{q}")
     guia.esperar_enter()
 
