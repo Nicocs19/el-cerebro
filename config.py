@@ -141,8 +141,12 @@ MINIATURA_REVISAR = _b("MINIATURA_REVISAR", True)      # un Claude mira cómo qu
 MINIATURA_SUBIR_YOUTUBE = _b("MINIATURA_SUBIR_YOUTUBE", True)   # subir sola la miniatura al directo de YouTube
 MINIATURA_CLAUDE = _b("MINIATURA_CLAUDE", True)        # las miniaturas las diseña Claude (si falla, plantilla dorada)
 OVERLAY_CLAUDE = _b("OVERLAY_CLAUDE", True)            # los overlays los diseña Claude (programa claude de tu PC)
-OVERLAY_ESPERA = int(_f("OVERLAY_ESPERA", 300))         # segundos máximos esperando el diseño de Claude
-CLAUDE_MODELO = _s("CLAUDE_MODELO", "sonnet")           # modelo de Claude para diseñar (sonnet es rápido y bueno)
+OVERLAY_ESPERA = int(_f("OVERLAY_ESPERA", 480))         # segundos máximos esperando el diseño de Claude (Opus tarda más)
+CLAUDE_MODELO = _s("CLAUDE_MODELO", "opus")             # modelo de Claude para diseñar miniaturas y overlays (el mejor)
+# Tus miniaturas favoritas: aprender_estilo.bat las copia en chico a recursos/referencias y escribe la guía de estilo
+MINIATURAS_EJEMPLOS = _s("MINIATURAS_EJEMPLOS", r"E:\Biblioteca\Imagenes\Miniaturas YouTube")
+REFERENCIAS = RECURSOS / "referencias"
+ESTILO_MINIATURAS = RECURSOS / "estilo_miniaturas.md"
 CLAUDE_EXE = _s("CLAUDE_EXE")                           # ruta a claude.exe si no se encuentra solo
 
 # --- Respuesta ---

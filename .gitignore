@@ -7,3 +7,5 @@ __pycache__/
 *.pyc
 enlaces.txt
 overlays/
+recursos/referencias/
+recursos/estilo_miniaturas.md

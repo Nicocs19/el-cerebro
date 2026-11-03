@@ -18,7 +18,11 @@ from miniaturas import FORMATOS
 
 ESTILO = """Estilo de la hermandad The H's (World of Warcraft Forever): dorado #E8C468 / #F5D98B sobre negros y marrones muy
 oscuros, tipografía Cinzel (archivo Cinzel.ttf de la carpeta) para el título, logo de la guild con brillo dorado,
-contraste alto, texto enorme y legible en chico (es una miniatura de YouTube), composición limpia y épica."""
+contraste alto, texto enorme y legible en chico (es una miniatura de YouTube), composición limpia y épica.
+Lo que hace que sus miniaturas funcionen: UNA idea fuerte; personaje o cara expresiva GRANDE (60% o más de la imagen);
+título de 2 a 4 palabras, enorme, dorado biselado con borde oscuro y a veces UNA palabra de acento en otro color
+(rojo fuego, verde vil, azul arcano); color fuerte con luz de fuego, magia o contraluz; fondo de escena con
+desenfoque; logo chico en una esquina; chispas, brasas o rayos sutiles. Nada de marcos dobles ni cajas apagadas."""
 
 
 def edge():
@@ -231,6 +235,29 @@ Poné "recortar": true si es un personaje o criatura (el programa se fija solo s
     return bajadas
 
 
+def _sin_tildes(t):
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFD", str(t).lower()) if unicodedata.category(c) != "Mn")
+
+
+def _referencias(carpeta, titulo, idea, maximo=4):
+    """Copia a la carpeta hasta 4 de tus miniaturas de ejemplo (las que más se parecen al pedido) para que las mire."""
+    if not config.REFERENCIAS.is_dir():
+        return []
+    fotos = [f for f in config.REFERENCIAS.iterdir() if f.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp")]
+    palabras = set(re.findall(r"\w{4,}", _sin_tildes(f"{titulo} {idea}")))
+
+    def puntaje(f):
+        return len(palabras & set(re.findall(r"\w{4,}", _sin_tildes(f.stem.replace("_", " "))))), f.stat().st_mtime
+
+    elegidas = []
+    for i, f in enumerate(sorted(fotos, key=puntaje, reverse=True)[:maximo], 1):
+        destino = carpeta / f"referencia_{i}{f.suffix.lower()}"
+        shutil.copy(f, destino)
+        elegidas.append(f"- {destino.name}: «{f.stem.replace('_', ' ')}»")
+    return elegidas
+
+
 def disenar(carpeta, titulo, subtitulo, idea):
     from overlays import pedir_a_claude
     extras = []
@@ -239,6 +266,13 @@ def disenar(carpeta, titulo, subtitulo, idea):
             extras = buscar_imagenes(idea, carpeta)
         except Exception as e:  # noqa: BLE001
             print(f"[miniatura] No pude buscar imágenes ({e}); la diseño con lo que hay.")
+    guia = config.ESTILO_MINIATURAS.read_text(encoding="utf-8").strip() if config.ESTILO_MINIATURAS.exists() else ""
+    estilo_propio = (f"Así son las miniaturas que más le gustan a Mr. H (sacado de sus ejemplos). Es la vara: la tuya "
+                     f"tiene que estar a ese nivel o mejor:\n{guia[:4000]}\n\n") if guia else ""
+    refs = _referencias(carpeta, titulo, idea)
+    ejemplos = ("\nEjemplos de Mr. H (miniaturas suyas que le encantan). ANTES de diseñar, abrí cada una con Read y "
+                "copiá su nivel: composición, tamaño del texto, colores, brillo y efectos. Son solo para mirar: NO las "
+                "pongas en el diseño ni copies sus textos.\n" + "\n".join(refs) + "\n") if refs else ""
     pedido = f"""Diseñá la miniatura de un directo de Twitch/Kick/YouTube como UNA página HTML.
 Título (texto grande, EXACTO): {titulo}
 Subtítulo (texto chico, EXACTO; si está vacío no pongas nada): {subtitulo}
@@ -246,9 +280,9 @@ Idea de Mr. H: {idea or "ninguna en especial: elegí la composición que mejor v
 
 {ESTILO}
 
-Archivos que podés usar (están en la misma carpeta que el HTML, usalos con rutas relativas):
+{estilo_propio}Archivos que podés usar (están en la misma carpeta que el HTML, usalos con rutas relativas):
 {_preparar(carpeta, extras)}
-
+{ejemplos}
 Reglas:
 - Un solo archivo HTML con el CSS adentro, sin JavaScript que dependa de internet y sin cargar nada de internet.
 - La misma página se va a sacar en 1280x720 (horizontal) y en 1080x1920 (vertical, para TikTok): ocupá siempre el 100%
@@ -274,7 +308,11 @@ Reglas:
 - No agregues textos, fechas ni datos que no estén arriba.
 Respondé solo con el HTML."""
     archivo = carpeta / "diseno.html"
-    archivo.write_text(pedir_a_claude(pedido, carpeta), encoding="utf-8")
+    try:
+        archivo.write_text(pedir_a_claude(pedido, carpeta, mirar=bool(refs)), encoding="utf-8")
+    finally:
+        for f in carpeta.glob("referencia_*"):          # los ejemplos no pueden terminar dentro de la miniatura
+            f.unlink(missing_ok=True)
     return archivo
 
 
@@ -330,7 +368,7 @@ def revisar(carpeta, html):
     comando += ["--disallowedTools"] + [h for h in SIN_HERRAMIENTAS if h != "Read"] + ["--allowedTools", "Read"]
     try:
         r = subprocess.run(comando, input=REVISION.format(html=html.read_text(encoding="utf-8")), capture_output=True,
-                           text=True, encoding="utf-8", timeout=240, cwd=str(carpeta))
+                           text=True, encoding="utf-8", timeout=360, cwd=str(carpeta))
     finally:
         for f in ("_rev_youtube.png", "_rev_tiktok.png"):
             (carpeta / f).unlink(missing_ok=True)

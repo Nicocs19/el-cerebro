@@ -84,14 +84,22 @@ SIN_HERRAMIENTAS = ["Bash", "PowerShell", "Read", "Write", "Edit", "NotebookEdit
 SOLO_ESTO = ["--strict-mcp-config"]      # sin conectores (Notion, Drive…): cada Claude usa solo lo que se le da
 
 
-def pedir_a_claude(pedido, carpeta_trabajo):
-    """Le pasa el pedido a Claude (por la entrada, así no se rompen las comillas) y devuelve el HTML que responde."""
+def pedir_a_claude(pedido, carpeta_trabajo, mirar=False):
+    """Le pasa el pedido a Claude (por la entrada, así no se rompen las comillas) y devuelve el HTML que responde.
+
+    mirar=True: puede ABRIR (solo leer) las imágenes de su carpeta de trabajo, p. ej. tus miniaturas de ejemplo.
+    Nunca tiene internet, ni escribe, ni corre programas.
+    """
     exe = buscar_claude()
     if not exe:
         raise RuntimeError("no está el programa claude en esta PC")
     comando = [exe, "-p"] + SOLO_ESTO + (["--model", config.CLAUDE_MODELO] if config.CLAUDE_MODELO else [])
-    comando += ["--disallowedTools"] + SIN_HERRAMIENTAS          # el diseñador no toca internet ni archivos
-    pedido += "\nRespondé directo, sin usar herramientas ni abrir archivos: acá tenés todo lo que necesitás."
+    if mirar:
+        comando += ["--max-turns", "12", "--disallowedTools"] + [h for h in SIN_HERRAMIENTAS if h != "Read"]
+        comando += ["--allowedTools", "Read(./**)"]               # solo su carpeta
+    else:
+        comando += ["--disallowedTools"] + SIN_HERRAMIENTAS      # el diseñador no toca internet ni archivos
+        pedido += "\nRespondé directo, sin usar herramientas ni abrir archivos: acá tenés todo lo que necesitás."
     r = subprocess.run(comando, input=pedido, capture_output=True, text=True, encoding="utf-8",
                        timeout=config.OVERLAY_ESPERA, cwd=str(carpeta_trabajo))
     m = re.search(r"<!doctype html.*?</html>|<html.*?</html>", r.stdout or "", re.S | re.I)
