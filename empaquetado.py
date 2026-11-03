@@ -4,6 +4,7 @@ Es un Claude aparte (CLAUDE_MODELO_EMPAQUETADO, Opus) que hace solo esto. No tie
 archivos, ni programas. Recibe lo que dijiste y devuelve un JSON. El programa lo valida, pone los enlaces reales y te
 lo muestra entero antes del «dale». Si tarda o falla, sigue lo que había armado la IA local: nunca te quedás sin nada.
 """
+import datetime
 import json
 import re
 import subprocess
@@ -17,10 +18,11 @@ arruinar la retención.
 
 EL CANAL
 - Mr. H (Nicolas), streamer de World of Warcraft en español latino. GM de la hermandad {guild}.
-- Juega WoW Forever (salió el 4 de noviembre de 2026). En vivo en Kick (principal), YouTube y TikTok.
+- Juega WoW Forever. {lanzamiento} En vivo en Kick (principal), YouTube y TikTok.
 - Contenido: subir personajes (Warrior y otros), raids (Molten Core, Onyxia…), pesca relajada, novedades del juego,
   humor con la comunidad. El Cerebro es su asistente (un cerebro con gafas).
 
+HOY ES {hoy}.
 LO QUE PIDIÓ (dictado por voz, puede traer errores): «{orden}»
 {fijos}
 Armá: {partes}
@@ -34,8 +36,9 @@ CÓMO SE ARMA UN EMPAQUETADO QUE GANA
    concreto, un contraste, o la urgencia del en vivo. Lenguaje de la comunidad de WoW. Una o dos palabras en
    MAYÚSCULAS como mucho, y cero o un emoji.
 3. Clickbait táctico: podés exagerar la emoción, el riesgo y la apuesta. NUNCA mientas: nada de datos, premios,
-   resultados, invitados o noticias que no estén en lo que dijo Mr. H. Lo que promete el título tiene que pasar en
-   el directo; si no, la gente se va y el canal pierde.
+   resultados, invitados, horarios, cantidad de gente o noticias que no estén en lo que dijo Mr. H. Lo que no dijo
+   no lo afirmes: convertilo en pregunta («¿cae Ragnaros?»). Lo que promete el título tiene que pasar en el
+   directo; si no, la gente se va y el canal pierde.
 4. Texto de la miniatura: 2 a 4 palabras en MAYÚSCULAS, que se lean en el celular (168 px de ancho). Pueden llevar
    UNA palabra de acento. Subtítulo opcional de 1 a 3 palabras, solo si suma.
 5. Idea visual (el pedido para el diseñador, que trabaja en HTML con la captura del juego, fotos de Mr. H y arte de
@@ -46,14 +49,35 @@ CÓMO SE ARMA UN EMPAQUETADO QUE GANA
    abajo a la derecha donde YouTube pone la duración); qué imágenes usar (logo de WoW, arte de la clase o de la
    raid). Una sola idea; si hay duda, menos elementos.
 6. Descripción: la primera línea es otro gancho (es lo único que se ve sin abrirla). Después 2 a 4 frases con onda
-   sobre lo que va a pasar y una invitación a la comunidad (seguir, entrar al Discord). SIN enlaces: pedilos por
-   nombre en "enlaces" (discord, kick, tiktok, youtube, instagram) y el programa pone los reales. Hashtags: 3 a 5,
-   primero los más buscados (WoWForever, WorldOfWarcraft), sin #.
+   sobre lo que va a pasar y una invitación a la comunidad (seguir, entrar al Discord). SIN enlaces ni URLs: el
+   programa agrega abajo los que pidió Mr. H. Hashtags: 3 a 5, primero los más buscados (WoWForever,
+   WorldOfWarcraft), sin #.
 7. Nunca nada sobre raza, origen, sexo, orientación, religión, físico o discapacidades, ni ataques a personas.
 
 Respondé SOLO con este JSON (sin texto antes ni después). Dejá "" en lo que no se pidió:
 {{"titulo": "", "miniatura": "", "miniatura_subtitulo": "", "miniatura_idea": "", "descripcion": "",
-  "enlaces": [], "hashtags": [], "por_que": "una frase: la idea y el gancho que elegiste"}}"""
+  "hashtags": [], "por_que": "una frase: la idea y el gancho que elegiste"}}"""
+
+DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre",
+         "noviembre", "diciembre"]
+
+
+def _fecha(d):
+    return f"{DIAS[d.weekday()]} {d.day} de {MESES[d.month - 1]} de {d.year}"
+
+
+def _lanzamiento(hoy):
+    """Para que no diga «¡Salió WoW Forever!» el día antes."""
+    try:
+        sale = datetime.date.fromisoformat(config.LANZAMIENTO)
+    except ValueError:
+        return ""
+    if hoy < sale:
+        return f"Sale el {_fecha(sale)}: TODAVÍA NO SALIÓ (decí «sale», «se viene», nunca «salió»)."
+    if hoy == sale:
+        return "Sale HOY: es el día del lanzamiento."
+    return f"Salió el {_fecha(sale)}."
 
 PARTES = {"titulo": "el TÍTULO del directo", "miniatura": "el TEXTO y la IDEA VISUAL de la miniatura",
           "descripcion": "la DESCRIPCIÓN de YouTube (con enlaces y hashtags)"}
@@ -76,7 +100,9 @@ def armar(orden, partes, fijos=None):
     nombres = {"titulo": "título", "miniatura": "texto de la miniatura"}
     texto_fijos = ("Esto lo dictó Mr. H y va TAL CUAL (armá el resto alrededor, en sinergia):\n"
                    + "\n".join(f"- {nombres.get(k, k)}: «{v}»" for k, v in fijos.items()) + "\n") if fijos else ""
-    pedido = PEDIDO.format(guild=config.NOMBRE_GUILD, orden=orden.strip(), fijos=texto_fijos,
+    hoy = datetime.date.today()
+    pedido = PEDIDO.format(guild=config.NOMBRE_GUILD, orden=orden.strip(), fijos=texto_fijos, hoy=_fecha(hoy),
+                           lanzamiento=_lanzamiento(hoy),
                            partes=", ".join(PARTES[p] for p in partes if p in PARTES) or PARTES["titulo"])
     comando = [exe, "-p", "--output-format", "json"] + SOLO_ESTO
     comando += ["--model", config.CLAUDE_MODELO_EMPAQUETADO or "opus", "--disallowedTools"] + SIN_HERRAMIENTAS

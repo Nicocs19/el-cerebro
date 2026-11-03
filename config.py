@@ -150,6 +150,9 @@ EMPAQUETADO = _b("EMPAQUETADO", True)
 EMPAQUETAR_SIEMPRE = _b("EMPAQUETAR_SIEMPRE", False)    # true = también los títulos que dictás tal cual los optimiza
 CLAUDE_MODELO_EMPAQUETADO = _s("CLAUDE_MODELO_EMPAQUETADO", "opus")
 EMPAQUETADO_ESPERA = int(_f("EMPAQUETADO_ESPERA", 150))   # segundos máximos; si tarda más, queda lo de la IA local
+# Enlaces que van en la descripción cuando no nombrás ninguno (si alguno no está guardado, se saltea sin avisar)
+ENLACES_DE_SIEMPRE = _lista("ENLACES_DE_SIEMPRE", "discord,kick,tiktok")
+LANZAMIENTO = _s("LANZAMIENTO", "2026-11-04")             # el día que sale WoW Forever (el agente no dice «salió» antes)
 # Tus miniaturas favoritas: aprender_estilo.bat las copia en chico a recursos/referencias y escribe la guía de estilo
 MINIATURAS_EJEMPLOS = _s("MINIATURAS_EJEMPLOS", r"E:\Biblioteca\Imagenes\Miniaturas YouTube")
 REFERENCIAS = RECURSOS / "referencias"

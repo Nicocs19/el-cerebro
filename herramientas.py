@@ -601,7 +601,8 @@ def descripcion_completa(a):
         hallado = enlaces.buscar(k)
         url = hallado[1] if hallado else (f"https://kick.com/{config.KICK_CANAL}" if k == "kick" and config.KICK_CANAL else "")
         if not url:
-            faltan.append(k)
+            if "_avisar" not in a or k in a["_avisar"]:      # de los de siempre que no guardaste no avisa
+                faltan.append(k)
             continue
         lineas.append(f"{ICONOS_ENLACE.get(k, '🔗')} {ETIQUETAS_ENLACE.get(k, k.capitalize())}: {url}")
     tags = []

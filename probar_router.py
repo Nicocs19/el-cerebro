@@ -342,7 +342,8 @@ def probar_corregir():
         if "titulo" in n:
             return "cambiar_titulo_stream", {"titulo": "subiendo al guerrero", "plataformas": ["kick", "youtube", "tiktok"]}
         if "descripcion" in n:
-            return "cambiar_descripcion_stream", {"descripcion": "¡Subimos al Warrior en el lanzamiento! ⚔️", "enlaces": ["discord"]}
+            return "cambiar_descripcion_stream", {"descripcion": "¡Subimos al Warrior en el lanzamiento! ⚔️",
+                                                  "enlaces": ["discord", "youtube", "instagram"]}
         return "responder", {"respuesta": "¡Perdón, jefe!"}
 
     router._llamar_ollama = ia
@@ -382,6 +383,18 @@ def probar_corregir():
                       bool(p and p.tipo == "titulo" and "discord.gg/prueba" in str(p.datos.get("descripcion"))
                            and "#" in str(p.datos.get("descripcion"))), True))
         casos.append(("título con mayúscula", p and p.datos.get("titulo"), "Subiendo al guerrero"))
+        c.cancelar()
+        c.manejar_texto("cambiá la descripción del directo, algo con gancho de que hoy vamos a Molten Core")
+        p = c.pendiente
+        d, r = str(p and p.datos.get("descripcion")), str(p and p.resumen)
+        casos.append(("sin nombrar links: los de siempre, sin avisar de los que faltan",
+                      ("discord.gg/prueba" in d, "tiktok.com/@prueba" in d, "No tengo" in r), (True, True, False)))
+        c.cancelar()
+        c.manejar_texto("cambiá la descripción con mi Discord y mi Instagram")
+        p = c.pendiente
+        d, r = str(p and p.datos.get("descripcion")), str(p and p.resumen)
+        casos.append(("solo los links que pidió, y avisa del que falta",
+                      ("discord.gg/prueba" in d, "tiktok" in d, "instagram" in r), (True, False, True)))
         c.cancelar()
     finally:
         router._llamar_ollama, enlaces.leer, acciones.log, cerebro.log, cerebro.pitido = viejos

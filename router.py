@@ -887,20 +887,34 @@ def _descripcion_si_la_pidio(texto, nombre, args):
     return otra, extra
 
 
-def _enlaces_de_la_descripcion(texto, nombre, args):
-    """Los enlaces y hashtags que nombró («el Discord de la hermandad, mi Kick, mi TikTok y hashtags») van sí o sí."""
+def _enlaces_de_la_descripcion(texto, nombre, args, corrige=None):
+    """Los enlaces de la descripción son los que nombró («el Discord de la hermandad, mi Kick, mi TikTok»).
+
+    Si no nombró ninguno van los de siempre (ENLACES_DE_SIEMPRE) y el que no esté guardado se saltea sin avisar.
+    Los que sugiera la IA o el agente no cuentan (el 3 nov avisaba «no tengo tu Instagram» sin que lo pidiera).
+    Al corregir («te faltó el TikTok») se suman a los que ya tenía.
+    """
     if nombre != "cambiar_descripcion_stream" and H._vacio(args.get("descripcion")):
         return args
-    n = _norm(texto)
-    pedidos = [str(e).lower() for e in (args.get("enlaces") or []) if str(e).strip()]
+    n = TIKTOK.sub("tiktok", _norm(texto))            # «tik tok», «tictoc»
+    pedidos = [str(e).lower() for e in (args.get("enlaces") or []) if str(e).strip()] if corrige else []
     for w in re.findall(r"\w+", n):
         if w in REDES and w not in ("youtube", "canal", "web", "pagina") and w not in pedidos:
             pedidos.append(w)
-    pedidos += [p for p in _enlaces_pedidos(texto) if p in REDES and p not in pedidos and p not in ("canal", "web", "pagina")]
+    pedidos += [p for p in _enlaces_pedidos(n) if p in REDES and p not in pedidos and p not in ("canal", "web", "pagina")]
+    callados = False
+    if re.search(r"\b(mis|las|todas mis|todas las) redes\b", n):
+        pedidos += [e for e in config.ENLACES_DE_SIEMPRE if e not in pedidos]
+        callados = True
+    elif not pedidos:
+        pedidos, callados = list(config.ENLACES_DE_SIEMPRE), True
     hashtags = args.get("hashtags") or []
     if not hashtags and re.search(r"hash ?tag|etiqueta", n):
         hashtags = ["WoWForever", "WorldOfWarcraft", "WoW", re.sub(r"\W", "", config.NOMBRE_GUILD) or "Gaming"]
-    return {**args, "enlaces": pedidos, "hashtags": hashtags}
+    nuevo = {**args, "enlaces": pedidos, "hashtags": hashtags}
+    if callados:
+        nuevo["_avisar"] = [p for p in pedidos if re.search(rf"\b{p}\b", n)]   # solo avisa de los que nombró
+    return nuevo
 
 
 def _pulir(texto, pendiente, nombre, args):
@@ -1127,7 +1141,7 @@ def interpretar(texto, pendiente=None, nota="", hecha=None):
     if origen == "ia" and pendiente is None and corrige is None:
         nombre, args = _empaquetar(texto, nombre, args)
     if nombre in ("cambiar_descripcion_stream", "cambiar_titulo_stream"):
-        args = _enlaces_de_la_descripcion(texto, nombre, args)
+        args = _enlaces_de_la_descripcion(texto, nombre, args, corrige)
     _p(f"[router] {origen}: {nombre} {json.dumps(args, ensure_ascii=False)}")
     return _accion(nombre, args, corrige), origen
 
