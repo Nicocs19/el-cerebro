@@ -454,9 +454,11 @@ def _ban_de_la_charla(texto, nombre, args):
     silenciar = re.search(r"silenci|timeout|mute|castig", n)
     minutos = re.search(r"(\d+)\s*(min|minutos)", n)
     print(f"[router] pidió banear a alguien de la charla: preparo el ban a {p['usuario']} (pide «dale»)")
-    return "moderar_chat", {"accion": "silenciar" if silenciar else "banear", "usuario": p["usuario"],
-                            "minutos": int(minutos.group(1)) if minutos else 0,
-                            "plataformas": [p["plataforma"]] if p.get("plataforma") in ("kick", "youtube") else []}
+    args = {"accion": "silenciar" if silenciar else "banear", "usuario": p["usuario"],
+            "plataformas": [p["plataforma"]] if p.get("plataforma") in ("kick", "youtube") else []}
+    if silenciar and minutos:
+        args["minutos"] = int(minutos.group(1))
+    return "moderar_chat", args
 
 
 def _parecido(a, b):
@@ -706,8 +708,56 @@ def _pulir(texto, pendiente, nombre, args):
     return nombre, _sin_si_en_el_texto(pendiente, nombre, args)
 
 
+SALUDO_A = re.compile(r"^(?:(?:eh|che|oye|ey|bueno|ya)\s+)*(?:cerebro\s+)?(?:(?:mandale|manda|tirale|dale|pasale|enviale)\s+)?"
+                      r"(?:un\s+|unos\s+)?(?:saludo|saludos|saluda|saludalo|saludala)\s+(?:a|para|al|pa)\s+"
+                      r"(?P<nombre>[\w@]+(?:\s+(?!(?:{0})\b)[\w@]+)?)"
+                      r"(?:\s+(?:{0}))*$".format("tambien|porfa|por favor|de mi parte|che|cerebro|ahi|aca|amigo|boludo|weon"))
+NO_ES_PERSONA = {"chat", "stream", "gente", "todos", "todo", "la", "el", "los", "las", "mi", "tu", "kick", "youtube", "tiktok",
+                 "que", "y", "e", "o", "de", "del", "en", "con", "por", "para", "porque", "esta", "estan", "mirando",
+                 "viendo", "se", "le", "lo", "me", "te", "nos", "un", "una", "muy", "desde", "hoy", "ya", "mis", "tus",
+                 "nuestro", "nuestra", "nuevo", "nuevos", "seguidores", "subs", "mods", "moderadores", "viewers"}
+# Lo que escribió en el chat esa persona: si bardea, el saludo lo arma la IA (que lo ve) y no una frase amable
+BARDEO_EN_CHAT = re.compile(r"bolud|pendej|huev|cojud|idiot|inutil|tont|\bgil|bobo|manco|banco|\bmalo\b|basura|mierda|"
+                            r"carajo|forro|\bputo|noob|aburrid|horrible|pesimo|chupa|concha|ctm|csm|\bweon|\bwn\b|"
+                            r"\bfeo\b|apestas|das asco|sos un|eres un")
+SALUDOS = ("¡Un saludo enorme, {n}! Bienvenido al stream, ponete cómodo.", "¡Ey, {n}! ¿Cómo andás? Qué bueno tenerte por acá.",
+           "¡{n}, un abrazo grande de parte de Mr. H y del Cerebro!", "¡Saludos, {n}! Gracias por caer al stream.",
+           "¡Buenas, {n}! Acá El Cerebro saludándote con todo.", "¡Qué onda, {n}! Bienvenido, que arranca lo bueno.")
+_ULTIMO_SALUDO = [""]
+
+
+def _saludo_fijo(texto):
+    """«Mandale un saludo a Lucas»: una frase de saludo con su nombre, al instante y sin inventar nada de él.
+
+    Lo contesta la IA (que ve lo de antes) si Lucas estuvo en la charla o te bardeó en el chat.
+    """
+    n = re.sub(r"[^\w@ ]", " ", _norm(texto))
+    m = SALUDO_A.match(re.sub(r"\s+", " ", n).strip())
+    if not m:
+        return None
+    dicho = m.group("nombre").lstrip("@")
+    if any(w in NO_ES_PERSONA for w in dicho.split()) or memoria.personas_en(dicho):
+        return None
+    escrito = {_norm(w): w for w in re.findall(r"[\w@]+", texto)}      # «Juan Pérez» con su tilde, no «Juan Perez»
+    nombre = " ".join((lambda w: w[0].upper() + w[1:])(escrito.get(w, w)) for w in dicho.split())
+    for usuario, _, mensajes in _mencionados(dicho, maximo=1):
+        if any(BARDEO_EN_CHAT.search(_norm(t)) for t in mensajes):
+            print(f"[router] saludo a {usuario}: te bardeó en el chat, lo contesta la IA")
+            return None
+        nombre = usuario                     # como lo escribe él en el chat («xX_D4rk_Xx»)
+    import random
+    frase = random.choice([s for s in SALUDOS if s != _ULTIMO_SALUDO[0]])
+    _ULTIMO_SALUDO[0] = frase
+    return frase.format(n=nombre)
+
+
 def interpretar(texto, pendiente=None, nota=""):
     """Devuelve (Accion, origen). Lanza H.ErrorOrden si la orden no se puede ejecutar."""
+    saludo = None if pendiente else _saludo_fijo(texto)
+    if saludo:
+        print(f"[router] saludo: {saludo}")
+        DICHO.append(saludo)
+        return H.construir("responder", {"respuesta": saludo, "animo": "feliz"}), "saludo"
     origen = "ia"
     llamada = None
     if config.USE_OLLAMA:

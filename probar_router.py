@@ -180,7 +180,8 @@ def probar_charla():
     bien, ctx = 0, {}
     for f, chequeo in CHARLA:
         t0 = time.time()
-        n, a = router._pulir(f, None, *router._llamar_ollama(f))
+        saludo = router._saludo_fijo(f)          # como en vivo: el saludo simple no pasa por la IA
+        n, a = ("responder", {"respuesta": saludo}) if saludo else router._pulir(f, None, *router._llamar_ollama(f))
         ctx.setdefault("primera", a.get("respuesta") or "")
         ok = chequeo(n, a, ctx)
         bien += ok
@@ -256,7 +257,11 @@ def probar_rapido():
               ("pregunta normal sin «pendejo»", router._sin_groserias("¿qué es un tanque en wow?", "responder", {
                   "respuesta": "Un tanque, pendejo, es el que aguanta."})["respuesta"], "Un tanque es el que aguanta."),
               ("si lo bardea, sí", router._sin_groserias("cerebro, sos un inútil", "responder", {
-                  "respuesta": "¡Andá a farmear, pendejo!"})["respuesta"], "¡Andá a farmear, pendejo!")]
+                  "respuesta": "¡Andá a farmear, pendejo!"})["respuesta"], "¡Andá a farmear, pendejo!"),
+              ("saludo a Lucas: frase fija con su nombre", "Lucas" in (router._saludo_fijo(
+                  "Eh, Cerebro, mándale un saludo a Lucas.") or ""), True),
+              ("saludo al chat: va a la IA", router._saludo_fijo("mandá un saludo al chat"), None),
+              ("saludo + otra orden: va a la IA", router._saludo_fijo("saludá a Lucas y decile que se suscriba"), None)]
     bien = 0
     for nombre, salio, esperado in casos:
         ok = salio == esperado
