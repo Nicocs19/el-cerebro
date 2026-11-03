@@ -590,7 +590,7 @@ def construir(nombre, a):
         return Accion("overlay", d, f"{verbo} el overlay «{d['nombre']}»", False)
 
     if nombre == "responder":
-        r = _txt(a, "respuesta", 600)
+        r = re.sub(r"""\s*["']?\s*,\s*animo\s*[=:].*$""", "", _txt(a, "respuesta", 600), flags=re.I).strip() or "…"
         animo = a.get("animo") if a.get("animo") in ("picado", "feliz") else "normal"
         return Accion("respuesta", {"respuesta": r, "animo": animo}, r, False)
 

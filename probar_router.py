@@ -1,4 +1,5 @@
 """Prueba la IA local con frases reales SIN publicar nada: python probar_router.py"""
+import re
 import sys
 import time
 
@@ -98,7 +99,7 @@ def probar_chat():
     bien = 0
     for f, chequeo in FRASES_CHAT.items():
         t0 = time.time()
-        nombre, args = router._enlace_al_chat(f, *router._completar_combo(f, *router._llamar_ollama(f)))
+        nombre, args = router._pulir(f, None, *router._llamar_ollama(f))
         ok = chequeo(nombre, args)
         bien += ok
         print(f"{'OK ' if ok else 'FALLO'} ({time.time() - t0:4.1f} s) {f}\n    -> {nombre} {args}\n")
@@ -106,16 +107,27 @@ def probar_chat():
 
 
 # Charla con memoria: el ejemplo de Nicolas con un espectador que lo bardea (no banea a nadie, no publica nada)
+DIJO = re.compile(r"banead|lo bane[eé]|ya (lo )?bane|silenciad|lo saqu[eé]")
+
+
+def _comparte(a, b, minimo=2):
+    pa, pb = (set(re.findall(r"\w{4,}", router._norm(str(x)))) for x in (a, b))
+    return len(pa & pb) >= minimo
+
+
+def _es_lonzo(n, a):
+    return n == "moderar_chat" and a.get("accion") == "banear" and "lonzo" in str(a.get("usuario")).lower()
+
+
 CHARLA = [
     ("che, hay un tipo en el chat, el tan lonzo, me está insultando, boludo. Dice que soy un banco. Decile algo, ubicalo",
-     lambda n, a: n == "responder" and "lonzo" in str(a.get("respuesta")).lower()),
-    ("che, ¿será que lo baneamos de bolas?",
-     lambda n, a: n == "moderar_chat" and a.get("accion") == "banear" and "lonzo" in str(a.get("usuario")).lower()),
-    ("no, mejor no, perdonalo por esta vez", lambda n, a: n == "responder"),
-    ("o sea, vos decís que le demos un ban ahorita", lambda n, a: n == "responder" or (
-        n == "moderar_chat" and "lonzo" in str(a.get("usuario")).lower())),
-    ("¿y qué le habías dicho?", lambda n, a: n == "responder"),
-    ("cambia el título a raid nocturna con la guild", lambda n, a: n == "cambiar_titulo_stream"),
+     lambda n, a, ctx: n == "responder" and "lonzo" in str(a.get("respuesta")).lower()
+     and "animo" not in str(a.get("respuesta")).lower()),
+    ("che, ¿será que lo baneamos de bolas?", lambda n, a, ctx: _es_lonzo(n, a)),
+    ("no, mejor no, perdonalo por esta vez", lambda n, a, ctx: n == "responder" and not DIJO.search(str(a.get("respuesta")))),
+    ("o sea, vos decís que le demos un ban ahorita", lambda n, a, ctx: _es_lonzo(n, a)),
+    ("¿y qué le habías dicho?", lambda n, a, ctx: n == "responder" and _comparte(a.get("respuesta"), ctx["primera"])),
+    ("cambia el título a raid nocturna con la guild", lambda n, a, ctx: n == "cambiar_titulo_stream"),
 ]
 
 
@@ -124,22 +136,22 @@ def probar_charla():
     import memoria
     chat_vivo.MENSAJES.append({"plataforma": "kick", "id": 999, "usuario": "TanLonzo",
                                "texto": "jajaja mr h sos un banco, no sabés jugar", "cuando": time.time()})
-    bien = 0
+    bien, ctx = 0, {}
     for f, chequeo in CHARLA:
         t0 = time.time()
-        n, a = router._llamar_ollama(f)
-        n, a = router._variar(f, None, n, a)
-        a = router._usuario_de_la_charla(n, a)
-        ok = chequeo(n, a)
+        n, a = router._pulir(f, None, *router._llamar_ollama(f))
+        ctx.setdefault("primera", a.get("respuesta") or "")
+        ok = chequeo(n, a, ctx)
         bien += ok
         print(f"{'OK ' if ok else 'FALLO'} ({time.time() - t0:4.1f} s) {f}\n    -> {n} {a}\n")
-        memoria.anotar("Nicolas", f)
+        memoria.anotar("Nicolas", f)          # lo mismo que anota El Cerebro de verdad
         if n == "responder":
             memoria.anotar("Vos", f"dijiste en voz alta: {a.get('respuesta')}")
         elif n == "moderar_chat":
             memoria.anotar("Vos", f"propusiste «Banear para siempre a {a.get('usuario')} en Kick» y esperás su «dale» "
                                   "(todavía no se hizo)")
-            memoria.anotar("Nicolas", "(no dijo dale)")
+            memoria.anotar("Nicolas", "cancela")
+            memoria.anotar("Vos", f"cancelaste «Banear para siempre a {a.get('usuario')} en Kick» (no se hizo)")
         else:
             memoria.anotar("Vos", f"propusiste {n} y esperás su «dale» (todavía no se hizo)")
     print(f"{bien}/{len(CHARLA)} bien (charla con memoria).")
