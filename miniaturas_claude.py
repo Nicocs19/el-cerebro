@@ -2,9 +2,9 @@
 
 Usa el programa `claude` de tu PC (tu plan, sin costo extra) y Microsoft Edge, que viene con Windows.
 Usa la captura del juego, el logo, la fuente Cinzel y las fotos que pongas en recursos/imagenes.
-Si tu idea pide imágenes que no están (logo de World of Warcraft, arte del Warrior, un jefe…), Claude trabaja como
-agente: las busca en fuentes oficiales (Blizzard, Wikimedia), las baja a la carpeta de la miniatura, las mira y arma
-el diseño. Tarda un par de minutos y corre en segundo plano.
+Si tu idea pide imágenes que no están (logo de World of Warcraft, arte del Warrior, un jefe…), un Claude las busca
+en la web SIN acceso a tus archivos, el programa baja solo las de sitios oficiales (Blizzard, Wikimedia) y comprueba
+que sean imágenes, y otro Claude SIN internet arma el diseño. Así nada de lo que lea en internet puede tocar tus claves.
 """
 import os
 import re
@@ -29,7 +29,7 @@ def edge():
     return shutil.which("msedge") or shutil.which("chromium") or shutil.which("google-chrome")
 
 
-def _preparar(carpeta):
+def _preparar(carpeta, extras=()):
     """Copia a la carpeta lo que Claude puede usar y devuelve la lista para el pedido."""
     lista = []
     for origen, nombre in ((config.RECURSOS / "logo.jpg", "logo.jpg"), (config.RECURSOS / "Cinzel.ttf", "Cinzel.ttf")):
@@ -43,6 +43,7 @@ def _preparar(carpeta):
             if f.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp"):
                 shutil.copy(f, carpeta / f.name)
                 archivos.append((f.name, f"foto de recursos/imagenes ({f.stem.replace('_', ' ')})"))
+    archivos += list(extras)
     for nombre, que in archivos:
         try:
             with Image.open(carpeta / nombre) as im:
@@ -61,40 +62,88 @@ def necesita_agente(idea):
     return bool(config.MINIATURA_AGENTE and idea and PIDE_IMAGENES.search(idea))
 
 
-AGENTE = """
-Trabajás como agente, en esta carpeta y solo en esta carpeta:
-1. Si la idea pide imágenes que no están en la lista (logo oficial de World of Warcraft, arte de una clase como el
-   Warrior, un jefe, una zona…), buscalas con WebSearch/WebFetch y bajalas acá con curl, por ejemplo:
-   curl -sL -o logo_wow.png "https://…". Solo fuentes oficiales de Blizzard (blizzard.com, worldofwarcraft.blizzard.com,
-   news.blizzard.com) o Wikimedia Commons para logos. Nada de fan art de otros artistas ni imágenes con marca de agua.
-   Máximo 4 imágenes, PNG, JPG o WEBP. Abrí cada una con Read para comprobar que es la imagen correcta y se ve bien;
-   si una no sirve, buscá otra. Preferí PNG con fondo transparente para los recortes.
-2. Escribí el diseño completo en el archivo diseno.html (herramienta Write), con rutas relativas a las imágenes de
-   esta carpeta. No cargues nada de internet desde el HTML.
-3. No toques nada fuera de esta carpeta. Al terminar respondé solo: LISTO"""
+SITIOS_OK = ("blizzard.com", "worldofwarcraft.com", "blz-contentstack.com", "blz-contentstack-images.akamaized.net",
+             "bnetcmsus-a.akamaihd.net", "upload.wikimedia.org")
+MAX_BYTES = 8 * 1024 * 1024
 
 
-def _con_agente(pedido, carpeta):
+def _sitio_ok(url):
+    from urllib.parse import urlparse
+    u = urlparse(url or "")
+    host = (u.hostname or "").lower()
+    return u.scheme == "https" and any(host == d or host.endswith("." + d) for d in SITIOS_OK)
+
+
+def buscar_imagenes(idea, carpeta):
+    """Claude busca en la web (sin acceso a archivos ni a la PC) y el programa baja y revisa las imágenes.
+
+    Separado en dos para que nada de lo que lea en internet pueda tocar tus claves: el que busca no puede abrir
+    archivos ni ejecutar nada, y lo que baja Python solo viene de sitios oficiales y tiene que ser una imagen de verdad.
+    """
+    import io
+    import json
+    import tempfile
+
+    import requests
+
     from overlays import buscar_claude
     exe = buscar_claude()
     if not exe:
         raise RuntimeError("no está el programa claude en esta PC")
-    comando = [exe, "-p", "--max-turns", "40"] + (["--model", config.CLAUDE_MODELO] if config.CLAUDE_MODELO else [])
-    comando += ["--allowedTools", "WebSearch", "WebFetch", "Read", "Write", "Edit", "Bash(curl:*)", "Bash(curl.exe:*)"]
-    archivo = carpeta / "diseno.html"
-    archivo.unlink(missing_ok=True)
-    r = subprocess.run(comando, input=pedido, capture_output=True, text=True, encoding="utf-8",
-                       timeout=config.MINIATURA_ESPERA, cwd=str(carpeta))
-    (carpeta / "agente.log").write_text((r.stdout or "") + "\n--- errores ---\n" + (r.stderr or ""), encoding="utf-8")
-    if not archivo.exists() or "<html" not in archivo.read_text(encoding="utf-8", errors="ignore").lower():
-        raise RuntimeError(f"el agente no dejó el diseño ({r.returncode}): {(r.stderr or r.stdout or '')[:200]}")
-    bajadas = [f.name for f in carpeta.iterdir() if f.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp")]
-    print(f"[miniatura] El agente terminó. Imágenes en la carpeta: {', '.join(bajadas)}")
-    return archivo
+    pedido = f"""Buscá imágenes para la miniatura de un directo de World of Warcraft. Idea: {idea}
+Usá WebSearch y WebFetch para encontrar URLs DIRECTAS de archivos de imagen (png, jpg o webp), solo de estos sitios
+oficiales: {", ".join(SITIOS_OK)}. Nada de fan art ni de otros sitios. Preferí PNG con fondo transparente para logos
+y personajes. Máximo 4. Respondé SOLO con JSON, sin explicaciones:
+[{{"nombre": "logo_wow", "url": "https://…", "que": "logo oficial de World of Warcraft"}}]"""
+    comando = [exe, "-p", "--max-turns", "15", "--model", config.CLAUDE_MODELO or "sonnet",
+               "--disallowedTools", "Bash", "PowerShell", "Read", "Write", "Edit", "MultiEdit", "NotebookEdit", "Glob", "Grep",
+               "Task", "Agent", "--allowedTools", "WebSearch", "WebFetch"]
+    vacia = tempfile.mkdtemp(prefix="cerebro_busca_")          # carpeta vacía: no hay nada que leer
+    r = subprocess.run(comando, input=pedido, capture_output=True, text=True, encoding="utf-8", timeout=300, cwd=vacia)
+    log = [f"--- búsqueda ({r.returncode}) ---", r.stdout or "", r.stderr or ""]
+    m = re.search(r"\[.*\]", r.stdout or "", re.S)
+    try:
+        candidatas = json.loads(m.group(0)) if m else []
+    except ValueError:
+        candidatas = []
+    bajadas = []
+    for c in candidatas[:6]:
+        url, nombre = str(c.get("url") or ""), re.sub(r"[^a-z0-9_]+", "_", str(c.get("nombre") or "imagen").lower())[:30]
+        if not _sitio_ok(url):
+            log.append(f"descarto (sitio no permitido): {url}")
+            continue
+        try:
+            resp = requests.get(url, timeout=20, stream=True, headers={"User-Agent": "ElCerebro/1.0"})
+            resp.raise_for_status()
+            datos = resp.raw.read(MAX_BYTES + 1, decode_content=True)
+            if len(datos) > MAX_BYTES:
+                raise ValueError("imagen demasiado grande")
+            with Image.open(io.BytesIO(datos)) as im:
+                im.load()
+                img = im.convert("RGBA")
+            if min(img.size) < 120:
+                raise ValueError(f"muy chica ({img.width}x{img.height})")
+            archivo = f"web_{nombre}.png"
+            img.save(carpeta / archivo)
+            bajadas.append((archivo, f"{c.get('que') or nombre} (imagen oficial bajada de {url.split('/')[2]})"))
+            log.append(f"bajada: {archivo} <- {url}")
+        except Exception as e:  # noqa: BLE001
+            log.append(f"no sirvió {url}: {e}")
+        if len(bajadas) >= 4:
+            break
+    (carpeta / "agente.log").write_text("\n".join(log), encoding="utf-8")
+    print(f"[miniatura] Imágenes oficiales bajadas: {', '.join(a for a, _ in bajadas) or 'ninguna'}")
+    return bajadas
 
 
 def disenar(carpeta, titulo, subtitulo, idea):
     from overlays import pedir_a_claude
+    extras = []
+    if necesita_agente(idea):
+        try:
+            extras = buscar_imagenes(idea, carpeta)
+        except Exception as e:  # noqa: BLE001
+            print(f"[miniatura] No pude buscar imágenes ({e}); la diseño con lo que hay.")
     pedido = f"""Diseñá la miniatura de un directo de Twitch/Kick/YouTube como UNA página HTML.
 Título (texto grande, EXACTO): {titulo}
 Subtítulo (texto chico, EXACTO; si está vacío no pongas nada): {subtitulo}
@@ -103,7 +152,7 @@ Idea de Mr. H: {idea or "ninguna en especial: elegí la composición que mejor v
 {ESTILO}
 
 Archivos que podés usar (están en la misma carpeta que el HTML, usalos con rutas relativas):
-{_preparar(carpeta)}
+{_preparar(carpeta, extras)}
 
 Reglas:
 - Un solo archivo HTML con el CSS adentro, sin JavaScript que dependa de internet y sin cargar nada de internet.
@@ -115,12 +164,6 @@ Reglas:
 - El logo y los textos nunca se tocan ni se superponen, tampoco en vertical: dejá aire entre ellos.
 - No agregues textos, fechas ni datos que no estén arriba.
 Respondé solo con el HTML."""
-    if necesita_agente(idea):
-        try:
-            return _con_agente(pedido.replace("Respondé solo con el HTML.", AGENTE)
-                               .replace("- Si la idea pide algo que no está en los archivos", "- Si aun así falta algo"), carpeta)
-        except Exception as e:  # noqa: BLE001
-            print(f"[miniatura] El agente no pudo ({e}); la diseño con lo que hay en la carpeta.")
     archivo = carpeta / "diseno.html"
     archivo.write_text(pedir_a_claude(pedido, carpeta), encoding="utf-8")
     return archivo

@@ -1,8 +1,10 @@
 """Busca en internet para contestar preguntas, solo cuando la pregunta lo necesita.
 
-- Con OLLAMA_API_KEY (cuenta gratis de ollama.com, conectar_busqueda.bat) usa la búsqueda web de Ollama.
-- Sin clave usa Wikipedia en español (gratis, sin cuenta): sirve para «quién es», «qué es», historia, etc.
-Después la IA local resume lo encontrado en 1 a 3 frases para decirlo en voz alta, sin inventar.
+1. Con el programa claude de tu PC (tu plan, sin costo extra): Claude busca en la web y contesta. Es lo más completo
+   (noticias, parches, WoW). Corre SIN acceso a tus archivos ni a la PC: solo puede buscar y leer páginas.
+2. Con OLLAMA_API_KEY (cuenta gratis de ollama.com, conectar_busqueda.bat): búsqueda web de Ollama + IA local.
+3. Si no hay nada de eso: Wikipedia (español y si no, inglés) + IA local.
+Tarda más que una charla normal (se avisa con «dejame buscar»), pero solo se usa cuando hace falta.
 """
 import re
 import time
@@ -27,10 +29,20 @@ def _ollama_web(pregunta, maximo):
 
 
 def _wikipedia(pregunta, maximo):
-    base = "https://es.wikipedia.org"
+    for idioma in ("es", "en"):
+        salida = _wikipedia_en(f"https://{idioma}.wikipedia.org", pregunta, maximo)
+        if salida:
+            return salida
+    return []
+
+
+def _wikipedia_en(base, pregunta, maximo):
+    consulta = re.sub(r"^(que|qué|quien|quién|cual|cuál|como|cómo|cuando|cuándo|donde|dónde)\s+(es|son|fue|era)\s+", "",
+                      pregunta.strip(" ¿?¡!"), flags=re.I)
     r = _sesion.get(f"{base}/w/api.php", headers=AGENTE, timeout=10, params={
-        "action": "query", "list": "search", "srsearch": pregunta, "srlimit": maximo, "format": "json"})
+        "action": "query", "list": "search", "srsearch": consulta, "srlimit": maximo, "format": "json"})
     r.raise_for_status()
+    palabras = {w for w in re.findall(r"\w{4,}", consulta.lower())}
     salida = []
     for x in r.json().get("query", {}).get("search", [])[:maximo]:
         titulo = x["title"]
@@ -40,6 +52,8 @@ def _wikipedia(pregunta, maximo):
         except requests.RequestException:
             texto = ""
         texto = texto or re.sub(r"<[^>]+>", "", x.get("snippet", ""))
+        if palabras and not any(w in (titulo + " " + texto).lower() for w in palabras):
+            continue                       # resultado que no tiene nada que ver con la pregunta
         salida.append({"titulo": titulo, "url": f"{base}/wiki/{quote(titulo.replace(' ', '_'))}", "texto": texto})
     return salida
 
@@ -55,7 +69,8 @@ def buscar(pregunta, maximo=4):
 
 
 def dominio(url):
-    d = urlparse(url or "").netloc.lower()
+    url = url or ""
+    d = urlparse(url if "//" in url else f"https://{url}").netloc.lower()
     return d[4:] if d.startswith("www.") else d
 
 
@@ -65,9 +80,47 @@ Usá SOLO lo que dicen los resultados. Si no alcanzan para contestar, decí que 
 No leas links ni digas «según el resultado 2»: contalo natural. Números y fechas tal cual aparecen."""
 
 
+CLAUDE_PEDIDO = """Sos El Cerebro, el asistente gracioso del stream de Nicolas (Mr. H, streamer de World of Warcraft Forever).
+Te preguntó: {pregunta}
+Buscá en la web lo necesario (WebSearch y WebFetch) y contestá en 1 a 3 frases cortas para decir en voz alta,
+en español latino y con onda. Solo datos que encontraste; si no lo encontrás, decilo. Sin links ni markdown.
+En la última línea poné: FUENTE: <dominio de donde sacaste el dato>"""
+
+
+def _con_claude(pregunta):
+    """Claude busca y contesta. Sin herramientas de archivos ni de la PC, en una carpeta vacía."""
+    import subprocess
+    import tempfile
+
+    from overlays import SIN_HERRAMIENTAS, buscar_claude
+    exe = buscar_claude()
+    if not exe:
+        raise RuntimeError("no está el programa claude")
+    comando = [exe, "-p", "--max-turns", "8", "--model", config.CLAUDE_MODELO_BUSQUEDA,
+               "--disallowedTools"] + [h for h in SIN_HERRAMIENTAS if h not in ("WebFetch", "WebSearch")]
+    comando += ["--allowedTools", "WebSearch", "WebFetch"]
+    r = subprocess.run(comando, input=CLAUDE_PEDIDO.format(pregunta=pregunta), capture_output=True, text=True,
+                       encoding="utf-8", timeout=120, cwd=tempfile.mkdtemp(prefix="cerebro_pregunta_"))
+    salida = (r.stdout or "").strip()
+    if r.returncode != 0 or not salida:
+        raise RuntimeError(f"claude no contestó ({r.returncode}): {(r.stderr or '')[:150]}")
+    m = re.search(r"^\s*FUENTE:\s*(.+)$", salida, re.M | re.I)
+    fuente = dominio(m.group(1).strip()) or m.group(1).strip() if m else ""
+    texto = re.sub(r"^\s*FUENTE:.*$", "", salida, flags=re.M | re.I).strip()
+    texto = re.sub(r"[*_`#>]+", "", texto)
+    return texto[:600], fuente[:60]
+
+
 def contestar(pregunta):
-    """(respuesta, fuente). Busca y la IA local resume lo encontrado."""
+    """(respuesta, fuente). Primero Claude con búsqueda web; si no, búsqueda + IA local."""
     t0 = time.time()
+    if config.BUSCAR_CON_CLAUDE:
+        try:
+            texto, fuente = _con_claude(pregunta)
+            print(f"[buscar] Claude contestó en {time.time() - t0:.1f} s")
+            return texto, fuente
+        except Exception as e:  # noqa: BLE001
+            print(f"[buscar] Claude no pudo buscar ({e}); pruebo con la búsqueda simple.")
     resultados = [r for r in buscar(pregunta) if r.get("texto")]
     if not resultados:
         return "Busqué y no encontré nada sobre eso. Preguntame de otra forma.", ""

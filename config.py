@@ -57,6 +57,8 @@ OLLAMA_MODEL = _s("OLLAMA_MODEL", "qwen3.5:9b")
 OLLAMA_KEEP_ALIVE = _s("OLLAMA_KEEP_ALIVE", "30m")
 OLLAMA_API_KEY = _s("OLLAMA_API_KEY")                     # cuenta gratis de ollama.com: búsqueda web (conectar_busqueda.bat)
 BUSCAR_INTERNET = _b("BUSCAR_INTERNET", True)             # buscar en internet cuando la pregunta lo necesita
+BUSCAR_CON_CLAUDE = _b("BUSCAR_CON_CLAUDE", True)         # la búsqueda la hace Claude (tu plan) sin acceso a tus archivos
+CLAUDE_MODELO_BUSQUEDA = _s("CLAUDE_MODELO_BUSQUEDA", "haiku")   # rápido para buscar y contestar
 TONO = _s("TONO", "tono cercano y épico, como un GM de WoW hablándole a su hermandad; español con voseo como Hogger; "
                   "como mucho 2 emojis; frases cortas")
 
