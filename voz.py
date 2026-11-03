@@ -1,9 +1,11 @@
 """Grabacion del microfono y transcripcion local con faster-whisper."""
 import glob
 import os
+import re
 import site
 import threading
 import time
+import unicodedata
 
 import numpy as np
 import sounddevice as sd
@@ -14,6 +16,20 @@ SR = 16000
 BLOQUE = 1600  # 0,1 s
 PROMPT = ("Ordenes de un streamer en español: anuncio a mi guild, hermandad, Discord, Kick, YouTube, "
           "TikTok, título del stream, World of Warcraft, raid, mazmorra, guerrero, nivel.")
+VOZ_MINIMA = 3  # bloques de 0,1 s por encima del umbral para contar como voz (un clic de teclado no alcanza)
+
+# Frases que Whisper "escucha" en el silencio o el ruido (aprendidas de subtítulos de YouTube)
+_ALUCINACION = re.compile(
+    r"^(gracias( a todos)?( por (ver|mirar|su atencion|tu atencion|vernos))?( (el|este) video)?"
+    r"|.*amara\.org.*|subtitulos? (realizados? )?por.*|(no olvides )?suscrib\w*( al canal)?|(y )?dale like.*"
+    r"|hasta (la proxima|luego|pronto)|nos vemos( en el (proximo|siguiente) video)?|chau|adios|musica|aplausos|risas|)$")
+
+
+def es_alucinacion(texto):
+    t = "".join(c for c in unicodedata.normalize("NFD", texto.lower()) if unicodedata.category(c) != "Mn")
+    t = re.sub(r"[^\w\s.]", " ", t)
+    t = re.sub(r"\s+", " ", t).strip(" .")
+    return bool(_ALUCINACION.fullmatch(t))
 
 
 def _cuda_dlls_windows():
@@ -67,7 +83,14 @@ class Transcriptor:
             audio, language="es", beam_size=5, vad_filter=True,
             initial_prompt=PROMPT, condition_on_previous_text=False,
         )
-        return " ".join(s.text.strip() for s in segmentos).strip()
+        # Se descartan los trozos que Whisper mismo marca como "probablemente no es voz"
+        partes = [s.text.strip() for s in segmentos
+                  if not (s.no_speech_prob > 0.6 and s.avg_logprob < -0.8) and s.compression_ratio < 2.4]
+        texto = " ".join(partes).strip()
+        if texto and es_alucinacion(texto):
+            print(f"(descarto «{texto}»: es ruido, no una orden)")
+            return ""
+        return texto
 
 
 class Grabadora:
@@ -86,12 +109,15 @@ class Grabadora:
         with self._lock:
             self._bloques.append(bloque)
             if rms > config.VAD_THRESHOLD:
-                self.hablo = True
+                self.bloques_voz += 1
                 self.ultima_voz = ahora
+                if self.bloques_voz >= VOZ_MINIMA:
+                    self.hablo = True
 
     def empezar(self):
         self._bloques = []
         self.hablo = False
+        self.bloques_voz = 0
         self.inicio = self.ultima_voz = time.time()
         self._stream = sd.InputStream(samplerate=SR, channels=1, dtype="float32",
                                       blocksize=BLOQUE, device=_mic(), callback=self._callback)

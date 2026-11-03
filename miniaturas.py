@@ -26,14 +26,17 @@ class MiniaturaError(RuntimeError):
 
 
 def captura_obs():
-    """Captura lo que sale en directo ahora mismo (escena de programa de OBS)."""
+    """Captura la escena o fuente de OBS_FUENTE (p. ej. el juego); si está vacío, lo que sale en directo."""
     import obsws_python as obs
     try:
         cl = obs.ReqClient(host=config.OBS_HOST, port=config.OBS_PORT, password=config.OBS_PASSWORD, timeout=4)
     except Exception as e:  # noqa: BLE001
         raise MiniaturaError(f"No pude conectar con OBS ({e}). Activa el servidor WebSocket en OBS.")
-    escena = cl.get_current_program_scene().current_program_scene_name
-    datos = cl.get_source_screenshot(escena, "png", 1920, 1080, -1).image_data
+    escena = config.OBS_FUENTE or cl.get_current_program_scene().current_program_scene_name
+    try:
+        datos = cl.get_source_screenshot(escena, "png", 1920, 1080, -1).image_data
+    except Exception as e:  # noqa: BLE001
+        raise MiniaturaError(f"OBS no me dio la captura de «{escena}» ({e}). Revisá OBS_FUENTE en .env.")
     return Image.open(io.BytesIO(base64.b64decode(datos.split(",", 1)[1]))).convert("RGB")
 
 

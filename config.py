@@ -54,8 +54,8 @@ USE_OLLAMA = _b("USE_OLLAMA", True)
 OLLAMA_URL = _s("OLLAMA_URL", "http://localhost:11434").rstrip("/")
 OLLAMA_MODEL = _s("OLLAMA_MODEL", "qwen3.5:9b")
 OLLAMA_KEEP_ALIVE = _s("OLLAMA_KEEP_ALIVE", "30m")
-TONO = _s("TONO", "tono cercano y épico, como un GM de WoW hablándole a su hermandad; español con voseo como Hogger "
-                  "(vengan, anotate); como mucho 2 emojis; frases cortas")
+TONO = _s("TONO", "tono cercano y épico, como un GM de WoW hablándole a su hermandad; español con voseo como Hogger; "
+                  "como mucho 2 emojis; frases cortas")
 
 # --- La guild ---
 NOMBRE_GUILD = _s("NOMBRE_GUILD", "The H's")
@@ -92,6 +92,8 @@ TIKTOK_MODO = _s("TIKTOK_MODO", "portapapeles").lower()  # portapapeles | automa
 OBS_HOST = _s("OBS_HOST", "localhost")
 OBS_PORT = int(_f("OBS_PORT", 4455))
 OBS_PASSWORD = _s("OBS_PASSWORD")
+# Escena o fuente de OBS para el fondo de las miniaturas (p. ej. la captura del juego). Vacío = lo que sale en directo.
+OBS_FUENTE = _s("OBS_FUENTE")
 
 # --- Respuesta ---
 BEEPS = _b("BEEPS", True)

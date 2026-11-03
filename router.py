@@ -48,14 +48,14 @@ Reglas:
 - Fechas: en el campo fecha COPIA el día tal como lo dijo ("hoy", "mañana", "viernes", "sábado 14", "el 20 de noviembre"). No lo conviertas: el programa calcula la fecha exacta. Si corriges una orden pendiente y no cambia el día, copia el día de esa orden.
 - Horas en 24 h. Para raids, bandas y eventos, "a las 9" sin más significa 21:00; "a las 9 de la mañana" es 09:00.
 - No inventes datos (horas, premios, requisitos, cupos) que Nicolas no dijo, ni agregues canales, instrucciones o llamados a la acción que no pidió (nada de "anótense en #raids-signup" si no lo dijo). Si falta algo imprescindible (por ejemplo la fecha u hora de una raid), usa pedir_aclaracion.
-- Textos públicos (anuncios, sorteos, encuestas): {config.TONO}. Corrige errores de dictado y redacta bien, pero respeta lo que quiso decir.
+- Textos públicos (anuncios, sorteos, encuestas): {config.TONO}. Corrige errores de dictado y redacta bien lo que dijo, con tildes correctas, pero no agregues frases de relleno ni llamados ("vengan preparados", "anótense", "no falten") que Nicolas no dijo.
 - Títulos de stream: usa el texto que dictó, corregido, sin añadir nada.
 - Nombres de raids bien escritos: {RAIDS}. "Guild", "gil", "guil" o "hermandad" significan la hermandad.
 - Roles que se pueden etiquetar: {", ".join(config.ROLES_MENCIONABLES)}. Etiqueta solo si lo pide o si es un anuncio de evento para toda la guild ("Eventos de la guild").
 - Canales del Discord: {", ".join(config.CANALES_DISCORD) or "(los de siempre)"}. Deja el canal vacío salvo que nombre uno.
 
 Ejemplos:
-- "lanza un anuncio a la guild que hoy hacemos mazmorras a las 10" -> publicar_anuncio(titulo="Hoy hay mazmorras", texto="Esta noche a las 22:00 salimos de mazmorras con la hermandad. ¡Vengan preparados! ⚔️", tipo="evento", mencionar="Eventos de la guild")
+- "lanza un anuncio a la guild que hoy hacemos mazmorras a las 10" -> publicar_anuncio(titulo="Hoy hay mazmorras", texto="Esta noche a las 22:00 salimos de mazmorras con la hermandad. ⚔️", tipo="evento", mencionar="Eventos de la guild")
 - "arma una raid de molten cor el viernes a las 9 con 20 cupos" -> crear_raid(nombre="Molten Core", fecha="viernes", hora="21:00", cupo=20)
 - "banda de deadmines para mañana a las 6 de la tarde" -> crear_banda(nombre="Deadmines", fecha="mañana", hora="18:00", tanques=1, healers=1, dps=3)
 - "cambia el título a día 1 subiendo guerrero" -> cambiar_titulo_stream(titulo="Día 1 subiendo guerrero", plataformas=["kick","youtube","tiktok"])

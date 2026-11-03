@@ -18,6 +18,7 @@ FRASES = [
     "hazme una miniatura que diga primer boss caído, día 3",
     "avisa en general que en 10 minutos empiezo directo",
     "arma una banda para deadmines el sábado a las 6 de la tarde, 1 tanque 1 healer 3 dps",
+    "lanza un anuncio a la guild que mañana a las 10 de la noche arrancamos la primera raid",
 ]
 
 
@@ -32,6 +33,7 @@ CHEQUEOS = {
     FRASES[1]: lambda r: _el("viernes") in r and "21:00" in r,
     FRASES[2]: lambda r: _el("mañana") in r,      # sin hora: tiene que preguntar «¿A qué hora...?»
     FRASES[11]: lambda r: _el("sábado") in r and "18:00" in r,
+    FRASES[12]: lambda r: not any(x in r.lower() for x in ("anot", "vengan preparados", "no falten")),
 }
 
 
