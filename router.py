@@ -474,8 +474,10 @@ def _lo_que_dijo(texto):
     for nombre in nombres:
         claves = {moderacion.clave(nombre)} | set(re.findall(r"[a-z]{4,}", moderacion.clave(nombre)))
         suyas = [d for d in dichas if any(c in moderacion.clave(d) for c in claves)]
-        if suyas:
-            return suyas[-1]
+        # mejor la que le dijo A esa persona («¿Banco yo, TanLonzo?») que una que solo la nombra («perdonamos a TanLonzo»)
+        a_el = [d for d in suyas if re.search(r"(^|[¡¿,.!?]\s*)" + re.escape(nombre.split("_")[0]) + r"\w*\s*[,!?.]", d, re.I)]
+        if a_el or suyas:
+            return (a_el or suyas)[-1]
     return dichas[-1]
 
 
