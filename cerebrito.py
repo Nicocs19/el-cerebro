@@ -56,6 +56,7 @@ class Cerebrito:
         self.prox_parpadeo = time.time() + 2
         self.gafas_y = 0.0              # cuánto se bajó las gafas (para mirarte por encima)
         self.parpado = 0.45             # qué tan cerrados tiene los ojos (0 abiertos, 1 cerrados)
+        self.animo = None               # ("picado", hasta): cara de caliente mientras contesta
         root.after(33, self._paso)
 
     # ------------------------------------------------------------ ventana
@@ -84,6 +85,9 @@ class Cerebrito:
 
     def destellar(self, tipo):
         self.destello = (tipo, time.time())
+
+    def poner_animo(self, tipo, segundos=10):
+        self.animo = (tipo, time.time() + segundos)
 
     def _paso(self):
         try:
@@ -145,12 +149,19 @@ class Cerebrito:
         piel_luz = _hsv(0.86 + 0.09 * math.sin(t * 0.22), 0.14, 1.0)
         pliegue = _hsv(0.86 + 0.09 * math.sin(t * 0.22), 0.55, 0.80)
         borde = _hsv(0.80 + 0.06 * math.sin(t * 0.22), 0.70, 0.36)
+        animo = getattr(self, "animo", None)
+        picado = bool(animo) and animo[0] == "picado" and time.time() < animo[1] and estado in ("hablando", "quieto", "oculto")
+        if picado:                                            # se puso caliente: rojo y con la vena hinchada
+            piel, piel_luz, pliegue, borde = "#FF8A80", "#FFC9C2", "#E0524A", "#741818"
 
         # balanceo: tranquilo y lento quieto, atento escuchando, ladeado pensando
         grados = {"escuchando": 0.0, "pensando": 9 + 2 * math.sin(t * 2), "hablando": 3 * math.sin(t * 2.4),
                   "ok": 4 * math.sin(t * 5), "error": 7 * math.sin(t * 7)}.get(estado, 6 * math.sin(t * 0.8))
         salto = {"escuchando": 10 * n, "hablando": 4 * n}.get(estado, 0) + 3 * math.sin(t * 1.6)
         cx, cy = m, m + 8 - salto
+        if picado:
+            grados = 4 * math.sin(t * 9)
+            cx += random.uniform(-1.5, 1.5)
         s = 1.0 + (0.05 * n if estado == "escuchando" else 0)
         th = math.radians(grados)
         co, si = math.cos(th), math.sin(th)
@@ -210,6 +221,8 @@ class Cerebrito:
             self.prox_parpadeo = ahora + random.uniform(3.0, 6.0)
         parpadea = estado not in ("ok", "error", "escuchando") and ahora >= self.prox_parpadeo
         obj_p = {"escuchando": 0.0, "pensando": 0.18, "hablando": 0.32}.get(estado, 0.52 + 0.05 * math.sin(t * 0.7))
+        if picado:
+            obj_p = 0.30
         self.parpado += ((1.0 if parpadea else obj_p) - self.parpado) * (0.6 if parpadea else 0.2)
         abierto = 1.15 if estado == "escuchando" else 1.0
         ojos_y = -2 + (gy * 0.25 if estado == "escuchando" else 0)
@@ -232,9 +245,11 @@ class Cerebrito:
             c.create_oval(ox - rx, oy - ry, ox + rx, oy + ry, fill=OJO, outline=borde, width=2)
             # mirada medio perdida: cada pupila mira un poquito para su lado
             bizco = {"pensando": (-0.55 * lado, -0.55)}.get(estado, (0.12 * lado, 0.05 * lado) if estado == "quieto" else (0, 0))
+            if picado:
+                bizco = (-0.2 * lado - self.mirada[0], 0.1 - self.mirada[1])   # te mira fijo, con bronca
             px = ox + (self.mirada[0] + bizco[0]) * rx * 0.45
             py = oy + (self.mirada[1] + bizco[1]) * ry * 0.45 + (3 if estado == "quieto" else 0)
-            rp = (8.5 if estado == "escuchando" else 7) * s
+            rp = (8.5 if estado == "escuchando" else 5.5 if picado else 7) * s
             c.create_oval(px - rp, py - rp, px + rp, py + rp, fill=PUPILA, outline="")
             c.create_oval(px - rp * 0.5 - 2, py - rp * 0.6 - 2, px - rp * 0.5 + 2, py - rp * 0.6 + 2, fill=OJO, outline="")
             f = max(0.0, min(1.0, self.parpado))
@@ -261,12 +276,21 @@ class Cerebrito:
                 alto += 4 * lado
             if estado == "hablando":
                 alto -= 3 * n
+            if picado:                                           # cejas en V, enojado
+                linea([(lado * 46, -44), (lado * 16, -31)], fill=borde, width=7, capstyle="round")
+                continue
             linea([(lado * 31 - 13, alto + 2), (lado * 31, alto - 3), (lado * 31 + 13, alto + 1)],
                   smooth=True, fill=borde, width=5, capstyle="round")
 
         # boca con dientes de conejo, corrida un poquito para un costado
         bx, by = 5, 44
-        if estado == "hablando":
+        if picado and estado != "hablando":                      # dientes apretados
+            poligono([(bx - 17, by - 5), (bx + 17, by - 5), (bx + 17, by + 8), (bx - 17, by + 8)],
+                     fill="#FFFDF5", outline=borde, width=3)
+            linea([(bx - 17, by + 1), (bx + 17, by + 1)], fill=borde, width=2)
+            for k in (-8, 0, 8):
+                linea([(bx + k, by - 5), (bx + k, by + 8)], fill=borde, width=2)
+        elif estado == "hablando":
             alto = 5 + 20 * n
             ovalo(bx, by + alto / 2 - 4, 17 + 5 * n, alto / 2 + 2, fill=BOCA, outline=borde, width=3)
             if alto > 12:
@@ -290,7 +314,14 @@ class Cerebrito:
             self._dientes(poligono, bx, by - 6, borde)
 
         # extras de cada estado, todos de colores
-        if estado == "escuchando":                               # ondas de sonido que siguen tu voz
+        if picado:                                               # vena de enojo que late (como en los dibujos)
+            vx, vy = P(60, -64)
+            k = 1.0 + 0.25 * abs(math.sin(t * 6))
+            for sx, sy, ini in ((1, 1, 90), (1, -1, 180), (-1, 1, 0), (-1, -1, 270)):
+                ax, ay = vx + sx * 8 * k, vy + sy * 8 * k
+                c.create_arc(ax - 7 * k, ay - 7 * k, ax + 7 * k, ay + 7 * k, start=ini, extent=90, style="arc",
+                             outline="#E8202A", width=4)
+        elif estado == "escuchando":                               # ondas de sonido que siguen tu voz
             for lado in (-1, 1):
                 for i in range(3):
                     r = (18 + i * 12) * (0.6 + n)

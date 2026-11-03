@@ -55,6 +55,8 @@ USE_OLLAMA = _b("USE_OLLAMA", True)
 OLLAMA_URL = _s("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/").replace("//localhost", "//127.0.0.1")
 OLLAMA_MODEL = _s("OLLAMA_MODEL", "qwen3.5:9b")
 OLLAMA_KEEP_ALIVE = _s("OLLAMA_KEEP_ALIVE", "30m")
+OLLAMA_API_KEY = _s("OLLAMA_API_KEY")                     # cuenta gratis de ollama.com: búsqueda web (conectar_busqueda.bat)
+BUSCAR_INTERNET = _b("BUSCAR_INTERNET", True)             # buscar en internet cuando la pregunta lo necesita
 TONO = _s("TONO", "tono cercano y épico, como un GM de WoW hablándole a su hermandad; español con voseo como Hogger; "
                   "como mucho 2 emojis; frases cortas")
 
@@ -114,7 +116,7 @@ ORBE_ESTILO = _s("ORBE_ESTILO", "cerebro").lower()         # cerebro (con ojos) 
 CEREBRO_SIEMPRE = _b("CEREBRO_SIEMPRE", False)             # true = el cerebro queda siempre en pantalla
 CEREBRO_DISENO = _s("CEREBRO_DISENO", "gafas").lower()     # gafas (relajado, con gafas y colores) o clasico
 VOZ_TONO = _f("VOZ_TONO", 4)                              # semitonos: 0 = voz normal, 3 a 5 = voz de dibujito
-ORBE_POSICION = _s("ORBE_POSICION", "abajo-derecha").lower()
+ORBE_POSICION = _s("ORBE_POSICION", "arriba-derecha").lower()
 
 # --- OBS (para las capturas de las miniaturas) ---
 OBS_HOST = _s("OBS_HOST", "127.0.0.1").replace("localhost", "127.0.0.1")

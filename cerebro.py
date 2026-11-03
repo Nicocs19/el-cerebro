@@ -55,11 +55,13 @@ class Cerebro:
         try:
             accion, origen = router.interpretar(consulta, self.pendiente)
         except H.ErrorOrden as e:
+            log(f"NO SE PUDO: {e}")
             self.contexto = None
             pitido("error")
             self.avisar("pregunta", None, str(e))
             return self.mostrar(f"«{texto}»\n{e}", "error", 10)
         except Exception as e:  # noqa: BLE001
+            log(f"ERROR al interpretar: {e}")
             self.contexto = None
             pitido("error")
             self.avisar("error", None, str(e))
@@ -68,6 +70,7 @@ class Cerebro:
             relleno.cancel()
 
         if accion.tipo == "aclaracion":
+            log(f"PREGUNTA: {accion.resumen}")
             self.contexto = consulta
             pitido("pregunta")
             self.avisar("pregunta", accion)
@@ -78,7 +81,7 @@ class Cerebro:
             self.pendiente_hasta = time.time() + config.CONFIRMAR_SEGUNDOS
             pitido("pregunta")
             self.avisar("confirmar", accion)
-            pregunta = "¿Lo hago?" if accion.tipo in ("moderar", "overlay") else "¿Publico?"
+            pregunta = "¿Lo hago?" if accion.tipo in ("moderar", "overlay", "titulo", "juego") else "¿Publico?"
             return self.mostrar(f"{accion.resumen}\n\n{pregunta} Di «dale» o pulsa {config.CONFIRM_HOTKEY.upper()}. "
                                 "«Cancela» para descartar; también puedes corregir.", "pregunta",
                                 config.CONFIRMAR_SEGUNDOS)
@@ -115,6 +118,9 @@ class Cerebro:
                                  daemon=True, name=f"diseño-{accion.tipo}").start()
                 return
             self.mostrar(f"{accion.resumen}\nDiseñándolo (hasta 2 minutos)…", "info", 0)
+        elif accion.tipo == "busqueda":
+            self.avisar("buscando", accion)
+            self.mostrar(f"{accion.resumen}\nBuscando…", "info", 0)
         else:
             self.mostrar(f"{accion.resumen}\nEjecutando…", "info", 0)
         try:
@@ -127,10 +133,12 @@ class Cerebro:
         pitido("ok")
         self.avisar("hecho", accion, resultado)
         self.mostrar(resultado, "ok", 8)
-        if accion.tipo == "titulo" and accion.datos.get("miniatura"):
-            mini = H.Accion("miniatura", {"titulo": accion.datos["miniatura"], "subtitulo": "", "idea": "",
-                                          "subir_youtube": "youtube" in accion.datos["plataformas"]},
-                            f"Miniatura «{accion.datos['miniatura']}»", False)
+        m = accion.datos.get("miniatura") if accion.tipo == "titulo" else None
+        if m:                        # «cambiá el título y haceme la miniatura»: ya se confirmó todo junto
+            if isinstance(m, str):
+                m = {"titulo": m, "subtitulo": "", "idea": ""}
+            mini = H.Accion("miniatura", {**m, "subir_youtube": "youtube" in accion.datos["plataformas"]},
+                            f"Miniatura «{m['titulo']}»", False)
             self._ejecutar(mini)
 
 
@@ -154,7 +162,7 @@ class App:
             import jarvis
             self.voz = jarvis.Voz() if config.JARVIS_VOZ else None
             if self.voz and config.VOZ_RELLENO:
-                self.voz.precalentar(jarvis.RELLENOS)      # «a ver…» listo para salir al instante
+                self.voz.precalentar(jarvis.RELLENOS + jarvis.BUSCANDO)   # «a ver…» listo para salir al instante
             if config.JARVIS_ORBE:
                 if config.ORBE_ESTILO == "orbe":
                     self.orbe = jarvis.Orbe(self.root)
@@ -186,7 +194,10 @@ class App:
 
     def _avisar(self, evento, accion=None, detalle=None):
         """Modo Jarvis: lo dice en voz alta y hace destellar el orbe (se llama desde el hilo de trabajo)."""
-        if self.orbe and evento in ("hecho", "error", "cancelado"):
+        animo = accion.datos.get("animo") if accion is not None and evento == "hecho" else None
+        if self.orbe and animo == "picado" and hasattr(self.orbe, "poner_animo"):
+            self.orbe.poner_animo("picado", 12)           # cara de caliente mientras te contesta
+        elif self.orbe and evento in ("hecho", "error", "cancelado"):
             self.orbe.destellar("error" if evento == "error" else "ok")
         if self.voz:
             import jarvis

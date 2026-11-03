@@ -70,6 +70,7 @@ def _nombre_hablado(usuario):
 
 
 RELLENOS = ("A ver, a ver…", "Mmm…", "Ya, un toque…", "Ajá, dejame ver…")
+BUSCANDO = ("Dejame buscar…", "Ya te lo busco…", "Un toque, lo busco en internet…")
 
 
 def frase(evento, accion=None, detalle=None):
@@ -82,6 +83,8 @@ def frase(evento, accion=None, detalle=None):
         return detalle or (accion.resumen if accion else "")
     if evento == "relleno":
         return random.choice(RELLENOS)
+    if evento == "buscando":
+        return random.choice(BUSCANDO)
     if evento == "cancelado":
         return "Cancelado."
     if evento == "trabajando":
@@ -113,6 +116,11 @@ def frase(evento, accion=None, detalle=None):
             return "¿Lo mando al chat?"
         if tipo == "overlay":
             return f"Overlay {d.get('nombre')}, {str(d.get('posicion', '')).replace('-', ' ')}. ¿Lo diseño?"
+        if tipo == "titulo":
+            extra = (" Con el juego " + d["juego"] + "." if d.get("juego") else "") + (" Y te hago la miniatura." if d.get("miniatura") else "")
+            return f"Título: {d.get('titulo')}.{extra} ¿Lo cambio?"
+        if tipo == "juego":
+            return f"Juego {d.get('juego')} en Kick. ¿Lo cambio?"
         primera = (accion.resumen if accion else "").splitlines()[0] if accion else ""
         return f"{primera}. ¿Confirmás?"
     if evento == "hecho":
@@ -122,13 +130,17 @@ def frase(evento, accion=None, detalle=None):
                     "borrar": "Borrado."}.get(a, "Listo, publicado.")
         if tipo == "titulo":
             extra = " El de TikTok te lo dejé copiado." if "tiktok" in d.get("plataformas", []) else ""
-            return "Título cambiado." + extra
+            return "Título cambiado." + extra + (" Ahora te diseño la miniatura." if d.get("miniatura") else "")
+        if tipo == "juego":
+            return "Juego cambiado en Kick." if "Falló" not in str(detalle or "") else "No pude cambiar el juego."
         if tipo == "deshacer":
             return "Listo, lo borré."
         if tipo == "restaurar_titulo":
             return "Volví al título anterior."
         if tipo in ("consultar_titulo", "respuesta"):
             return str(detalle or "")
+        if tipo == "busqueda":
+            return str(detalle or "").split("\n(Fuente:")[0]
         if tipo == "miniatura":
             return "Miniaturas listas." + (" Ya está en YouTube." if "subida a YouTube" in str(detalle or "") else "")
         if tipo == "moderar":

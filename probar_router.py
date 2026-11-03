@@ -60,6 +60,16 @@ FRASES_CHAT = {
     and a.get("accion") == "crear" and a.get("posicion") == "arriba-derecha",
     "cambia el título a día 2 de wow forever y hazme la miniatura que diga día 2": lambda n, a:
     n == "cambiar_titulo_stream" and "2" in str(a.get("miniatura")),
+    "cambia el título a leviando al washer del 1 al 10 y aparte hazme la miniatura con recortes oficiales de world of "
+    "warcraft que diga no me esperaba esto, los primeros niveles": lambda n, a: n == "cambiar_titulo_stream"
+    and "war" in str(a.get("titulo")).lower() and "washer" not in str(a.get("titulo")).lower()
+    and "esperaba" in str(a.get("miniatura")).lower(),
+    "pon el juego world of warcraft": lambda n, a: n == "cambiar_juego" and "warcraft" in str(a.get("juego")).lower(),
+    "cerebro, eres un inútil": lambda n, a: n == "responder" and a.get("animo") == "picado",
+    "molesta un rato al chat": lambda n, a: n == "responder",
+    "saluda al stream": lambda n, a: n == "responder",
+    "manda un saludo al chat": lambda n, a: n == "mandar_al_chat" and not str(a.get("enlace") or "").strip(),
+    "qué parche salió ayer en wow forever": lambda n, a: n == "buscar_en_internet",
 }
 
 
@@ -86,7 +96,7 @@ def probar_chat():
     bien = 0
     for f, chequeo in FRASES_CHAT.items():
         t0 = time.time()
-        nombre, args = router._llamar_ollama(f)
+        nombre, args = router._completar_combo(f, *router._llamar_ollama(f))
         ok = chequeo(nombre, args)
         bien += ok
         print(f"{'OK ' if ok else 'FALLO'} ({time.time() - t0:4.1f} s) {f}\n    -> {nombre} {args}\n")

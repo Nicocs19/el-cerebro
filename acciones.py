@@ -100,8 +100,11 @@ class Ejecutor:
                     continue
                 if p == "kick":
                     anteriores["kick"] = self.kick.titulo_actual()
-                    self.kick.cambiar_titulo(titulo)
-                    hechas.append("Kick")
+                    cat = self.kick.buscar_categoria(accion.datos["juego"]) if accion.datos.get("juego") else None
+                    if accion.datos.get("juego") and not cat:
+                        fallos.append(f"juego: no encontré «{accion.datos['juego']}» en Kick")
+                    self.kick.cambiar_titulo(titulo, cat["id"] if cat else None)
+                    hechas.append(f"Kick (juego: {cat['name']})" if cat else "Kick")
                 elif p == "youtube":
                     anteriores["youtube"] = self.yt.cambiar_titulo(titulo)
                     hechas.append("YouTube")
@@ -120,6 +123,16 @@ class Ejecutor:
         if not hechas:
             raise RuntimeError(" ".join(partes))
         return " ".join(partes)
+
+    def _juego(self, accion):
+        nombre = accion.datos["juego"]
+        if self.simular:
+            return f"[simulado] Juego en Kick: {nombre}"
+        cat = self.kick.buscar_categoria(nombre)
+        if not cat:
+            raise RuntimeError(f"No encontré el juego «{nombre}» en Kick. Decilo con el nombre completo.")
+        self.kick.cambiar_categoria(cat["id"])
+        return f"Juego cambiado en Kick a {cat['name']}. En YouTube y TikTok el juego se cambia a mano."
 
     def _consultar_titulo(self, accion):
         return f"Kick: «{self.kick.titulo_actual()}»"
@@ -206,6 +219,11 @@ class Ejecutor:
 
     def _respuesta(self, accion):
         return accion.datos["respuesta"]
+
+    def _busqueda(self, accion):
+        import buscar
+        texto, fuente = buscar.contestar(accion.datos["pregunta"])
+        return f"{texto}\n(Fuente: {fuente})" if fuente else texto
 
     def _aclaracion(self, accion):
         return accion.datos["pregunta"]

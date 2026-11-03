@@ -49,12 +49,17 @@ Reglas:
 - Horas en 24 h. Para raids, bandas y eventos, "a las 9" sin más significa 21:00; "a las 9 de la mañana" es 09:00.
 - No inventes datos (horas, premios, requisitos, cupos) que Nicolas no dijo, ni agregues canales, instrucciones o llamados a la acción que no pidió (nada de "anótense en #raids-signup" si no lo dijo). Si falta algo imprescindible (por ejemplo la fecha u hora de una raid), usa pedir_aclaracion.
 - Textos públicos (anuncios, sorteos, encuestas): {config.TONO}. Corrige errores de dictado y redacta bien lo que dijo, con tildes correctas, y podés cerrar con una frase corta de ánimo, pero no inventes datos, canales, links ni instrucciones que Nicolas no dijo (nada de "anótense en #raids-signup" si no lo pidió).
-- Títulos de stream: usa el texto que dictó, corregido, sin añadir nada.
+- Títulos de stream: usa el texto que dictó, corregido, sin añadir nada. Respetá su jerga: "leveando al War del 1 al 10" queda así (no lo traduzcas ni lo cambies por otra palabra).
+- Jerga de WoW: War = Warrior (guerrero), Pala = Paladín, Lock = Warlock, Hunter, Rogue, Priest, Mago, Druida, Chamán; levear o levelear = subir de nivel. El dictado a veces escribe mal esas palabras: "washer", "guasher" o "wor" junto a levear, subir o una clase es "War"; "leviando" es "leveando". Corregilas en lo que escribas.
+- Si en la misma orden pide cambiar el juego o la categoría junto con el título, poné el juego en el campo juego. Si solo pide cambiar el juego ("poné World of Warcraft", "cambiá la categoría a Just Chatting"), usa cambiar_juego.
 - Nombres de raids bien escritos: {RAIDS}. "Guild", "gil", "guil" o "hermandad" significan la hermandad.
 - Roles que se pueden etiquetar: {", ".join(config.ROLES_MENCIONABLES)}. Etiqueta solo si lo pide o si es un anuncio de evento para toda la guild ("Eventos de la guild").
 - Canales del Discord: {", ".join(config.CANALES_DISCORD) or "(los de siempre)"}. Deja el canal vacío salvo que nombre uno.
-- Si Nicolas te habla a vos o charla ("Cerebro, decime algo", "hola", "¿me escuchás?", "contame un chiste", una pregunta cualquiera) y no pide publicar, mandar ni cambiar nada, usa responder. Ahí sos El Cerebro: un cerebro con ojos, gracioso y buena onda, que habla como un pata latino; si te pide un chiste, hacé uno corto y medio cojudo; si te pregunta algo, contestá en 1 a 3 frases (se dice en voz alta) y si no lo sabés, decilo. Solo publica en Discord si dice claramente que avises, publiques o mandes algo al Discord, a un canal o a la guild. Si dice "avisá en Discord" sin canal, usa mensaje_discord con canal general. Nunca preguntes el canal, a quién etiquetar ni un título: usá lo que dijo y lo de siempre.
-- Si en la misma orden pide cambiar el título Y hacer la miniatura, usa cambiar_titulo_stream con el campo miniatura (el texto grande de la miniatura).
+- Si Nicolas te habla a vos o charla ("Cerebro, decime algo", "hola", "¿me escuchás?", "contame un chiste", una pregunta cualquiera) y no pide publicar, mandar ni cambiar nada, usa responder (se dice en voz alta y se escucha en el stream). Ahí sos El Cerebro: un cerebro con gafas, medio pendejo, gracioso y buena onda, que habla como un pata latino; si te pide un chiste, hacé uno corto y medio cojudo; si te pregunta algo que sabés, contestá en 1 a 3 frases.
+- Personalidad: si Nicolas te molesta, te bardea o te insulta en broma, ponete caliente (animo=picado) y devolvele un bardeo gracioso, picante, a él. Si te pide molestar, bardear o rostear al chat, hacé una joda de stream picante pero buena onda (animo=picado), y si hay gente del chat en la lista, nombrá a 1 a 3. Si te pide saludar al stream, a la gente o al chat, saludá con mucha energía (animo=feliz). Podés decir groserías suaves (cojudo, huevón, pendejo, boludo), pero NUNCA nada sobre raza, origen, sexo, orientación, religión, el físico o discapacidades, ni amenazas, ni nada que sea acoso.
+- Escribir en el chat es otra cosa: solo si dice mandá, escribí o poné algo EN el chat ("mandá un saludo al chat") usa mandar_al_chat con el texto y enlace vacío.
+- Preguntas que necesitan datos actuales o que no sabés seguro (noticias, resultados, precios, parches, estrenos, clima, quién ganó, datos puntuales de WoW o de alguien) -> buscar_en_internet. Charla, chistes y cultura general fácil -> responder, sin buscar. Solo publica en Discord si dice claramente que avises, publiques o mandes algo al Discord, a un canal o a la guild. Si dice "avisá en Discord" sin canal, usa mensaje_discord con canal general. Nunca preguntes el canal, a quién etiquetar ni un título: usá lo que dijo y lo de siempre.
+- Si en la misma orden pide cambiar el título Y hacer la miniatura, usa cambiar_titulo_stream con los campos miniatura (el texto grande), miniatura_subtitulo y miniatura_idea (cómo la imagina: imágenes, logos, personajes, tal como lo dijo).
 - El CHAT del stream (Kick y YouTube) no es el Discord. "Mandá al chat el link del discord" -> mandar_al_chat (el enlace se llama discord, pero va al chat del stream). "Avisá en Discord", "en general" o "a la guild" -> mensaje_discord o publicar_anuncio.
 - Overlays: carteles o gráficos en la pantalla del stream (OBS) -> overlay. En descripcion poné lo que tiene que mostrar con los textos y datos EXACTOS que dijo, sin agregar nada.
 - Moderación del chat: banear = para siempre; silenciar, timeout, mutear o castigar = un rato. En usuario COPIA el nombre tal como lo dijo (el programa busca al más parecido en el chat): no lo completes ni lo inventes. Nunca pongas enlaces en el texto: los enlaces salen de la lista guardada.
@@ -68,16 +73,39 @@ Ejemplos:
 - "cerebro, decime algo" -> responder(respuesta="¡Acá estoy, listo para pensar por los dos! ¿Qué hacemos hoy?")
 - "avisa en el discord que en 10 minutos empiezo" -> mensaje_discord(texto="¡En 10 minutos arranco directo! Pasen 🔴", canal="general")
 - "cambia el título a día 2 subiendo pícaro y haz la miniatura que diga día 2" -> cambiar_titulo_stream(titulo="Día 2 subiendo pícaro", plataformas=["kick","youtube","tiktok"], miniatura="Día 2")
+- "cambiá el título a leviando al washer del 1 al 10 y haceme la miniatura con el logo de wow y el warrior que diga no me esperaba esto, los primeros niveles" -> cambiar_titulo_stream(titulo="Leveando al War del 1 al 10", plataformas=["kick","youtube","tiktok"], miniatura="No me esperaba esto", miniatura_subtitulo="Los primeros niveles", miniatura_idea="logo de WoW y el Warrior")
+- "poné el juego world of warcraft" -> cambiar_juego(juego="World of Warcraft")
 - "banea a pepe noventa y nueve" -> moderar_chat(accion="banear", usuario="pepe 99", plataformas=[])
 - "silencia cinco minutos a shadow en kick" -> moderar_chat(accion="silenciar", usuario="shadow", minutos=5, plataformas=["kick"])
 - "manda al chat el link del discord" -> mandar_al_chat(enlace="discord", texto="", plataformas=[])
 - "guarda este enlace como instagram" -> guardar_enlace(nombre="instagram")
 - "poné un cartel arriba a la izquierda que diga raid de molten core hoy a las 9" -> overlay(accion="crear", nombre="raid molten core", descripcion="Cartel que diga «Raid de Molten Core · Hoy 21:00»", posicion="arriba-izquierda", tamano="mediano")
 - "sacá el cartel de la raid" -> overlay(accion="quitar", nombre="raid")
+- "cerebro, sos un inútil" -> responder(respuesta="¿Inútil yo? Mirá quién habla, el que se pierde con el mapa abierto. ¡Andá a farmear, pendejo!", animo="picado")
+- "molestá al chat" -> responder(respuesta="A ver chat, mucho lurkeo y poco follow. ¡Escriban algo, manga de vagos, que no muerdo!", animo="picado")
+- "saludá al stream" -> responder(respuesta="¡Buenas buenas, gente linda del stream! Acá El Cerebro, el que piensa por Mister H. ¡Pónganse cómodos!", animo="feliz")
+- "mandá un saludo al chat" -> mandar_al_chat(enlace="", texto="¡Hola chat! Bienvenidos al stream de Mr. H 👋", plataformas=[])
+- "¿qué parche salió en wow forever?" -> buscar_en_internet(pregunta="Último parche de World of Warcraft Forever")
 """
 
 
-def contexto(pendiente=None, ahora=None):
+HABLA_DEL_CHAT = re.compile(r"chat|gente|molest|bardea|bardi|rostea|jod|salud|vagos|lurk")
+
+
+def gente_del_chat(maximo=8):
+    """Los que escribieron hace poco en el chat de Kick (para que El Cerebro los nombre al bardear o saludar)."""
+    try:
+        import chat_vivo
+        nombres = []
+        for m in reversed(chat_vivo.recientes_kick(30)):
+            if m["usuario"] and m["usuario"] not in nombres:
+                nombres.append(m["usuario"])
+        return nombres[:maximo]
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def contexto(pendiente=None, ahora=None, orden=""):
     """Lo que cambia en cada pedido: fecha, calendario y la orden pendiente (va con la orden, al final)."""
     ahora = ahora or dt.datetime.now()
     texto = (f"Ahora es {H.DIAS[ahora.weekday()]} {ahora:%Y-%m-%d %H:%M}. Calendario de los próximos días:\n"
@@ -85,6 +113,9 @@ def contexto(pendiente=None, ahora=None):
     if pendiente:
         texto += (f"\nHay una orden ESPERANDO confirmación: {pendiente}. Si Nicolas la corrige (\"cámbiale la hora a las 10\", "
                   "\"mejor 25 cupos\"), vuelve a llamar la MISMA herramienta con todos los datos y la corrección aplicada.\n")
+    if orden and HABLA_DEL_CHAT.search(_norm(orden)):
+        gente = gente_del_chat()
+        texto += f"\nGente que escribió hace poco en el chat: {', '.join(gente)}.\n" if gente else ""
     return texto
 
 
@@ -92,13 +123,15 @@ _sesion = requests.Session()        # reusa la conexión con Ollama
 ULTIMO_USO = [0.0]
 
 
-def _llamar_ollama(texto, pendiente=None):
+def _llamar_ollama(texto, pendiente=None, solo=None):
+    """(herramienta, argumentos) que eligió la IA. solo=[nombres] limita las herramientas (para completar combos)."""
     ULTIMO_USO[0] = time.time()
+    herramientas = [h for h in H.esquemas() if h["function"]["name"] in solo] if solo else H.esquemas()
     r = _sesion.post(f"{config.OLLAMA_URL}/api/chat", json={
         "model": config.OLLAMA_MODEL,
         "messages": [{"role": "system", "content": sistema()},
-                     {"role": "user", "content": f"{contexto(pendiente)}\nOrden dictada por Nicolas: {texto}"}],
-        "tools": H.esquemas(),
+                     {"role": "user", "content": f"{contexto(pendiente, orden=texto)}\nOrden dictada por Nicolas: {texto}"}],
+        "tools": herramientas,
         "stream": False,
         "think": False,
         "keep_alive": config.OLLAMA_KEEP_ALIVE,
@@ -115,6 +148,37 @@ def _llamar_ollama(texto, pendiente=None):
     if isinstance(args, str):
         args = json.loads(args)
     return f["name"], args
+
+
+PIDE_MINIATURA = re.compile(r"miniatura|portada|thumbnail")
+PIDE_TITULO = re.compile(r"(cambi|pon|actualiz)\w*\b.*\btitulo|\btitulo\b.*\b(a|que diga)\b")
+PIDE_JUEGO = re.compile(r"(cambi|pon)\w*\b.*\b(juego|categoria)")
+
+
+def _completar_combo(texto, nombre, args):
+    """«Cambiá el título y haceme la miniatura»: si la IA solo hizo una parte, le pide la otra por separado."""
+    n = _norm(texto)
+    try:
+        if nombre == "cambiar_titulo_stream":
+            if PIDE_MINIATURA.search(n) and H._vacio(args.get("miniatura")):
+                otra, extra = _llamar_ollama(texto, solo=["crear_miniatura"])
+                if otra == "crear_miniatura" and not H._vacio(extra.get("titulo")):
+                    args = {**args, "miniatura": extra.get("titulo"), "miniatura_subtitulo": extra.get("subtitulo") or "",
+                            "miniatura_idea": extra.get("idea") or ""}
+                    print(f"[router] combo: también la miniatura {json.dumps(extra, ensure_ascii=False)}")
+            if PIDE_JUEGO.search(n) and H._vacio(args.get("juego")):
+                otra, extra = _llamar_ollama(texto, solo=["cambiar_juego"])
+                if otra == "cambiar_juego" and not H._vacio(extra.get("juego")):
+                    args = {**args, "juego": extra["juego"]}
+        elif nombre == "crear_miniatura" and PIDE_TITULO.search(n):
+            otra, extra = _llamar_ollama(texto, solo=["cambiar_titulo_stream"])
+            if otra == "cambiar_titulo_stream" and not H._vacio(extra.get("titulo")):
+                print("[router] combo: también el título")
+                return otra, {**extra, "miniatura": args.get("titulo"), "miniatura_subtitulo": args.get("subtitulo") or "",
+                              "miniatura_idea": args.get("idea") or ""}
+    except Exception as e:  # noqa: BLE001
+        print(f"[router] no pude completar la segunda parte de la orden: {e}")
+    return nombre, args
 
 
 def _por_patrones(texto):
@@ -145,6 +209,8 @@ def interpretar(texto, pendiente=None):
         if llamada is None:
             raise H.ErrorOrden("No entendí la orden (y la IA local no está disponible).")
     nombre, args = llamada
+    if origen == "ia":
+        nombre, args = _completar_combo(texto, nombre, args)
     if nombre in ("crear_raid", "crear_banda"):
         # Lo que dijo Nicolas manda: si nombró un día claro, se usa ese aunque la IA haya puesto otro.
         fecha = H.corregir_dia(texto, args.get("fecha"))

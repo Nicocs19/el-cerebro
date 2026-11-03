@@ -51,10 +51,10 @@ class Kick:
             self._refrescar()
         return self.tokens["access_token"]
 
-    def _pedir(self, metodo, ruta, **kw):
+    def _pedir(self, metodo, ruta, base=API, **kw):
         for intento in range(2):
             h = {"Authorization": f"Bearer {self._token()}", "Accept": "application/json"}
-            r = requests.request(metodo, API + ruta, headers=h, timeout=15, **kw)
+            r = requests.request(metodo, base + ruta, headers=h, timeout=15, **kw)
             if r.status_code == 401 and intento == 0:
                 self._refrescar()
                 continue
@@ -76,6 +76,37 @@ class Kick:
 
     def titulo_actual(self):
         return self.canal().get("stream_title") or ""
+
+    def buscar_categoria(self, nombre):
+        """{id, name} de la categoría de Kick que mejor coincide con el nombre del juego (o None)."""
+        import difflib
+        import unicodedata
+
+        def norm(t):
+            t = unicodedata.normalize("NFD", str(t).lower())
+            return "".join(c for c in t if c.isalnum() and unicodedata.category(c) != "Mn")
+
+        candidatos = []
+        for base, ruta, params in ((API, "/categories", {"q": nombre}),
+                                   (API.replace("/v1", "/v2"), "/categories", {"name": nombre, "limit": 25})):
+            try:
+                datos = self._pedir("GET", ruta, params=params, base=base).json().get("data") or []
+            except KickError as e:
+                print(f"[kick] categorías {base[-2:]}: {e}")
+                continue
+            candidatos = [c for c in datos if c.get("id") and c.get("name")]
+            if candidatos:
+                break
+        if not candidatos:
+            return None
+        n = norm(nombre)
+        mejor = max(candidatos, key=lambda c: (norm(c["name"]) == n, difflib.SequenceMatcher(None, n, norm(c["name"])).ratio()))
+        if norm(mejor["name"]) != n and difflib.SequenceMatcher(None, n, norm(mejor["name"])).ratio() < 0.5:
+            return None
+        return {"id": int(mejor["id"]), "name": mejor["name"]}
+
+    def cambiar_categoria(self, categoria_id):
+        self._pedir("PATCH", "/channels", json={"category_id": int(categoria_id)})
 
     def cambiar_titulo(self, titulo, categoria_id=None):
         cuerpo = {"stream_title": titulo}

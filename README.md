@@ -53,6 +53,15 @@ El Cerebro te lee la confirmación («Raid de Onyxia, el viernes a las 9 de la n
 - Kick necesita los permisos `chat:write` y `moderation:ban`: `conectar_kick.bat` te guía para marcarlos en tu app y guarda el número de la sala del chat.
 - YouTube: banear cuesta 200 de las 10.000 unidades diarias gratis, escribir en el chat 20 y buscar al usuario 5.
 
+## Personalidad, preguntas y juego
+
+- **Charla:** «saludá al stream», «contame un chiste», «molestá al chat» o bardearlo: contesta en voz (se escucha en el stream) sin publicar nada. Si lo molestás se pone caliente (cara roja con la vena). Bromas picantes pero nunca sobre raza, origen, sexo, orientación, religión, el físico o discapacidades.
+- **Escribir en el chat:** solo si decís «mandá / escribí … en el chat», y siempre con «dale».
+- **Buscar en internet:** solo cuando la pregunta lo necesita («¿qué parche salió en WoW?»): dice «dejame buscar», busca y resume en 1 a 3 frases con la fuente en pantalla. Sin cuenta usa Wikipedia; con `conectar_busqueda.bat` (cuenta gratis de ollama.com) busca en toda la web.
+- **Título, juego y miniatura en una orden:** «cambiá el título a … , poné World of Warcraft y haceme la miniatura que diga …». Se confirma todo junto con «dale». El juego (categoría) solo se puede cambiar por voz en Kick.
+- **Dictado de WoW:** `voz.py` tiene el vocabulario (War, Pala, Lock, leveando…) y una lista de correcciones (`CORRECCIONES`) para lo que Whisper escucha mal.
+- **Miniaturas con imágenes tuyas:** poné PNG en `recursos\imagenes` con nombres claros (`logo_wow.png`, `warrior.png`): el diseño las usa cuando las nombrás en la idea.
+
 ## Instalación (Windows 11)
 
 1. Python 3.12, Git y Ollama instalados. Descarga el modelo: `ollama pull qwen3.5:9b`.

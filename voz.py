@@ -14,10 +14,27 @@ import config
 
 SR = 16000
 BLOQUE = 1600  # 0,1 s
-PROMPT = ("Ordenes de un streamer en español: anuncio a mi guild, hermandad, Discord, Kick, YouTube, "
-          "TikTok, título del stream, World of Warcraft, raid, mazmorra, guerrero, nivel. Raids: Molten Core, "
+PROMPT = ("Órdenes de un streamer gamer en español: anuncio a mi guild, hermandad, Discord, Kick, YouTube, "
+          "TikTok, título del stream, miniatura, World of Warcraft, WoW Forever, Cerebro, Hogger, Mr. H. "
+          "Leveando al War del 1 al 10, subiendo el Pala, el Hunter, el Rogue, el Priest, el Lock, el Mago, "
+          "el Druida, el Chamán; farmear, tanquear, healer, DPS, raid, mazmorra, nivel. Raids: Molten Core, "
           "Onyxia, Blackwing Lair, Zul'Gurub, Naxxramas, Karazhan, Gruul, Magtheridon, Monte Hyjal, Templo Oscuro, "
           "Zul'Aman, Ulduar. Mazmorras: Deadmines, Stratholme, Scholomance.")
+PALABRAS_CLAVE = "War Warrior leveando WoW Forever Hogger Cerebro Kick miniatura raid"
+
+# Lo que Whisper suele escuchar mal en jerga de WoW -> lo que dijiste (se aplica a todo lo transcrito)
+CORRECCIONES = [
+    (r"\b(levi|libi|lebi|leb)(ando|ar|o|eo)\b", r"leve\2"),
+    (r"\b(washer|guasher|guacher|wacher|guar|guor|wor)\b", "War"),
+    (r"\bwarrior\b", "Warrior"),
+    (r"\bwow forever\b|\bguau forever\b|\bbow forever\b", "WoW Forever"),
+]
+
+
+def corregir(texto):
+    for patron, cambio in CORRECCIONES:
+        texto = re.sub(patron, cambio, texto, flags=re.IGNORECASE)
+    return texto
 VOZ_MINIMA = 3  # bloques de 0,1 s por encima del umbral para contar como voz (un clic de teclado no alcanza)
 
 # Frases que Whisper "escucha" en el silencio o el ruido (aprendidas de subtítulos de YouTube)
@@ -81,10 +98,12 @@ class Transcriptor:
         list(self.modelo.transcribe(np.zeros(SR, dtype=np.float32), language="es")[0])
 
     def transcribir(self, audio):
-        segmentos, _ = self.modelo.transcribe(
-            audio, language="es", beam_size=5, vad_filter=True,
-            initial_prompt=PROMPT, condition_on_previous_text=False,
-        )
+        opciones = dict(language="es", beam_size=5, vad_filter=True, initial_prompt=PROMPT,
+                        condition_on_previous_text=False)
+        try:
+            segmentos, _ = self.modelo.transcribe(audio, hotwords=PALABRAS_CLAVE, **opciones)
+        except TypeError:          # faster-whisper viejo, sin hotwords
+            segmentos, _ = self.modelo.transcribe(audio, **opciones)
         # Se descartan los trozos que Whisper mismo marca como "probablemente no es voz"
         partes = [s.text.strip() for s in segmentos
                   if not (s.no_speech_prob > 0.6 and s.avg_logprob < -0.8) and s.compression_ratio < 2.4]
@@ -92,7 +111,7 @@ class Transcriptor:
         if texto and es_alucinacion(texto):
             print(f"(descarto «{texto}»: es ruido, no una orden)")
             return ""
-        return texto
+        return corregir(texto)
 
 
 class Grabadora:

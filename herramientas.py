@@ -63,7 +63,7 @@ class ErrorOrden(Exception):
 
 class Accion:
     def __init__(self, tipo, datos, resumen, confirmar):
-        self.tipo = tipo            # hogger, titulo, deshacer, consultar_titulo, restaurar_titulo, miniatura, moderar, chat, guardar_enlace, overlay, respuesta, aclaracion
+        self.tipo = tipo            # hogger, titulo, deshacer, consultar_titulo, restaurar_titulo, miniatura, moderar, chat, guardar_enlace, overlay, respuesta, busqueda, aclaracion
         self.datos = datos
         self.resumen = resumen
         self.confirmar = confirmar
@@ -132,7 +132,13 @@ def esquemas():
             "plataformas": {"type": "array", "items": {"type": "string", "enum": PLATAFORMAS},
                             "description": "Las que nombró; las tres si no nombró ninguna"},
             "miniatura": {"type": "string", "description": "Solo si pidió también la miniatura: su texto grande (2 a 6 palabras); vacío si no"},
+            "miniatura_subtitulo": {"type": "string", "description": "Texto chico de la miniatura si lo dijo; vacío si no"},
+            "miniatura_idea": {"type": "string", "description": "Cómo imagina la miniatura (imágenes, logos, personajes, colores), tal como lo dijo; vacío si no"},
+            "juego": {"type": "string", "description": "Solo si pidió también cambiar el juego o la categoría: el nombre del juego; vacío si no"},
         }, ["titulo", "plataformas"]),
+        _f("cambiar_juego", "Cambia el juego (categoría) del directo en Kick.", {
+            "juego": {"type": "string", "description": "Nombre del juego bien escrito, p. ej. World of Warcraft, Dead by Daylight, Just Chatting"},
+        }, ["juego"]),
         _f("consultar_titulo", "Dice el título actual del directo en Kick.", {}, []),
         _f("restaurar_titulo", "Vuelve a poner el título anterior.", {}, []),
         _f("crear_miniatura", "Crea miniaturas con el estilo de la guild a partir de una captura de OBS.", {
@@ -166,9 +172,14 @@ def esquemas():
             "posicion": {"type": "string", "enum": OVERLAY_POSICIONES, "description": "Dónde va. arriba-derecha si no lo dijo"},
             "tamano": {"type": "string", "enum": ["chico", "mediano", "grande"], "description": "mediano si no lo dijo"},
         }, ["accion", "nombre"]),
-        _f("responder", "Contesta en voz alta cuando Nicolas te habla a vos, charla, te pide un chiste o te hace una pregunta, sin pedir publicar ni cambiar nada. No publica nada.", {
-            "respuesta": {"type": "string", "description": "Lo que le contestás como El Cerebro: 1 a 3 frases cortas, graciosas y con onda, en español"},
+        _f("responder", "Contesta en voz alta (se escucha en el stream) cuando Nicolas te habla a vos, charla, te molesta, te pide un chiste, saludar al stream, bardear al chat o te hace una pregunta que sabés, sin pedir publicar ni cambiar nada. No publica nada.", {
+            "respuesta": {"type": "string", "description": "Lo que decís como El Cerebro: 1 a 3 frases cortas, graciosas y con onda, en español latino"},
+            "animo": {"type": "string", "enum": ["normal", "picado", "feliz"],
+                      "description": "picado si te molestan, te bardean o te piden bardear; feliz si te felicitan o saludás; si no, normal"},
         }, ["respuesta"]),
+        _f("buscar_en_internet", "Busca en internet y contesta en voz alta. Solo para preguntas que necesitan datos actuales o que no sabés seguro: noticias, resultados, precios, parches, estrenos, clima, quién ganó, info puntual de WoW.", {
+            "pregunta": {"type": "string", "description": "La pregunta, corregida y completa, para buscar"},
+        }, ["pregunta"]),
         _f("pedir_aclaracion", "Úsala SOLO si falta un dato imprescindible o la orden no tiene sentido.", {
             "pregunta": {"type": "string", "description": "Pregunta corta para Nicolas"},
         }, ["pregunta"]),
@@ -498,10 +509,25 @@ def construir(nombre, a):
     if nombre == "cambiar_titulo_stream":
         titulo = _txt(a, "titulo", 100).rstrip(" .")
         plataformas = [p for p in (a.get("plataformas") or PLATAFORMAS) if p in PLATAFORMAS] or PLATAFORMAS
-        mini = "" if _vacio(a.get("miniatura")) else _txt(a, "miniatura", 60, False)
-        return Accion("titulo", {"titulo": titulo, "plataformas": plataformas, "miniatura": mini},
-                      f"Título «{titulo}» en {', '.join(NOMBRES[p] for p in plataformas)}"
-                      + (f"\ny miniatura «{mini}»" if mini else ""), todo)
+        mini = None
+        if not _vacio(a.get("miniatura")):
+            mini = {"titulo": _txt(a, "miniatura", 60), "subtitulo": _txt(a, "miniatura_subtitulo", 60, False),
+                    "idea": _txt(a, "miniatura_idea", 500, False)}
+        juego = "" if _vacio(a.get("juego")) else _txt(a, "juego", 80, False)
+        resumen = f"Título «{titulo}» en {', '.join(NOMBRES[p] for p in plataformas)}"
+        if juego:
+            resumen += f"\nJuego en Kick: {juego}"
+        if mini:
+            resumen += f"\nMiniatura «{mini['titulo']}»" + (f" · {mini['subtitulo']}" if mini["subtitulo"] else "")
+            resumen += f" ({mini['idea']})" if mini["idea"] else ""
+            resumen += " y la subo a YouTube" if "youtube" in plataformas else ""
+        # El título se ve en público: se confirma con «dale» igual que lo de Discord (salvo CONFIRMAR=nada)
+        return Accion("titulo", {"titulo": titulo, "plataformas": plataformas, "miniatura": mini, "juego": juego},
+                      resumen, publica)
+
+    if nombre == "cambiar_juego":
+        j = _txt(a, "juego", 80)
+        return Accion("juego", {"juego": j}, f"Juego del directo en Kick: {j}", publica)
 
     if nombre == "consultar_titulo":
         return Accion("consultar_titulo", {}, "Consultar el título de Kick", False)
@@ -565,7 +591,14 @@ def construir(nombre, a):
 
     if nombre == "responder":
         r = _txt(a, "respuesta", 600)
-        return Accion("respuesta", {"respuesta": r}, r, False)
+        animo = a.get("animo") if a.get("animo") in ("picado", "feliz") else "normal"
+        return Accion("respuesta", {"respuesta": r, "animo": animo}, r, False)
+
+    if nombre == "buscar_en_internet":
+        p = _txt(a, "pregunta", 300)
+        if not config.BUSCAR_INTERNET:
+            raise ErrorOrden("La búsqueda en internet está apagada (BUSCAR_INTERNET=false).")
+        return Accion("busqueda", {"pregunta": p}, f"Buscando en internet: {p}", False)
 
     if nombre == "pedir_aclaracion":
         return Accion("aclaracion", {"pregunta": _txt(a, "pregunta", 200)}, _txt(a, "pregunta", 200), False)

@@ -59,10 +59,17 @@ class Overlay:
         self.win.update_idletasks()
         ancho = max(320, min(460, self.texto.winfo_reqwidth() + 28))
         alto = self.win.winfo_reqheight()
-        if self.ancla:              # como un globo de diálogo, justo arriba del cerebro
-            bx, by, bw, _ = self.ancla()
-            x = max(8, min(self.win.winfo_screenwidth() - ancho - 8, bx + bw - ancho))
-            y = max(8, by - alto - 4)
+        if self.ancla:              # como un globo de diálogo al lado del cerebro
+            bx, by, bw, bh = self.ancla()
+            sw, sh = self.win.winfo_screenwidth(), self.win.winfo_screenheight()
+            if by < sh / 2:         # cerebro arriba: el globo al costado (o abajo si no entra)
+                y = by + 18
+                x = bx - ancho - 2 if bx + bw / 2 > sw / 2 else bx + bw + 2
+                if x < 8 or x + ancho > sw - 8:
+                    x, y = max(8, min(sw - ancho - 8, bx + bw - ancho)), by + bh + 4
+            else:                   # cerebro abajo: el globo justo arriba
+                x = max(8, min(sw - ancho - 8, bx + bw - ancho))
+                y = max(8, by - alto - 4)
         else:
             x, y = self.win.winfo_screenwidth() - ancho - 24, 24
         self.win.geometry(f"{ancho}x{alto}+{x}+{y}")
