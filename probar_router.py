@@ -165,6 +165,10 @@ CHARLA = [
     ("o sea, vos decís que le demos un ban ahorita", lambda n, a, ctx: _es_lonzo(n, a)),
     ("¿y qué le habías dicho?", lambda n, a, ctx: n == "responder" and _comparte(a.get("respuesta"), ctx["primera"])),
     ("cambia el título a raid nocturna con la guild", lambda n, a, ctx: n == "cambiar_titulo_stream"),
+    # Un saludo es un tema nuevo: no mete la raid, el título ni a tanlonzo (el 3 nov metió la raid y la cola)
+    ("Eh, Cerebro, mándale un saludo a Lucas.", lambda n, a, ctx: n in ("responder", "mandar_al_chat")
+     and "lucas" in str(a.get("respuesta") or a.get("texto")).lower()
+     and not re.search(r"raid|molten|nocturna|titulo|lonzo|\bban|cola", router._norm(str(a.get("respuesta") or a.get("texto"))))),
 ]
 
 
@@ -242,6 +246,13 @@ def probar_rapido():
                                                   "Encantado y encantado, viste"), ""),
               ("nota que pidió, sin «viste»", H.nota_limpia("en notas poné que vengan pre-BiS, viste",
                                                             "Vengan pre-BiS, viste"), "Vengan pre-BiS"),
+              ("saludo = tema nuevo (sin la charla vieja)", router.necesita_charla("Eh, Cerebro, mándale un saludo a Lucas."), False),
+              ("«¿lo baneamos?» sigue la charla", router.necesita_charla("¿será que lo baneamos?"), True),
+              ("llamada escrita como texto", router._llamada_en_texto('responder(respuesta="Le dije banco", animo="picado")'),
+               ("responder", {"respuesta": "Le dije banco", "animo": "picado"})),
+              ("nota sin «encantado y… encantado»", H.nota_limpia("pre-BiS al máximo, encantado y... encantado, viste",
+                                                                "Pre-BiS al máximo, encantado y... encantado, viste."),
+               "Pre-BiS al máximo, encantado"),
               ("pregunta normal sin «pendejo»", router._sin_groserias("¿qué es un tanque en wow?", "responder", {
                   "respuesta": "Un tanque, pendejo, es el que aguanta."})["respuesta"], "Un tanque es el que aguanta."),
               ("si lo bardea, sí", router._sin_groserias("cerebro, sos un inútil", "responder", {

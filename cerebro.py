@@ -86,10 +86,13 @@ class Cerebro:
             self.avisar("error", None, str(error))
             return self.mostrar(f"Error al interpretar: {error}", "error", 10)
 
-        if (self.pendiente and accion.tipo == self.pendiente.tipo and accion.datos == self.pendiente.datos
-                and router.tiene_afirmacion(texto)):
-            log("Lo mismo que estaba esperando, con un «sí»: lo tomo como «dale».")
-            return self.confirmar()
+        if self.pendiente and accion.tipo == self.pendiente.tipo and accion.datos == self.pendiente.datos:
+            if router.tiene_afirmacion(texto):
+                log("Lo mismo que estaba esperando, con un «sí»: lo tomo como «dale».")
+                return self.confirmar()
+            accion = self._corregir_de_nuevo(consulta, texto, accion)
+            if accion is None:
+                return None
 
         if accion.tipo == "aclaracion":
             log(f"PREGUNTA: {accion.resumen}")
@@ -113,6 +116,29 @@ class Cerebro:
             self.escuchar()          # cuando termine de preguntar, te escucha solo (sin apretar la tecla)
             return None
         self._ejecutar(accion)
+
+    def _corregir_de_nuevo(self, consulta, texto, accion):
+        """Pediste un cambio («mejor en 20 minutos») y la IA devolvió lo mismo: se le pide otra vez, y si no, se cancela.
+
+        Nunca queda esperando la orden vieja como si fuera la corregida (un «dale» publicaría el dato viejo).
+        """
+        try:
+            otra, _ = router.interpretar(consulta, self.pendiente, nota=(
+                f"\n(Nicolas pidió un CAMBIO a la orden que espera: «{texto}». Volvé a llamar la misma herramienta con "
+                "ese cambio aplicado: no la devuelvas igual.)"))
+        except Exception as e:  # noqa: BLE001
+            log(f"No pude aplicar la corrección: {e}")
+            otra = None
+        if otra is not None and not (otra.tipo == self.pendiente.tipo and otra.datos == self.pendiente.datos):
+            return otra
+        log(f"CANCELADO (no pude aplicar «{texto}»): {self.pendiente.resumen.splitlines()[0]}")
+        memoria.anotar("Vos", f"no pudiste aplicar el cambio «{texto}» y cancelaste «{self.pendiente.resumen.splitlines()[0]}»")
+        self.pendiente = None
+        pitido("error")
+        aviso = "No entendí el cambio, así que lo cancelé para no publicar lo viejo. Decímelo entero de nuevo."
+        self.avisar("pregunta", None, aviso)
+        self.mostrar(f"«{texto}»\n{aviso}", "error", 10)
+        return None
 
     def respuesta(self, texto):
         """Lo que dijiste con el micrófono abierto solo (después de «¿Lo publico?»): sí, no o una corrección."""

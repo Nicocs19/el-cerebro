@@ -96,7 +96,9 @@ def nota_limpia(dicho, nota):
         return ""
     n = re.sub(r"[\s,;¿]*\b(viste|o sea|tipo|y eso|nada mas|cachai|sabes|entendes|me entendes)\b\??[\s.,;]*$", "",
                str(nota).strip(), flags=re.I)
-    return n.strip(" ,;")
+    n = re.sub(r"\b([\w'-]{3,})(?:\s*(?:,|y|e|o)?\s*(?:\.{2,3}|…)?\s*\1\b)+", r"\1", n, flags=re.I)  # «encantado y… encantado»
+    n = re.sub(r"\s*(\.{2,3}|…)\s*", " ", n)
+    return re.sub(r"\s{2,}", " ", n).strip(" ,;")
 
 
 _NUM = r"(\d{1,2}|cinco|diez|quince|veinte|veinticinco|treinta|cuarenta)"
