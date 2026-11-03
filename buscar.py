@@ -92,12 +92,12 @@ def _con_claude(pregunta):
     import subprocess
     import tempfile
 
-    from overlays import SIN_HERRAMIENTAS, buscar_claude
+    from overlays import SIN_HERRAMIENTAS, SOLO_ESTO, buscar_claude
     exe = buscar_claude()
     if not exe:
         raise RuntimeError("no está el programa claude")
-    comando = [exe, "-p", "--max-turns", "8", "--model", config.CLAUDE_MODELO_BUSQUEDA,
-               "--disallowedTools"] + [h for h in SIN_HERRAMIENTAS if h not in ("WebFetch", "WebSearch")]
+    comando = [exe, "-p", "--max-turns", "8", "--model", config.CLAUDE_MODELO_BUSQUEDA] + SOLO_ESTO
+    comando += ["--disallowedTools"] + [h for h in SIN_HERRAMIENTAS if h not in ("WebFetch", "WebSearch")]
     comando += ["--allowedTools", "WebSearch", "WebFetch"]
     r = subprocess.run(comando, input=CLAUDE_PEDIDO.format(pregunta=pregunta), capture_output=True, text=True,
                        encoding="utf-8", timeout=120, cwd=tempfile.mkdtemp(prefix="cerebro_pregunta_"))
@@ -143,6 +143,4 @@ if __name__ == "__main__":  # prueba: python buscar.py "quién ganó el último 
     import sys
     sys.stdout.reconfigure(encoding="utf-8")
     p = " ".join(sys.argv[1:]) or "¿Qué es World of Warcraft?"
-    for x in buscar(p):
-        print("-", x["titulo"], dominio(x["url"]), x["texto"][:120].replace("\n", " "))
     print(contestar(p))

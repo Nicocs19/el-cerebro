@@ -79,8 +79,9 @@ def buscar_claude():
     return max(candidatos, key=os.path.getmtime) if candidatos else None
 
 
-SIN_HERRAMIENTAS = ["Bash", "PowerShell", "Read", "Write", "Edit", "MultiEdit", "NotebookEdit", "Glob", "Grep",
+SIN_HERRAMIENTAS = ["Bash", "PowerShell", "Read", "Write", "Edit", "NotebookEdit", "Glob", "Grep",
                     "WebFetch", "WebSearch", "Task", "Agent"]
+SOLO_ESTO = ["--strict-mcp-config"]      # sin conectores (Notion, Drive…): cada Claude usa solo lo que se le da
 
 
 def pedir_a_claude(pedido, carpeta_trabajo):
@@ -88,7 +89,7 @@ def pedir_a_claude(pedido, carpeta_trabajo):
     exe = buscar_claude()
     if not exe:
         raise RuntimeError("no está el programa claude en esta PC")
-    comando = [exe, "-p"] + (["--model", config.CLAUDE_MODELO] if config.CLAUDE_MODELO else [])
+    comando = [exe, "-p"] + SOLO_ESTO + (["--model", config.CLAUDE_MODELO] if config.CLAUDE_MODELO else [])
     comando += ["--disallowedTools"] + SIN_HERRAMIENTAS          # el diseñador no toca internet ni archivos
     pedido += "\nRespondé directo, sin usar herramientas ni abrir archivos: acá tenés todo lo que necesitás."
     r = subprocess.run(comando, input=pedido, capture_output=True, text=True, encoding="utf-8",

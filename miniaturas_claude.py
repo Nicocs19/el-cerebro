@@ -63,7 +63,9 @@ def necesita_agente(idea):
 
 
 SITIOS_OK = ("blizzard.com", "worldofwarcraft.com", "blz-contentstack.com", "blz-contentstack-images.akamaized.net",
-             "bnetcmsus-a.akamaihd.net", "upload.wikimedia.org")
+             "bnetcmsus-a.akamaihd.net", "upload.wikimedia.org",
+             # wikis de WoW: guardan el arte oficial del juego (logos, arte de clases, renders)
+             "warcraft.wiki.gg", "static.wikia.nocookie.net", "wow.zamimg.com")
 MAX_BYTES = 8 * 1024 * 1024
 
 
@@ -91,13 +93,17 @@ def buscar_imagenes(idea, carpeta):
     if not exe:
         raise RuntimeError("no está el programa claude en esta PC")
     pedido = f"""Buscá imágenes para la miniatura de un directo de World of Warcraft. Idea: {idea}
-Usá WebSearch y WebFetch para encontrar URLs DIRECTAS de archivos de imagen (png, jpg o webp), solo de estos sitios
-oficiales: {", ".join(SITIOS_OK)}. Nada de fan art ni de otros sitios. Preferí PNG con fondo transparente para logos
-y personajes. Máximo 4. Respondé SOLO con JSON, sin explicaciones:
+Usá WebSearch y WebFetch para encontrar URLs DIRECTAS de archivos de imagen (png, jpg o webp), solo de estos sitios:
+{", ".join(SITIOS_OK)}. Tiene que ser arte OFICIAL de Blizzard (logos, arte de clases, renders, capturas oficiales):
+nada de fan art ni de otros sitios. En las wikis (warcraft.wiki.gg, wowpedia) las páginas de clases, razas y logos
+tienen el arte oficial: abrí la página con WebFetch y sacá la URL del archivo. Para un personaje o clase, preferí un
+render o arte con fondo transparente (PNG). Si piden el logo, buscá el logo completo de World of Warcraft (con letras),
+no solo el ícono. Máximo 4. Respondé SOLO con JSON, sin explicaciones:
 [{{"nombre": "logo_wow", "url": "https://…", "que": "logo oficial de World of Warcraft"}}]"""
-    comando = [exe, "-p", "--max-turns", "15", "--model", config.CLAUDE_MODELO or "sonnet",
-               "--disallowedTools", "Bash", "PowerShell", "Read", "Write", "Edit", "MultiEdit", "NotebookEdit", "Glob", "Grep",
-               "Task", "Agent", "--allowedTools", "WebSearch", "WebFetch"]
+    from overlays import SIN_HERRAMIENTAS, SOLO_ESTO
+    comando = [exe, "-p", "--max-turns", "20", "--model", config.CLAUDE_MODELO or "sonnet"] + SOLO_ESTO
+    comando += ["--disallowedTools"] + [h for h in SIN_HERRAMIENTAS if h not in ("WebFetch", "WebSearch")]
+    comando += ["--allowedTools", "WebSearch", "WebFetch"]
     vacia = tempfile.mkdtemp(prefix="cerebro_busca_")          # carpeta vacía: no hay nada que leer
     r = subprocess.run(comando, input=pedido, capture_output=True, text=True, encoding="utf-8", timeout=300, cwd=vacia)
     log = [f"--- búsqueda ({r.returncode}) ---", r.stdout or "", r.stderr or ""]
@@ -115,6 +121,8 @@ y personajes. Máximo 4. Respondé SOLO con JSON, sin explicaciones:
         try:
             resp = requests.get(url, timeout=20, stream=True, headers={"User-Agent": "ElCerebro/1.0"})
             resp.raise_for_status()
+            if not _sitio_ok(resp.url):                       # si redirigió a otro sitio, no sirve
+                raise ValueError(f"redirigió a un sitio no permitido: {resp.url}")
             datos = resp.raw.read(MAX_BYTES + 1, decode_content=True)
             if len(datos) > MAX_BYTES:
                 raise ValueError("imagen demasiado grande")
@@ -162,6 +170,9 @@ Reglas:
 - Si la idea pide algo que no está en los archivos (por ejemplo un personaje sin foto), resolvelo con diseño
   (siluetas, formas, texto, efectos CSS) usando la captura; no inventes rutas de imágenes.
 - El logo y los textos nunca se tocan ni se superponen, tampoco en vertical: dejá aire entre ellos.
+- Ninguna letra puede quedar cortada ni salirse de la pantalla, sobre todo en vertical (1080 de ancho): ahí el título
+  va en 2 o 3 líneas, con tamaño en vw (font-size: min(13vw, …)), white-space: normal y sin cortar palabras.
+  Dejá al menos 5% de margen a los costados.
 - No agregues textos, fechas ni datos que no estén arriba.
 Respondé solo con el HTML."""
     archivo = carpeta / "diseno.html"
