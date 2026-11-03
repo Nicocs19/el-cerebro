@@ -197,10 +197,25 @@ def sintetizar_eleven(texto, voz_id, clave=None, velocidad=None):
               "voice_settings": {"stability": 0.45, "similarity_boost": 0.8,
                                  "speed": max(0.7, min(1.2, velocidad or _velocidad_base()))}},
         timeout=20)
-    if r.status_code in (401, 402, 403) or (r.status_code != 200 and "quota" in r.text.lower()):
-        raise PermissionError(f"ElevenLabs dijo {r.status_code}: {r.text[:200]}")
+    if r.status_code != 200:
+        texto = r.text.lower()
+        if r.status_code in (401, 402, 403) or any(p in texto for p in ("invalid_api_key", "authentication", "quota")):
+            raise PermissionError(f"ElevenLabs dijo {r.status_code}: {motivo_eleven(r)}")
     r.raise_for_status()
     return r.content
+
+
+def motivo_eleven(r):
+    """El motivo que da ElevenLabs, corto y sin datos privados (p. ej. «API key is invalid.»)."""
+    try:
+        d = r.json().get("detail")
+        if isinstance(d, dict):
+            return d.get("message") or d.get("code") or str(d)[:150]
+        return str(d)[:150]
+    except Exception:  # noqa: BLE001
+        if "<html" in r.text.lower():
+            return "pedido mal armado (la clave llegó con letras raras)"
+        return r.text[:150]
 
 
 class Voz:

@@ -1,4 +1,5 @@
 """Conecta la voz de El Cerebro con tu cuenta de ElevenLabs y te deja elegir la voz. Se ejecuta UNA vez."""
+import re
 import sys
 import webbrowser
 
@@ -58,7 +59,33 @@ def pedir_oculto(texto):
             continue
         letras.append(ch)
         print("*", end="", flush=True)
-    return "".join(letras).strip()
+    clave = limpiar_clave("".join(letras))
+    if not CLAVE.fullmatch(clave or ""):          # Enter solo, o se pegó algo raro: uso lo que copiaste
+        copiada = del_portapapeles()
+        if copiada:
+            print("(Uso la clave que copiaste.)")
+            return copiada
+    return clave
+
+
+CLAVE = re.compile(r"sk_[A-Za-z0-9]{20,}")
+
+
+def del_portapapeles():
+    try:
+        import pyperclip
+        m = CLAVE.search(limpiar_clave(pyperclip.paste() or ""))
+        return m.group(0) if m else ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def limpiar_clave(texto):
+    """Deja solo la clave: algunas ventanas agregan marcas invisibles al pegar (ESC[200~ … ESC[201~)."""
+    t = re.sub(r"\x1b\[[0-9;]*[~A-Za-z]", "", texto or "")
+    t = re.sub(r"\[?20[01]~", "", t)
+    m = CLAVE.search(t)
+    return m.group(0) if m else re.sub(r"[^A-Za-z0-9_\-]", "", t)
 
 
 def pedir_clave():
@@ -70,18 +97,26 @@ Si ves un interruptor «Restrict Key», dejalo apagado. Tocá «Create» y copi�
 No hagas este paso con el stream en vivo: la clave es privada.""")
     webbrowser.open(PAGINA)
     for _ in range(3):
-        clave = pedir_oculto("Pegá la clave acá (clic derecho o Ctrl+V; se ven asteriscos) y apretá Enter: ")
-        if not clave or " " in clave or len(clave) < 20:
-            print("Eso no parece una clave de ElevenLabs. Probá de nuevo.")
+        clave = pedir_oculto("Copiá la clave con el botón de copiar y apretá Enter acá\n"
+                             "(o pegala con clic derecho; se ven asteriscos): ")
+        if not clave or len(clave) < 20:
+            print("No encontré la clave. Copiala con el botón de copiar de ElevenLabs y apretá Enter.")
             continue
         print("Probando la clave…")
         try:
             jarvis.sintetizar_eleven("Hola.", jarvis.VOCES_DE_SERIE["daniel"], clave)
         except PermissionError as e:
-            print(f"❌ ElevenLabs no aceptó la clave ({e}).\n   Revisá que la copiaste entera, o creá otra.")
+            print(f"❌ ElevenLabs no aceptó la clave ({e}; me llegaron {len(clave)} letras, una clave entera tiene 51).\n"
+                  "   Creá otra clave y copiala con el botón de copiar apenas aparece.")
+            continue
+        except requests.HTTPError as e:
+            print(f"❌ ElevenLabs rechazó el pedido ({e.response.status_code}: {jarvis.motivo_eleven(e.response)}).")
+            continue
+        except (requests.ConnectionError, requests.Timeout) as e:
+            print(f"❌ No pude hablar con ElevenLabs ({type(e).__name__}). ¿Hay internet?")
             continue
         except Exception as e:  # noqa: BLE001
-            print(f"❌ No pude hablar con ElevenLabs ({e}). ¿Hay internet?")
+            print(f"❌ Algo falló al probar la clave ({type(e).__name__}: {str(e)[:120]}).")
             continue
         guia.guardar_env(ELEVEN_API_KEY=clave)
         print("✅ Clave guardada.")
