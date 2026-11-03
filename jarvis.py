@@ -57,6 +57,23 @@ def _cuando_raid(fecha):
 
 
 _PLAT = {"kick": "Kick", "youtube": "YouTube", "tiktok": "TikTok"}
+_CANALES = {"raids-signup": "el canal de registro de raids", "anuncios-guild": "el canal de anuncios",
+            "en-vivo": "el canal en vivo", "videos-nuevos": "el canal de videos", "clips-y-memes": "el canal de clips y memes",
+            "builds-y-guias": "el canal de builds y guías", "subidas-de-nivel": "el canal de subidas de nivel",
+            "general": "el canal general"}
+
+
+def _canal_hablado(canal, defecto=""):
+    """«raids-signup» -> «el canal de registro de raids» (para que la voz diga dónde publica)."""
+    canal = canal or defecto
+    if not canal:
+        return ""
+    return _CANALES.get(canal, "el canal " + str(canal).replace("-", " "))
+
+
+def _plataformas_habladas(plataformas):
+    nombres = [_PLAT.get(p, p) for p in plataformas or []]
+    return " y ".join(nombres) if nombres else "Kick y YouTube"
 
 
 def _nombre_hablado(usuario):
@@ -119,13 +136,15 @@ def frase(evento, accion=None, detalle=None):
             cuando = re.sub(r"\s(\d{1,2}:\d{2})$", r" a las \1", str(d.get("cuando", "")).lower())
             return f"Banda de {d.get('nombre')}, {cuando}. ¿La publico?"
         if a == "anuncio":
-            return f"Anuncio listo: {d.get('titulo')}. ¿Lo publico?"
+            return f"Anuncio en {_canal_hablado(d.get('canal'), 'anuncios-guild')}: {d.get('titulo')}. ¿Lo publico?"
         if a == "sorteo":
-            return f"Sorteo de {d.get('premio')}. ¿Lo publico?"
+            donde = f" en {_canal_hablado(d.get('canal'))}" if d.get("canal") else ""
+            return f"Sorteo de {d.get('premio')}{donde}. ¿Lo publico?"
         if a == "encuesta":
-            return f"Encuesta: {d.get('pregunta')} ¿La publico?"
+            donde = f" en {_canal_hablado(d.get('canal'))}" if d.get("canal") else ""
+            return f"Encuesta{donde}: {d.get('pregunta')} ¿La publico?"
         if a == "mensaje":
-            return f"Mensaje para {d.get('canal')}. ¿Lo mando?"
+            return f"Mensaje en {_canal_hablado(d.get('canal'), 'general')}. ¿Lo mando?"
         if tipo == "moderar" and d.get("accion") == "banear":
             quienes = " y ".join(f"{_nombre_hablado(o['usuario'])} en {_PLAT.get(o['plataforma'], o['plataforma'])}"
                                  for o in d.get("objetivos", []))
@@ -137,7 +156,7 @@ def frase(evento, accion=None, detalle=None):
                                  for o in d.get("objetivos", []))
             return f"{verbo} {quienes}?"
         if tipo == "chat":
-            return "¿Lo mando al chat?"
+            return f"¿Lo mando al chat de {_plataformas_habladas(d.get('plataformas'))}?"
         if tipo == "overlay":
             return f"Overlay {d.get('nombre')}, {str(d.get('posicion', '')).replace('-', ' ')}. ¿Lo diseño?"
         if tipo == "titulo":
@@ -275,6 +294,8 @@ class Voz:
         self.nivel = 0.0          # volumen de lo que está diciendo ahora (para el orbe)
         self.hablando = False
         self.ocupada = False      # generando o diciendo una frase
+        self.termino = 0.0        # cuándo terminó de decir la última frase
+        self._en_curso = False    # el hilo de la voz está con una frase (generándola o diciéndola)
         self._cola = queue.Queue()
         self._eleven_ok = bool(config.ELEVEN_API_KEY)
         self._voz_id = None
@@ -363,7 +384,13 @@ class Voz:
     def decir(self, texto):
         texto = para_voz(texto)
         if texto:
+            self.ocupada = True       # ya desde ahora: así nadie abre el micrófono mientras la prepara
             self._cola.put(texto)
+
+    def callado(self, pausa=0.35):
+        """¿Terminó de hablar (hace al menos «pausa» segundos)? Para abrir el micrófono sin que se escuche a sí misma."""
+        return (not self.ocupada and not self.hablando and self._cola.empty()
+                and time.time() - self.termino >= pausa)
 
     def callar(self):
         try:
@@ -371,6 +398,7 @@ class Voz:
                 self._cola.get_nowait()
         except queue.Empty:
             pass
+        self.ocupada = self._en_curso
         if self.hablando:
             import sounddevice as sd
             sd.stop()
@@ -388,7 +416,7 @@ class Voz:
                 print(f"[voz] No pude preparar la voz local ({e}).")
         while True:
             texto = self._cola.get()
-            self.ocupada = True
+            self.ocupada = self._en_curso = True
             try:
                 audio, sr = self._sintetizar(texto)
                 if not len(audio):
@@ -410,6 +438,8 @@ class Voz:
             finally:
                 self.hablando = False
                 self.nivel = 0.0
+                self.termino = time.time()
+                self._en_curso = False
                 self.ocupada = not self._cola.empty()
 
 

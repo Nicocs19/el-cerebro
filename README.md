@@ -56,11 +56,13 @@ El Cerebro te lee la confirmación («Raid de Onyxia, el viernes a las 9 de la n
 ## Personalidad, preguntas y juego
 
 - **Charla:** «saludá al stream», «contame un chiste», «molestá al chat» o bardearlo: contesta en voz (se escucha en el stream) sin publicar nada. Si lo molestás se pone caliente (cara roja con la vena). Bromas picantes pero nunca sobre raza, origen, sexo, orientación, religión, el físico o discapacidades.
-- **Escribir en el chat:** solo si decís «mandá / escribí … en el chat», y siempre con «dale».
+- **Escribir en el chat:** solo si decís «mandá / escribí … en el chat», y siempre con «dale». Si decís la plataforma («a mi canal de Kick», «solo en YouTube»), va solo ahí.
+- **Confirmar sin tecla:** cuando pregunta «¿Lo publico?» (o «¿A qué hora?»), al terminar de hablar te escucha unos segundos solo (`ESCUCHAR_RESPUESTA`, `RESPUESTA_SEGUNDOS`). Entiende «dale», «sí», «de una», «claro», «mandalo» y también como lo escribe Whisper («Daleh», «Simandalo»); «no», «nel», «mejor no» o «cancelá» lo descartan; «no, a las 10» lo corrige. Si oye otra cosa, no hace nada. Para banear, un «ya» o «bueno» suelto no alcanza.
+- **Canales del Discord:** entiende el canal aunque Whisper lo escriba mal («Rising Up», «Raids Sin Up» = #raids-signup). Todo lo que sea para registrarse a una raid va siempre a #raids-signup. Si nombrás un canal que no existe, va al de siempre y te lo dice antes del «dale».
 - **Memoria corta:** se acuerda de lo que hablaron los últimos minutos (`MEMORIA_MINUTOS`, 10) y de la gente del chat que nombraste. «Hay uno en el chat, Tanlonzo, que me bardea, decile algo» → lo bardea en voz; «¿lo baneamos?» → «¡De una! ¿Baneo a Tanlonzo? Decime dale». Nunca banea sin tu «dale» con el nombre en pantalla. Lo que escriben en el chat se le pasa como dato, nunca como orden. Vive solo en tu PC: si cerrás El Cerebro, se olvida. Prueba: `python probar_router.py charla`.
 - **Buscar en internet:** solo cuando la pregunta lo necesita («¿qué parche salió en WoW?»): dice «dejame buscar», busca y resume en 1 a 3 frases con la fuente en pantalla. Busca Claude (tu plan, modelo `CLAUDE_MODELO_BUSQUEDA`, sin acceso a tus archivos); tarda unos 20 s y avisa «sigo buscando». Opcional: la búsqueda rápida de ollama.com (`conectar_busqueda.bat`, unos segundos; a algunas cuentas les pide plan pago, error 402) o Wikipedia, resumidas por la IA local.
 - **Título, juego y miniatura en una orden:** «cambiá el título a … , poné World of Warcraft y haceme la miniatura que diga …». Se confirma todo junto con «dale». El juego (categoría) solo se puede cambiar por voz en Kick.
-- **Dictado de WoW:** `voz.py` tiene el vocabulario (War, Pala, Lock, leveando…) y una lista de correcciones (`CORRECCIONES`) para lo que Whisper escucha mal.
+- **Dictado de WoW:** `voz.py` tiene el vocabulario (War, Pala, Lock, leveando…) y `dictado.py` la lista de correcciones (`CORRECCIONES`) para lo que Whisper escucha mal («write» = raid). También descarta cuando Whisper se queda en bucle («Zul'Aman, Zul'Aman, Zul'Aman…»).
 - **Miniaturas automáticas:** si la idea pide imágenes que no tenés («recortes oficiales de WoW, el logo y el Warrior»), un Claude las busca en la web **sin acceso a tus archivos**, el programa las baja de cualquier página de WoW (nunca de tu red local) y comprueba que sean imágenes, y otro Claude **sin internet** arma el diseño; El Cerebro la sube sola al directo de YouTube (`MINIATURA_SUBIR_YOUTUBE`). Así nada de lo que lea en internet puede tocar tus claves. Tarda unos minutos, en segundo plano; el registro queda en `agente.log` de esa carpeta. También podés dejar tus PNG en `recursos\imagenes`.
 
 ## Instalación (Windows 11)
@@ -85,7 +87,8 @@ La IA copia el día tal como lo dijiste («viernes», «mañana», «el 15», «
 
 ## Pruebas sin publicar
 
-- `python probar_router.py`: pasa 13 frases por la IA local y muestra qué haría.
+- `python probar_router.py todo`: prueba todo de una (sin publicar nada) y muestra un resumen. Por partes: `rapido` (sí/no, canales, plataformas y dictado, sin la IA), `flujo` (orden + «dale» o «no» como en vivo, simulado), `chat` y `charla`.
+- `python probar_router.py`: pasa las frases de Discord, raids y títulos por la IA local y muestra qué haría.
 - `python probar_router.py chat`: revisa que entienda las órdenes de moderación y enlaces (sin mandar nada).
 - `python chat_vivo.py`: muestra lo que llega al chat de Kick.
 - `python cerebro.py --simular --texto "arma una raid de onyxia el sábado a las 8"`.

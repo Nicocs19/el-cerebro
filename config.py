@@ -39,6 +39,8 @@ CANCEL_HOTKEY = _s("CANCEL_HOTKEY", "ctrl+shift+f10")    # cancelar lo pendiente
 # publicaciones = pide "dale" antes de publicar en Discord; todo = también títulos; nada = ejecuta directo
 CONFIRMAR = _s("CONFIRMAR", "publicaciones").lower()
 CONFIRMAR_SEGUNDOS = _f("CONFIRMAR_SEGUNDOS", 60)
+ESCUCHAR_RESPUESTA = _b("ESCUCHAR_RESPUESTA", True)    # después de «¿Lo publico?» te escucha solo, sin la tecla
+RESPUESTA_SEGUNDOS = _f("RESPUESTA_SEGUNDOS", 5)       # cuánto espera tu «sí» o «no» antes de cerrar el micrófono
 
 # --- Voz (Whisper local) ---
 WHISPER_MODEL = _s("WHISPER_MODEL", "large-v3-turbo")

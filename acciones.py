@@ -78,13 +78,14 @@ class Ejecutor:
         ultima = self.estado.get("ultima_publicacion")
         if not ultima:
             return "No tengo nada reciente que borrar."
-        if not self.simular:
-            if ultima["via"] == "hogger":
-                res = self.hogger.enviar({"accion": "borrar", "link": ultima["link"]})
-                if not res.get("ok"):
-                    raise RuntimeError(res.get("error"))
-            else:
-                discord_webhook.borrar(ultima["id"])
+        if self.simular:                 # simulando no se olvida cuál fue la última (si no, después no la podrías borrar)
+            return f"[simulado] Borraría: {ultima.get('que', 'la última publicación')}"
+        if ultima["via"] == "hogger":
+            res = self.hogger.enviar({"accion": "borrar", "link": ultima["link"]})
+            if not res.get("ok"):
+                raise RuntimeError(res.get("error"))
+        else:
+            discord_webhook.borrar(ultima["id"])
         self.estado.pop("ultima_publicacion", None)
         self._guardar()
         return f"Borrado: {ultima.get('que', 'la última publicación')}"

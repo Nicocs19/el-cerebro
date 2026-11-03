@@ -1,8 +1,17 @@
-"""Prueba la IA local con frases reales SIN publicar nada: python probar_router.py"""
+"""Prueba El Cerebro con frases reales SIN publicar nada.
+
+  python probar_router.py           -> órdenes de Discord, raids y títulos (con la IA local)
+  python probar_router.py chat      -> chat del stream, charla, overlays (con la IA)
+  python probar_router.py charla    -> charla con memoria (el ejemplo de tanlonzo)
+  python probar_router.py flujo     -> orden + «dale»/«no» como en vivo, todo simulado
+  python probar_router.py rapido    -> sí/no, canales, plataformas y dictado (sin la IA, al instante)
+  python probar_router.py todo      -> todo lo anterior
+"""
 import re
 import sys
 import time
 
+import dictado
 import herramientas as H
 import router
 
@@ -20,6 +29,9 @@ FRASES = [
     "avisa en general que en 10 minutos empiezo directo",
     "arma una banda para deadmines el sábado a las 6 de la tarde, 1 tanque 1 healer 3 dps",
     "lanza un anuncio a la guild que mañana a las 10 de la noche arrancamos la primera raid",
+    "mandá un aviso de write para registrarse a la raid de molten core de hoy a las 9",
+    "Ya mira, lo apreté. Lanzá un registro de write sin app para onyxia el sábado a las 9",
+    "avisá en el canal Rising Up que hoy a las 9 hacemos raid",
 ]
 
 
@@ -35,6 +47,9 @@ CHEQUEOS = {
     FRASES[2]: lambda r: _el("mañana") in r,      # sin hora: tiene que preguntar «¿A qué hora...?»
     FRASES[11]: lambda r: _el("sábado") in r and "18:00" in r,
     FRASES[12]: lambda r: not any(x in r.lower() for x in ("anot", "inscrib", "#", "http")),  # sin instrucciones inventadas
+    FRASES[13]: lambda r: "#raids-signup" in r and "21:00" in r,
+    FRASES[14]: lambda r: "#raids-signup" in r and "mira" not in r.lower() and "apret" not in r.lower(),
+    FRASES[15]: lambda r: "#raids-signup" in r,
 }
 
 
@@ -74,21 +89,30 @@ FRASES_CHAT = {
     "saluda al stream": lambda n, a: n == "responder",
     "manda un saludo al chat": lambda n, a: n == "mandar_al_chat" and not str(a.get("enlace") or "").strip(),
     "qué parche salió ayer en wow forever": lambda n, a: n == "buscar_en_internet",
+    "manda el link de youtube a mi canal de kick": lambda n, a: n == "mandar_al_chat" and a.get("plataformas") == ["kick"],
+    "mandá un saludo solo al chat de youtube": lambda n, a: n == "mandar_al_chat" and a.get("plataformas") == ["youtube"],
+    "un aviso para la guild que hoy hacemos raid, en el canal donde hacen los registros": lambda n, a:
+    n in ("publicar_anuncio", "mensaje_discord") and a.get("canal") == "raids-signup",
 }
 
 
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
-    if sys.argv[1:] == ["chat"]:
-        return probar_chat()
-    if sys.argv[1:] == ["charla"]:
-        return probar_charla()
-    frases = sys.argv[1:] or FRASES
+    modos = {"chat": probar_chat, "charla": probar_charla, "flujo": probar_flujo, "rapido": probar_rapido,
+             "todo": probar_todo}
+    if sys.argv[1:2] and sys.argv[1] in modos:
+        bien, total = modos[sys.argv[1]]()
+        return 0 if bien == total else 1
+    return probar_general(sys.argv[1:])
+
+
+def probar_general(frases=None):
+    frases = frases or FRASES
     fallos = 0
     for f in frases:
         t0 = time.time()
         try:
-            accion, origen = router.interpretar(f)
+            accion, origen = router.interpretar(dictado.limpiar(f))      # igual que en vivo: primero se arregla el dictado
             bien = CHEQUEOS.get(f, lambda r: True)(accion.resumen)
             fallos += not bien
             print(f"{'OK ' if bien else 'FALLO'} ({time.time() - t0:4.1f} s, {origen}) {f}\n    -> {accion.tipo}: {accion.resumen}\n")
@@ -96,17 +120,20 @@ def main():
             fallos += 1
             print(f"ERR ({time.time() - t0:4.1f} s) {f}\n    -> {e}\n")
     print(f"{len(frases) - fallos}/{len(frases)} bien.")
+    return len(frases) - fallos, len(frases)
 
 
 def probar_chat():
     bien = 0
     for f, chequeo in FRASES_CHAT.items():
         t0 = time.time()
-        nombre, args = router._pulir(f, None, *router._llamar_ollama(f))
+        d = dictado.limpiar(f)
+        nombre, args = router._pulir(d, None, *router._llamar_ollama(d))
         ok = chequeo(nombre, args)
         bien += ok
         print(f"{'OK ' if ok else 'FALLO'} ({time.time() - t0:4.1f} s) {f}\n    -> {nombre} {args}\n")
     print(f"{bien}/{len(FRASES_CHAT)} bien (chat del stream).")
+    return bien, len(FRASES_CHAT)
 
 
 # Charla con memoria: el ejemplo de Nicolas con un espectador que lo bardea (no banea a nadie, no publica nada)
@@ -158,7 +185,119 @@ def probar_charla():
         else:
             memoria.anotar("Vos", f"propusiste {n} y esperás su «dale» (todavía no se hizo)")
     print(f"{bien}/{len(CHARLA)} bien (charla con memoria).")
+    return bien, len(CHARLA)
+
+
+# ---------------------------------------------------------------- sin IA: al instante
+SI_NO = {
+    "Dale.": "confirmar", "Daleh.": "confirmar", "Dalee.": "confirmar", "Sí": "confirmar", "Sí, dale": "confirmar",
+    "claro": "confirmar", "de una": "confirmar", "bueno": "confirmar", "sale": "confirmar", "Dali.": "confirmar",
+    "Dalle.": "confirmar", "Bale.": "confirmar", "Simandalo, dale.": "confirmar", "Eh, sí, mandalo, cerebro.": "confirmar",
+    "Claro que sí": "confirmar", "Ya, dale": "confirmar", "Siii": "confirmar", "Okey": "confirmar", "publícalo": "confirmar",
+    "no": "cancelar", "nel": "cancelar", "mejor no": "cancelar", "No, cancelá todo": "cancelar", "Olvídalo": "cancelar",
+    "Claro que no": "cancelar", "Ya no": "cancelar", "Nada, déjalo": "cancelar",
+    "no, a las 10": None, "sí, pero solo en kick": None, "no sé": None, "manda al chat el link del discord": None,
+    "mejor a las 10": None, "hola": None, "la raid es hoy": None,
+}
+CANALES = {"Rising Up": "raids-signup", "Raidsingup": "raids-signup", "Raids Sin Up": "raids-signup",
+           "registro": "raids-signup", "anuncios": "anuncios-guild", "en vivo": "en-vivo", "memes": "clips-y-memes",
+           "guías": "builds-y-guias", "general": "general", "cualquiera": None}
+PLATAFORMAS = {"manda el link de youtube a mi canal de kick": ["kick"], "mandá un saludo al chat": [],
+               "cambia el título solo en kick a raid nocturna": ["kick"], "mandá al chat de kick y youtube": ["kick", "youtube"],
+               "mandá al chat mi link de youtube": []}
+DICTADO = {"Zul'Aman, Zul'Aman, Zul'Aman, Zul'Aman, Zul'Aman, Zul'Aman.": "",
+           "mandá un aviso de write para registrarse": "mandá un aviso de raid para registrarse",
+           "para el canal Rising Up": "para el canal raids-signup", "Gracias por ver el video": "",
+           "dale dale dale": "dale"}
+
+
+def probar_rapido():
+    casos = []
+    casos += [(f"sí/no «{t}»", router.es_confirmacion(t), e) for t, e in SI_NO.items()]
+    casos += [("banear con «ya» solo (no alcanza)", router.es_confirmacion("ya", estricto=True), None),
+              ("banear con «dale»", router.es_confirmacion("dale", estricto=True), "confirmar")]
+    casos += [(f"canal «{t}»", H.buscar_canal(t), e) for t, e in CANALES.items()]
+    casos += [(f"plataformas «{t}»", router.plataformas_dichas(t), e) for t, e in PLATAFORMAS.items()]
+    casos += [(f"dictado «{t[:40]}»", dictado.limpiar(t), e) for t, e in DICTADO.items()]
+    casos += [("sin «sí» en el mensaje", router.quitar_afirmacion("Simandalo https://discord.gg/x"), "https://discord.gg/x")]
+    bien = 0
+    for nombre, salio, esperado in casos:
+        ok = salio == esperado
+        bien += ok
+        if not ok:
+            print(f"FALLO {nombre}: salió {salio!r}, tenía que ser {esperado!r}")
+    print(f"{bien}/{len(casos)} bien (rápidas, sin IA).")
+    return bien, len(casos)
+
+
+# ---------------------------------------------------------------- flujo completo, simulado
+def probar_flujo():
+    """Orden + respuesta como en vivo (sin tecla), con el Cerebro en modo simulado: no publica nada."""
+    import acciones
+    import cerebro
+    import chat_vivo
+    import memoria
+    callar = lambda *a, **k: None                    # noqa: E731
+    acciones.log = cerebro.log = lambda t: print(f"    [log] {t}")      # no ensucia historial.log
+    cerebro.pitido = callar
+    chat_vivo.MENSAJES.append({"plataforma": "kick", "id": 998, "usuario": "TanLonzo", "texto": "sos un banco",
+                               "cuando": time.time()})
+    vistos = []
+    c = cerebro.Cerebro(lambda t, tipo="info", s=0: vistos.append(str(t)), simular=True)
+
+    def pendiente(tipo, **datos):
+        p = c.pendiente
+        return bool(p) and p.tipo == tipo and all(p.datos.get(k) == v for k, v in datos.items())
+
+    def hecho():
+        return not c.pendiente and any("simulado" in v for v in vistos[-2:])
+
+    pasos = [
+        ("mandá un saludo al chat de kick", lambda: pendiente("chat", plataformas=["kick"])),
+        ("Daleh.", hecho),
+        ("mandá un aviso de write para registrarse a la raid de onyxia del sábado a las 9",
+         lambda: pendiente("hogger", accion="anuncio", canal="raids-signup")),
+        ("mejor no", lambda: not c.pendiente),
+        ("cambiá el título solo en kick a raid nocturna con la guild", lambda: pendiente("titulo", plataformas=["kick"])),
+        ("Simandalo, dale.", hecho),
+        ("banea a tanlonzo", lambda: pendiente("moderar", accion="banear")),
+        ("ya", lambda: pendiente("moderar", accion="banear")),            # para banear, «ya» solo no alcanza
+        ("sí, dale, banealo", hecho),
+        ("avisá en el discord que en 10 minutos arranco", lambda: pendiente("hogger", accion="mensaje")),
+        ("no, mejor que sea en 20 minutos", lambda: pendiente("hogger", accion="mensaje")
+         and "20" in str(c.pendiente.datos.get("texto"))),
+        ("de una", hecho),
+    ]
+    bien = 0
+    for f, chequeo in pasos:
+        t0 = time.time()
+        d = dictado.limpiar(f)
+        if c.pendiente:
+            c.respuesta(d)               # como en vivo: después de «¿Lo publico?» te escucha sin tecla
+        else:
+            c.manejar_texto(d)
+        ok = chequeo()
+        bien += ok
+        estado = f"esperando «dale»: {c.pendiente.resumen.splitlines()[0]}" if c.pendiente else (vistos[-1] if vistos else "")
+        print(f"{'OK ' if ok else 'FALLO'} ({time.time() - t0:4.1f} s) {f}\n    -> {estado}\n")
+    memoria.olvidar()
+    print(f"{bien}/{len(pasos)} bien (flujo completo, simulado).")
+    return bien, len(pasos)
+
+
+def probar_todo():
+    import memoria
+    resultados = []
+    for nombre, f in (("rápidas", probar_rapido), ("Discord y títulos", probar_general), ("chat", probar_chat),
+                      ("flujo", probar_flujo), ("charla", probar_charla)):
+        print(f"\n========== {nombre} ==========")
+        memoria.olvidar()
+        resultados.append((nombre, *f()))
+    print("\n========== RESUMEN ==========")
+    for nombre, bien, total in resultados:
+        print(f"{'OK ' if bien == total else 'FALLO'} {nombre}: {bien}/{total}")
+    return sum(b for _, b, _ in resultados), sum(t for _, _, t in resultados)
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

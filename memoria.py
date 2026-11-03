@@ -60,10 +60,15 @@ def olvidar():
         _personas.clear()
 
 
-def para_la_ia():
-    """Texto para el final del pedido a la IA (no en las instrucciones fijas: así no se pierde la caché)."""
+def para_la_ia(ultimas=None):
+    """Texto para el final del pedido a la IA (no en las instrucciones fijas: así no se pierde la caché).
+
+    ultimas = cuántas frases pasar (None = todas las vigentes).
+    """
     with _lock:
         frases = _vigentes(_charla)
+        if ultimas:
+            frases = frases[-ultimas:]
         gente = sorted(_vigentes(_personas.values()), key=lambda p: p["cuando"])
     if not frases and not gente:
         return ""

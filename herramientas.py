@@ -417,13 +417,60 @@ def _mencion(a):
     raise ErrorOrden(f"No conozco el rol «{m}».")
 
 
-def _canal(a):
-    c = str(a.get("canal") or "").strip().lstrip("#").lower().replace(" ", "-")
-    if not c:
-        return None
-    if config.CANALES_DISCORD and c not in config.CANALES_DISCORD:
-        raise ErrorOrden(f"No existe el canal #{c}.")
-    return c
+# Cómo lo dice Nicolas (o lo escribe Whisper) -> el canal del Discord
+SINONIMOS_CANAL = [
+    ("raids-signup", r"regist|inscri|anot|sign|sing|sain|sin ?ap|sin ?up|rising|signup"),
+    ("anuncios-guild", r"anunci|aviso"),
+    ("en-vivo", r"en ?vivo|directo|live"),
+    ("videos-nuevos", r"video"),
+    ("clips-y-memes", r"clip|meme"),
+    ("builds-y-guias", r"build|guia"),
+    ("subidas-de-nivel", r"nivel|level|subida"),
+    ("general", r"general|charla"),
+]
+
+
+def sin_tildes(t):
+    return "".join(c for c in unicodedata.normalize("NFD", str(t).lower()) if unicodedata.category(c) != "Mn")
+
+
+def _compacto(t):
+    return re.sub(r"[^a-z0-9]", "", sin_tildes(t))
+
+
+def buscar_canal(dicho):
+    """El canal del Discord que quiso decir («Raids Sin Up», «raidsingup», «registro») o None si no se parece a ninguno."""
+    import difflib
+    lista = config.CANALES_DISCORD
+    c = str(dicho or "").strip().lstrip("#").lower().replace(" ", "-")
+    if not c or not lista or c in lista:
+        return c or None
+    compactos = {_compacto(x): x for x in lista}
+    k = _compacto(c)
+    if k in compactos:
+        return compactos[k]
+    parecido = difflib.get_close_matches(k, list(compactos), n=1, cutoff=0.75)
+    if parecido:
+        return compactos[parecido[0]]
+    for canal, patron in SINONIMOS_CANAL:
+        if canal in lista and re.search(patron, sin_tildes(c).replace("-", " ")):
+            return canal
+    return None
+
+
+def _canal(a, defecto=None):
+    """El canal pedido, corregido. Si no existe ninguno parecido, va al de siempre (y el resumen lo dice)."""
+    dicho = str(a.get("canal") or "").strip()
+    if _vacio(dicho):
+        return defecto
+    return buscar_canal(dicho) or defecto
+
+
+def _aviso_canal(a, canal):
+    dicho = str(a.get("canal") or "").strip()
+    if not _vacio(dicho) and not buscar_canal(dicho):
+        return f"\n(No tengo un canal «{dicho}»: va {('a #' + canal) if canal else 'al de siempre'}.)"
+    return ""
 
 
 def _mencion_txt(m):
@@ -461,7 +508,7 @@ def construir(nombre, a):
                  "tipo": tipo, "mencionar": _mencion(a), "canal": _canal(a)}
         donde = f"#{orden['canal']}" if orden["canal"] else "el canal de anuncios"
         resumen = (f"Anuncio ({tipo}) en {donde}, {_mencion_txt(orden['mencionar'])}:\n"
-                   f"«{orden['titulo']}»\n{orden['texto']}")
+                   f"«{orden['titulo']}»\n{orden['texto']}" + _aviso_canal(a, orden["canal"]))
         return Accion("hogger", orden, resumen, publica)
 
     if nombre in ("crear_raid", "crear_banda"):
@@ -501,7 +548,7 @@ def construir(nombre, a):
                  "canal": _canal(a)}
         dura = f"{horas:g} horas" if horas < 48 else f"{horas / 24:g} días"
         donde = f"#{orden['canal']}" if orden["canal"] else "el canal de sorteos"
-        resumen = f"Sorteo de {orden['premio']} en {donde}, {orden['ganadores']} ganador(es), dura {dura}"
+        resumen = f"Sorteo de {orden['premio']} en {donde}, {orden['ganadores']} ganador(es), dura {dura}" + _aviso_canal(a, orden["canal"])
         return Accion("hogger", orden, resumen, publica)
 
     if nombre == "crear_encuesta":
@@ -512,12 +559,13 @@ def construir(nombre, a):
                  "horas": _ent(a, "horas", 1, 720, 24), "mencionar": _mencion(a), "canal": _canal(a)}
         donde = f"#{orden['canal']}" if orden["canal"] else "el canal de encuestas"
         resumen = (f"Encuesta en {donde}, {_mencion_txt(orden['mencionar'])}: «{orden['pregunta']}»: "
-                   f"{' / '.join(ops)} ({orden['horas']} h)")
+                   f"{' / '.join(ops)} ({orden['horas']} h)" + _aviso_canal(a, orden["canal"]))
         return Accion("hogger", orden, resumen, publica)
 
     if nombre == "mensaje_discord":
-        orden = {"accion": "mensaje", "texto": _txt(a, "texto", 1500), "canal": _canal(a) or "general"}
-        return Accion("hogger", orden, f"Mensaje en #{orden['canal']}: {orden['texto']}", publica)
+        orden = {"accion": "mensaje", "texto": _txt(a, "texto", 1500), "canal": _canal(a, "general")}
+        return Accion("hogger", orden, f"Mensaje en #{orden['canal']}: {orden['texto']}" + _aviso_canal(a, orden["canal"]),
+                      publica)
 
     if nombre == "cerrar_inscripciones":
         tipo = a.get("tipo") if a.get("tipo") in ("raid", "banda") else "raid"

@@ -11,6 +11,7 @@ import argparse
 import datetime as dt
 import faulthandler
 import queue
+import re
 import sys
 import threading
 import time
@@ -24,27 +25,34 @@ from acciones import Ejecutor, log
 from avisos import pitido
 
 
+# Con el micrófono abierto solo, además del sí o el no, se acepta una corrección clara («no, a las 10», «mejor 25 cupos»)
+CORRIGE = re.compile(r"^(no|si|nel|mejor|pero|cambi|pone|ponele|que sea|solo|sacale|agregale|corregi|en vez)\b|"
+                     r"\b(a las \d|cupos|canal|en kick|en youtube|mañana|manana|hoy|el (lunes|martes|miercoles|jueves|"
+                     r"viernes|sabado|domingo))\b")
+
+
 class Cerebro:
     """La lógica: interpreta, pide confirmación y ejecuta. Corre en un solo hilo de trabajo."""
 
-    def __init__(self, mostrar, simular=False, avisar=None, fondo=False):
+    def __init__(self, mostrar, simular=False, avisar=None, fondo=False, escuchar=None):
         self.fondo = fondo              # lo que tarda (diseños de Claude) sigue en segundo plano
         self.mostrar = mostrar          # mostrar(texto, tipo, segundos)
         self.avisar = avisar or (lambda evento, accion=None, detalle=None: None)   # modo Jarvis: voz y orbe
+        self.escuchar = escuchar or (lambda: None)     # abre el micrófono solo para tu «sí» o «no»
         self.ejecutor = Ejecutor(simular)
         self.pendiente = None           # Accion esperando "dale"
         self.pendiente_hasta = 0
         self.contexto = None            # orden incompleta mientras se responde una aclaración
         self.ultimo_relleno = 0.0       # para no decir «a ver…» a cada rato
 
-    def manejar_texto(self, texto, auto_confirmar=False):
+    def manejar_texto(self, texto, auto_confirmar=False, estricto=False):
         texto = texto.strip()
         if not texto:
             return
         log(f"OÍDO: {texto}")
         if self.pendiente and time.time() > self.pendiente_hasta:
             self.pendiente = None
-        r = router.es_confirmacion(texto)
+        r = router.es_confirmacion(texto, estricto=estricto)
         if r == "confirmar" and (self.pendiente or not memoria.hay_charla(3)):
             memoria.anotar("Nicolas", texto)
             return self.confirmar()
@@ -58,23 +66,30 @@ class Cerebro:
         relleno = threading.Timer(config.VOZ_RELLENO_SEGUNDOS, self._relleno)
         if config.VOZ_RELLENO and time.time() - self.ultimo_relleno > config.VOZ_RELLENO_PAUSA:
             relleno.start()           # si la IA tarda mucho, dice «a ver…» (como mucho uno por minuto)
+        error = None
         try:
             accion, origen = router.interpretar(consulta, self.pendiente)
-        except H.ErrorOrden as e:
-            log(f"NO SE PUDO: {e}")
-            self.contexto = None
-            pitido("error")
-            self.avisar("pregunta", None, str(e))
-            return self.mostrar(f"«{texto}»\n{e}", "error", 10)
         except Exception as e:  # noqa: BLE001
-            log(f"ERROR al interpretar: {e}")
-            self.contexto = None
-            pitido("error")
-            self.avisar("error", None, str(e))
-            return self.mostrar(f"Error al interpretar: {e}", "error", 10)
+            error = e
         finally:
             relleno.cancel()
             memoria.anotar("Nicolas", texto)
+        if error is not None:
+            self.contexto = None
+            pitido("error")
+            if isinstance(error, H.ErrorOrden):
+                log(f"NO SE PUDO: {error}")
+                memoria.anotar("Vos", f"no se pudo: {error}")        # para que la próxima orden no repita el error
+                self.avisar("pregunta", None, str(error))
+                return self.mostrar(f"«{texto}»\n{error}", "error", 10)
+            log(f"ERROR al interpretar: {error}")
+            self.avisar("error", None, str(error))
+            return self.mostrar(f"Error al interpretar: {error}", "error", 10)
+
+        if (self.pendiente and accion.tipo == self.pendiente.tipo and accion.datos == self.pendiente.datos
+                and router.tiene_afirmacion(texto)):
+            log("Lo mismo que estaba esperando, con un «sí»: lo tomo como «dale».")
+            return self.confirmar()
 
         if accion.tipo == "aclaracion":
             log(f"PREGUNTA: {accion.resumen}")
@@ -82,7 +97,9 @@ class Cerebro:
             self.contexto = consulta
             pitido("pregunta")
             self.avisar("pregunta", accion)
-            return self.mostrar(accion.resumen + "\n(pulsa la tecla y responde)", "pregunta", 25)
+            self.mostrar(accion.resumen + "\n(respondé cuando termine de preguntar)", "pregunta", 25)
+            self.escuchar()          # tu respuesta («a las 9», «el viernes») sin apretar la tecla
+            return None
         self.contexto = None
         if accion.confirmar and not auto_confirmar:
             self.pendiente = accion
@@ -91,10 +108,27 @@ class Cerebro:
             pitido("pregunta")
             self.avisar("confirmar", accion)
             pregunta = "¿Lo hago?" if accion.tipo in ("moderar", "overlay", "titulo", "juego") else "¿Publico?"
-            return self.mostrar(f"{accion.resumen}\n\n{pregunta} Di «dale» o pulsa {config.CONFIRM_HOTKEY.upper()}. "
-                                "«Cancela» para descartar; también puedes corregir.", "pregunta",
-                                config.CONFIRMAR_SEGUNDOS)
+            self.mostrar(f"{accion.resumen}\n\n{pregunta} Di «dale» o pulsa {config.CONFIRM_HOTKEY.upper()}. "
+                         "«Cancela» para descartar; también puedes corregir.", "pregunta", config.CONFIRMAR_SEGUNDOS)
+            self.escuchar()          # cuando termine de preguntar, te escucha solo (sin apretar la tecla)
+            return None
         self._ejecutar(accion)
+
+    def respuesta(self, texto):
+        """Lo que dijiste con el micrófono abierto solo (después de «¿Lo publico?»): sí, no o una corrección."""
+        texto = (texto or "").strip()
+        if self.pendiente and time.time() > self.pendiente_hasta:
+            self.pendiente = None
+        if texto and self.contexto and not self.pendiente:
+            return self.manejar_texto(texto)          # respuesta a «¿A qué hora es la raid?»
+        if not texto or not self.pendiente:
+            return None
+        ban = self.pendiente.tipo == "moderar" and self.pendiente.datos.get("accion") == "banear"
+        r = router.es_confirmacion(texto, estricto=ban)       # para banear, un «ya» o «bueno» suelto no alcanza
+        if r or CORRIGE.search(router._norm(texto)):
+            return self.manejar_texto(texto, estricto=ban)
+        log(f"OÍDO (sin tecla, no era sí ni no; lo ignoro): {texto}")
+        return self.mostrar(f"«{texto}»\nNo te entendí. Decí «dale» o «cancela» (o pulsá la tecla).", "pregunta", 8)
 
     def _relleno(self):
         self.ultimo_relleno = time.time()
@@ -196,7 +230,10 @@ class App:
                     self.orbe = Cerebrito(self.root)
                     self.overlay.ancla = self.orbe.caja
                 self.orbe.fuente = self._estado_orbe
-        self.cerebro = Cerebro(lambda t, tipo="info", s=6: self.ui.put((t, tipo, s)), simular, self._avisar, fondo=True)
+        self.cerebro = Cerebro(lambda t, tipo="info", s=6: self.ui.put((t, tipo, s)), simular, self._avisar, fondo=True,
+                               escuchar=self._pedir_respuesta)
+        self.modo = "orden"              # "orden" (con la tecla) o "respuesta" (solo, después de una pregunta)
+        self.esperar_respuesta = 0.0     # hasta cuándo espero que termine de preguntar para escucharte
         self.overlay.mostrar("Cargando Whisper…", "info", 0)
         self.root.update()
         self.stt = Transcriptor()
@@ -227,6 +264,21 @@ class App:
         if self.voz:
             import jarvis
             self.voz.decir(jarvis.frase(evento, accion, detalle))
+
+    def _pedir_respuesta(self):
+        """El Cerebro te preguntó algo («¿Lo publico?»): cuando termine de hablar, abre el micrófono unos segundos."""
+        if config.ESCUCHAR_RESPUESTA:
+            self.eventos.put("escuchar_respuesta")
+
+    def _escuchar(self, modo):
+        self.esperar_respuesta = 0.0
+        self.modo = modo
+        if modo == "respuesta":
+            self.grab.empezar(espera=config.RESPUESTA_SEGUNDOS, maximo=10)
+        else:
+            self.grab.empezar()
+        pitido("inicio")
+        self._estado_txt("🎙 Escuchando…" if modo == "orden" else "🎙 Te escucho…")
 
     def _estado_txt(self, texto):
         """Estados de paso: con el cerebro en pantalla no hace falta el cartel (lo dice su cara)."""
@@ -273,6 +325,10 @@ class App:
                         self.cerebro.manejar_texto(texto)
                     else:
                         self.ui.put(("No te escuché bien.", "error", 4))
+                elif tipo == "respuesta":
+                    texto = self.stt.transcribir(dato)
+                    print(f"(respuesta sin tecla): {texto}")
+                    self.cerebro.respuesta(texto)
                 elif tipo == "confirmar":
                     self.cerebro.confirmar()
                 elif tipo == "cancelar":
@@ -309,36 +365,55 @@ class App:
             while True:
                 ev = self.eventos.get_nowait()
                 if ev == "hablar":
-                    if self.grab.activa:
+                    if self.grab.activa and self.modo == "respuesta" and not self.grab.hablo:
+                        self.grab.parar()            # te escuchaba solo y apretaste: ahora es una orden normal
+                        self._escuchar("orden")
+                    elif self.grab.activa:
+                        self.modo = "orden"          # apretaste para terminar: va como orden normal
                         self._procesar()
                     elif self.ocupado:
                         self.overlay.mostrar("Espera, sigo con la orden anterior…", "info", 3)
                     else:
                         if self.voz:
                             self.voz.callar()
-                        self.grab.empezar()
-                        pitido("inicio")
-                        self._estado_txt("🎙 Escuchando…")
+                        self._escuchar("orden")
+                elif ev == "escuchar_respuesta":
+                    self.esperar_respuesta = time.time() + 30
                 elif ev in ("confirmar", "cancelar"):
+                    self.esperar_respuesta = 0.0
+                    if self.grab.activa and self.modo == "respuesta":
+                        self.grab.parar()            # contestaste con la tecla: ya no hace falta escucharte
+                        self.modo = "orden"
                     self.tareas.put((ev, None))
         except queue.Empty:
             pass
         if self.grab.activa and self.grab.debe_parar():
             self._procesar()
+        elif self.esperar_respuesta and not self.grab.activa:
+            hay_pregunta = self.cerebro.pendiente or self.cerebro.contexto
+            if time.time() > self.esperar_respuesta or not hay_pregunta:
+                self.esperar_respuesta = 0.0
+            elif not self.ocupado and (not self.voz or self.voz.callado()):
+                self._escuchar("respuesta")      # ya terminó de preguntar: te escucho sin la tecla
         elif (config.USE_OLLAMA and not self.ocupado and not self.grab.activa
               and router.ULTIMO_USO[0] and time.time() - router.ULTIMO_USO[0] > 20 * 60):
             router.ULTIMO_USO[0] = time.time()       # cada 20 min sin órdenes: que Ollama no descargue el modelo
             self.tareas.put(("precargar", None))
 
     def _procesar(self):
-        pitido("fin")
+        modo, self.modo = self.modo, "orden"
+        if modo == "orden":
+            pitido("fin")
         audio = self.grab.parar()
         if len(audio) < 16000 * 0.4:
-            self.overlay.mostrar("No se oyó nada.", "info", 3)
+            if modo == "orden":          # si te escuchaba solo y no dijiste nada, no molesta con carteles
+                self.overlay.mostrar("No se oyó nada.", "info", 3)
+            else:
+                self.overlay.ocultar()
             return
         self.ocupado = True
         self._estado_txt("Transcribiendo…")
-        self.tareas.put(("audio", audio))
+        self.tareas.put(("respuesta" if modo == "respuesta" else "audio", audio))
 
     def correr(self):
         self.root.after(50, self._tick)
