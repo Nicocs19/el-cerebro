@@ -299,6 +299,24 @@ def _mencion_txt(m):
     return "sin etiquetar a nadie" if not m else ("etiquetando a @everyone" if m == "everyone" else f"etiquetando a @{m}")
 
 
+def _vacio(v):
+    return str(v or "").strip().lower() in ("", "none", "null")
+
+
+def _falta_dia_u_hora(nombre, a):
+    """Raid o banda sin día u hora: se pregunta (sin inventar) y la respuesta completa la orden."""
+    que = "la raid" if nombre == "crear_raid" else "la banda"
+    de = f" de {str(a.get('nombre')).strip()}" if not _vacio(a.get("nombre")) else ""
+    if _vacio(a.get("fecha")):
+        p = f"¿Qué día es {que}{de}?"
+    elif _vacio(a.get("hora")):
+        d, _ = resolver_dia(a.get("fecha"))
+        p = f"¿A qué hora es {que}{de} del {DIAS[d.weekday()]} {d.day:02d}/{d.month:02d}?"
+    else:
+        return None
+    return Accion("aclaracion", {"pregunta": p}, p, False)
+
+
 # ---------------------------------------------------------------- construir
 def construir(nombre, a):
     """Valida los argumentos del modelo y devuelve la Accion a ejecutar."""
@@ -314,6 +332,11 @@ def construir(nombre, a):
         resumen = (f"Anuncio ({tipo}) en {donde}, {_mencion_txt(orden['mencionar'])}:\n"
                    f"«{orden['titulo']}»\n{orden['texto']}")
         return Accion("hogger", orden, resumen, publica)
+
+    if nombre in ("crear_raid", "crear_banda"):
+        falta = _falta_dia_u_hora(nombre, a)
+        if falta:
+            return falta
 
     if nombre == "crear_raid":
         cuando = fecha_hora(a.get("fecha"), a.get("hora"))
