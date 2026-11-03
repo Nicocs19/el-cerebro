@@ -8,6 +8,7 @@
 import datetime as dt
 import json
 import re
+import time
 import unicodedata
 
 import requests
@@ -37,13 +38,11 @@ def es_confirmacion(texto):
     return None
 
 
-def sistema(pendiente=None, ahora=None):
-    ahora = ahora or dt.datetime.now()
-    texto = f"""Eres El Cerebro, el asistente de streaming de Nicolas (Mr. H), GM de la hermandad "{config.NOMBRE_GUILD}" de World of Warcraft Forever.
+def sistema():
+    """Instrucciones fijas. No cambian entre pedidos, así Ollama las reutiliza y contesta más rápido."""
+    return f"""Eres El Cerebro, el asistente de streaming de Nicolas (Mr. H), GM de la hermandad "{config.NOMBRE_GUILD}" de World of Warcraft Forever.
 Recibes órdenes dictadas por voz (pueden traer errores de transcripción) y SIEMPRE respondes llamando exactamente UNA herramienta.
-
-Ahora es {H.DIAS[ahora.weekday()]} {ahora:%Y-%m-%d %H:%M}. Calendario de los próximos días:
-{H.calendario(ahora.date())}
+Cada orden llega con la fecha y hora actual y el calendario de los próximos días.
 
 Reglas:
 - Fechas: en el campo fecha COPIA el día tal como lo dijo ("hoy", "mañana", "viernes", "sábado 14", "el 20 de noviembre"). No lo conviertas: el programa calcula la fecha exacta. Si corriges una orden pendiente y no cambia el día, copia el día de esa orden.
@@ -76,16 +75,29 @@ Ejemplos:
 - "poné un cartel arriba a la izquierda que diga raid de molten core hoy a las 9" -> overlay(accion="crear", nombre="raid molten core", descripcion="Cartel que diga «Raid de Molten Core · Hoy 21:00»", posicion="arriba-izquierda", tamano="mediano")
 - "sacá el cartel de la raid" -> overlay(accion="quitar", nombre="raid")
 """
+
+
+def contexto(pendiente=None, ahora=None):
+    """Lo que cambia en cada pedido: fecha, calendario y la orden pendiente (va con la orden, al final)."""
+    ahora = ahora or dt.datetime.now()
+    texto = (f"Ahora es {H.DIAS[ahora.weekday()]} {ahora:%Y-%m-%d %H:%M}. Calendario de los próximos días:\n"
+             f"{H.calendario(ahora.date())}\n")
     if pendiente:
         texto += (f"\nHay una orden ESPERANDO confirmación: {pendiente}. Si Nicolas la corrige (\"cámbiale la hora a las 10\", "
                   "\"mejor 25 cupos\"), vuelve a llamar la MISMA herramienta con todos los datos y la corrección aplicada.\n")
     return texto
 
 
+_sesion = requests.Session()        # reusa la conexión con Ollama
+ULTIMO_USO = [0.0]
+
+
 def _llamar_ollama(texto, pendiente=None):
-    r = requests.post(f"{config.OLLAMA_URL}/api/chat", json={
+    ULTIMO_USO[0] = time.time()
+    r = _sesion.post(f"{config.OLLAMA_URL}/api/chat", json={
         "model": config.OLLAMA_MODEL,
-        "messages": [{"role": "system", "content": sistema(pendiente)}, {"role": "user", "content": texto}],
+        "messages": [{"role": "system", "content": sistema()},
+                     {"role": "user", "content": f"{contexto(pendiente)}\nOrden dictada por Nicolas: {texto}"}],
         "tools": H.esquemas(),
         "stream": False,
         "think": False,
@@ -150,11 +162,14 @@ def interpretar(texto, pendiente=None):
 
 
 def precargar():
-    """Carga el modelo en la GPU al arrancar para que la primera orden sea rápida."""
+    """Carga el modelo en la GPU con la MISMA configuración que las órdenes y deja leídas las instrucciones.
+
+    Así la primera orden no espera a que el modelo se cargue (ni se recargue con otra configuración).
+    El Cerebro lo repite cada tanto mientras está abierto para que Ollama no lo descargue.
+    """
+    t0 = time.time()
     try:
-        requests.post(f"{config.OLLAMA_URL}/api/generate",
-                      json={"model": config.OLLAMA_MODEL, "prompt": "", "keep_alive": config.OLLAMA_KEEP_ALIVE},
-                      timeout=180)
-        print(f"[router] {config.OLLAMA_MODEL} cargado.")
+        _llamar_ollama("hola")
+        print(f"[router] {config.OLLAMA_MODEL} listo ({time.time() - t0:.1f} s).")
     except Exception as e:  # noqa: BLE001
         print(f"[router] No pude precargar {config.OLLAMA_MODEL}: {e}")

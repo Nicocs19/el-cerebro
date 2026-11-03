@@ -8,6 +8,7 @@
 import datetime as dt
 import math
 import queue
+import random
 import re
 import threading
 import time
@@ -68,6 +69,9 @@ def _nombre_hablado(usuario):
     return t.strip()
 
 
+RELLENOS = ("A ver, a ver…", "Mmm…", "Ya, un toque…", "Ajá, dejame ver…")
+
+
 def frase(evento, accion=None, detalle=None):
     """Lo que dice Jarvis en cada momento. Corto: el detalle completo está en el cartel."""
     d = accion.datos if accion is not None else {}
@@ -76,6 +80,8 @@ def frase(evento, accion=None, detalle=None):
         return config.JARVIS_SALUDO
     if evento == "pregunta":
         return detalle or (accion.resumen if accion else "")
+    if evento == "relleno":
+        return random.choice(RELLENOS)
     if evento == "cancelado":
         return "Cancelado."
     if evento == "trabajando":
@@ -303,6 +309,18 @@ class Voz:
         return self._piper(texto)
 
     # --- uso
+    def precalentar(self, frases):
+        """Deja frases fijas ya generadas (en segundo plano) para que salgan al instante."""
+        def hilo():
+            for f in frases:
+                try:
+                    if self._eleven_ok:
+                        self._eleven(para_voz(f))
+                except Exception as e:  # noqa: BLE001
+                    print(f"[voz] No pude preparar «{f}»: {e}")
+                    return
+        threading.Thread(target=hilo, daemon=True, name="voz-precalentar").start()
+
     def decir(self, texto):
         texto = para_voz(texto)
         if texto:

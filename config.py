@@ -46,12 +46,13 @@ WHISPER_DEVICE = _s("WHISPER_DEVICE", "auto").lower()
 WHISPER_COMPUTE = _s("WHISPER_COMPUTE", "int8_float16")
 MIC_DEVICE = _s("MIC_DEVICE")
 VAD_THRESHOLD = _f("VAD_THRESHOLD", 0.015)
-SILENCE_SECONDS = _f("SILENCE_SECONDS", 1.5)
+SILENCE_SECONDS = _f("SILENCE_SECONDS", 1.1)
 MAX_SECONDS = _f("MAX_SECONDS", 30)
 
 # --- IA local (Ollama) ---
 USE_OLLAMA = _b("USE_OLLAMA", True)
-OLLAMA_URL = _s("OLLAMA_URL", "http://localhost:11434").rstrip("/")
+# 127.0.0.1 y no «localhost»: en Windows «localhost» prueba primero IPv6 y pierde 2 s en cada pedido.
+OLLAMA_URL = _s("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/").replace("//localhost", "//127.0.0.1")
 OLLAMA_MODEL = _s("OLLAMA_MODEL", "qwen3.5:9b")
 OLLAMA_KEEP_ALIVE = _s("OLLAMA_KEEP_ALIVE", "30m")
 TONO = _s("TONO", "tono cercano y épico, como un GM de WoW hablándole a su hermandad; español con voseo como Hogger; "
@@ -105,15 +106,18 @@ ELEVEN_MODELO = _s("ELEVEN_MODELO", "eleven_flash_v2_5")   # rápido y gasta la 
 VOZ_MODELO = _s("VOZ_MODELO", "es_MX-claude-high")      # voz local de respaldo (Piper, rhasspy/piper-voices)
 VOZ_DISPOSITIVO = _s("VOZ_DISPOSITIVO")                  # salida de audio (nombre o número); vacío = la predeterminada
 VOZ_VELOCIDAD = _f("VOZ_VELOCIDAD", 1.1)
+VOZ_RELLENO = _b("VOZ_RELLENO", True)                     # dice «a ver…» si la IA tarda en contestar
+VOZ_RELLENO_SEGUNDOS = _f("VOZ_RELLENO_SEGUNDOS", 1.2)
 VOZ_VOLUMEN = _f("VOZ_VOLUMEN", 0.9)
 ORBE_COLOR = _s("ORBE_COLOR", "jarvis").lower()           # solo para el estilo orbe: jarvis (celeste) o dorado
 ORBE_ESTILO = _s("ORBE_ESTILO", "cerebro").lower()         # cerebro (con ojos) u orbe (la bolita)
 CEREBRO_SIEMPRE = _b("CEREBRO_SIEMPRE", False)             # true = el cerebro queda siempre en pantalla
+CEREBRO_DISENO = _s("CEREBRO_DISENO", "gafas").lower()     # gafas (relajado, con gafas y colores) o clasico
 VOZ_TONO = _f("VOZ_TONO", 4)                              # semitonos: 0 = voz normal, 3 a 5 = voz de dibujito
 ORBE_POSICION = _s("ORBE_POSICION", "abajo-derecha").lower()
 
 # --- OBS (para las capturas de las miniaturas) ---
-OBS_HOST = _s("OBS_HOST", "localhost")
+OBS_HOST = _s("OBS_HOST", "127.0.0.1").replace("localhost", "127.0.0.1")
 OBS_PORT = int(_f("OBS_PORT", 4455))
 OBS_PASSWORD = _s("OBS_PASSWORD")
 # Escena o fuente de OBS para el fondo de las miniaturas (p. ej. la captura del juego). Vacío = lo que sale en directo.

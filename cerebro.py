@@ -49,6 +49,9 @@ class Cerebro:
             return self.cancelar()
         consulta = f"{self.contexto}. {texto}" if self.contexto else texto
         self.mostrar(f"«{texto}»\nPensando…", "info", 0)
+        relleno = threading.Timer(config.VOZ_RELLENO_SEGUNDOS, self.avisar, args=("relleno",))
+        if config.VOZ_RELLENO:
+            relleno.start()           # si la IA tarda, dice «a ver…» para que no parezca colgado
         try:
             accion, origen = router.interpretar(consulta, self.pendiente)
         except H.ErrorOrden as e:
@@ -61,6 +64,8 @@ class Cerebro:
             pitido("error")
             self.avisar("error", None, str(e))
             return self.mostrar(f"Error al interpretar: {e}", "error", 10)
+        finally:
+            relleno.cancel()
 
         if accion.tipo == "aclaracion":
             self.contexto = consulta
@@ -148,6 +153,8 @@ class App:
         if config.JARVIS_VOZ or config.JARVIS_ORBE:
             import jarvis
             self.voz = jarvis.Voz() if config.JARVIS_VOZ else None
+            if self.voz and config.VOZ_RELLENO:
+                self.voz.precalentar(jarvis.RELLENOS)      # «a ver…» listo para salir al instante
             if config.JARVIS_ORBE:
                 if config.ORBE_ESTILO == "orbe":
                     self.orbe = jarvis.Orbe(self.root)
@@ -282,6 +289,10 @@ class App:
             pass
         if self.grab.activa and self.grab.debe_parar():
             self._procesar()
+        elif (config.USE_OLLAMA and not self.ocupado and not self.grab.activa
+              and router.ULTIMO_USO[0] and time.time() - router.ULTIMO_USO[0] > 20 * 60):
+            router.ULTIMO_USO[0] = time.time()       # cada 20 min sin órdenes: que Ollama no descargue el modelo
+            self.tareas.put(("precargar", None))
 
     def _procesar(self):
         pitido("fin")

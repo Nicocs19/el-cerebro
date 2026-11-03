@@ -1,13 +1,18 @@
 """El Cerebro en pantalla: un cerebro con ojos que reacciona a lo que pasa.
 
-- escuchando: abre bien los ojos, salta con tu voz y le salen ondas de sonido a los costados.
-- pensando: mira para arriba, frunce las cejas y le salen burbujitas.
-- hablando: mueve la boca con su voz.
-- ok: ojos felices y estrellitas.  error: ojos en cruz.
+Diseño «gafas» (el de siempre ahora): un cerebro relajado y medio bobo, con gafas redondas de colores,
+ojos a media asta, dientes de conejo y colores que cambian despacito.
+- quieto: se balancea tranquilo, con los ojos a media asta y la mirada perdida.
+- escuchando: se baja las gafas y te mira con los ojos bien abiertos; le salen ondas con tu voz.
+- pensando: ladea la cabeza, bizquea para arriba, saca la lengua y le salen burbujitas.
+- hablando: mueve la boca (con los dientes de conejo) al ritmo de su voz.
+- ok: ojos felices y estrellitas de colores.  error: ojos en espiral, mareado.
 - oculto: se desvanece (vuelve a aparecer cuando lo llamás).
+Con CEREBRO_DISENO=clasico vuelve el cerebro rosado sin gafas.
 
 Se dibuja en una ventana transparente que no roba el foco ni los clics (no molesta al juego).
 """
+import colorsys
 import math
 import random
 import time
@@ -17,6 +22,7 @@ import config
 CLAVE = "#010203"   # color que Windows vuelve transparente
 ROSA, ROSA_CLARO, ROSA_OSCURO, CONTORNO = "#F59AB4", "#FFC4D3", "#D9708F", "#7A2943"
 OJO, PUPILA, BOCA, LENGUA = "#FFFFFF", "#1B1B26", "#5B1024", "#FF6F8E"
+MARCO = "#251A38"   # marco de las gafas
 COLOR_ESTADO = {"escuchando": "#38E1FF", "pensando": "#E8C468", "hablando": "#F5D98B", "ok": "#4CE38A", "error": "#FF5A5A"}
 
 
@@ -48,6 +54,8 @@ class Cerebrito:
         self.mirada_obj = [0.0, 0.0]
         self.prox_mirada = 0.0
         self.prox_parpadeo = time.time() + 2
+        self.gafas_y = 0.0              # cuánto se bajó las gafas (para mirarte por encima)
+        self.parpado = 0.45             # qué tan cerrados tiene los ojos (0 abiertos, 1 cerrados)
         root.after(33, self._paso)
 
     # ------------------------------------------------------------ ventana
@@ -121,6 +129,198 @@ class Cerebrito:
             self.mirada[i] += (self.mirada_obj[i] - self.mirada[i]) * 0.25
 
     def dibujar(self, estado, t, n):
+        if config.CEREBRO_DISENO == "clasico":
+            self._dibujar_clasico(estado, t, n)
+        else:
+            self._dibujar_gafas(estado, t, n)
+
+    # ------------------------------------------------------------ diseño con gafas
+    def _dibujar_gafas(self, estado, t, n):
+        c = self.c
+        c.delete("all")
+        m = self.TAM / 2
+        color = COLOR_ESTADO.get(estado, "#E8C468")
+        arcoiris = t / 24.0                                   # los colores dan la vuelta cada 24 s
+        piel = _hsv(0.86 + 0.09 * math.sin(t * 0.22), 0.36, 1.0)
+        piel_luz = _hsv(0.86 + 0.09 * math.sin(t * 0.22), 0.14, 1.0)
+        pliegue = _hsv(0.86 + 0.09 * math.sin(t * 0.22), 0.55, 0.80)
+        borde = _hsv(0.80 + 0.06 * math.sin(t * 0.22), 0.70, 0.36)
+
+        # balanceo: tranquilo y lento quieto, atento escuchando, ladeado pensando
+        grados = {"escuchando": 0.0, "pensando": 9 + 2 * math.sin(t * 2), "hablando": 3 * math.sin(t * 2.4),
+                  "ok": 4 * math.sin(t * 5), "error": 7 * math.sin(t * 7)}.get(estado, 6 * math.sin(t * 0.8))
+        salto = {"escuchando": 10 * n, "hablando": 4 * n}.get(estado, 0) + 3 * math.sin(t * 1.6)
+        cx, cy = m, m + 8 - salto
+        s = 1.0 + (0.05 * n if estado == "escuchando" else 0)
+        th = math.radians(grados)
+        co, si = math.cos(th), math.sin(th)
+
+        def P(dx, dy):
+            return cx + s * (dx * co - dy * si), cy + s * (dx * si + dy * co)
+
+        def ovalo(dx, dy, rx, ry=None, **kw):
+            x, y = P(dx, dy)
+            ry = rx if ry is None else ry
+            return c.create_oval(x - rx * s, y - ry * s, x + rx * s, y + ry * s, **kw)
+
+        def linea(puntos, **kw):
+            return c.create_line(*[v for p in puntos for v in P(*p)], **kw)
+
+        def poligono(puntos, **kw):
+            return c.create_polygon(*[v for p in puntos for v in P(*p)], **kw)
+
+        def arco(dx, dy, rx, ry, start, extent, **kw):
+            x, y = P(dx, dy)
+            return c.create_arc(x - rx * s, y - ry * s, x + rx * s, y + ry * s, start=start - grados, extent=extent, **kw)
+
+        # aura del estado (quieto no tiene)
+        for i, a in enumerate((0.28, 0.18) if estado in COLOR_ESTADO else ()):
+            r = (90 + i * 10 + 6 * n) * s
+            c.create_oval(cx - r, cy - r * 0.8, cx + r, cy + r * 0.8, outline=_mezclar(color, a + 0.4 * n), width=3)
+
+        # cuerpo: lóbulos (primero el contorno, después el relleno), brillo y pliegues
+        lobulos = [(-50, -18, 40), (-20, -42, 42), (20, -42, 42), (50, -18, 40), (-48, 20, 34), (48, 20, 34),
+                   (0, 6, 62), (-22, 30, 34), (22, 30, 34)]
+        for dx, dy, r in lobulos:
+            ovalo(dx, dy, r + 5, fill=borde, outline="")
+        for dx, dy, r in lobulos:
+            ovalo(dx, dy, r, fill=piel, outline="")
+        ovalo(-46, -60, 15, 10, fill=piel_luz, outline="")
+        linea([(0, -80), (-4, -62), (3, -48)], smooth=True, fill=pliegue, width=4)
+        for dx, dy, rx, ry, ini, ext in ((-55, -50, 18, 15, 20, 140), (-38, -48, 20, 15, 200, 120),
+                                         (55, -50, 18, 15, 20, 140), (38, -48, 20, 15, 220, 120),
+                                         (-12, -66, 17, 15, 200, 140), (18, -66, 17, 15, 200, 140),
+                                         (-70, 20, 14, 17, 90, 160), (70, 20, 14, 17, 290, 160)):
+            arco(dx, dy, rx, ry, ini, ext, style="arc", outline=pliegue, width=3)
+
+        # gafas: se las baja cuando te escucha, para mirarte por encima
+        obj_y = 15.0 if estado == "escuchando" else (4.0 if estado == "pensando" else 0.0)
+        self.gafas_y += (obj_y - self.gafas_y) * 0.25
+        gy = self.gafas_y
+        lentes = [(-31, 1 + gy, _hsv(arcoiris, 0.30, 1.0)), (31, -2 + gy, _hsv(arcoiris + 0.45, 0.30, 1.0))]
+        for lado, (lx, ly, _) in zip((-1, 1), lentes):              # patillas
+            linea([(lx + lado * 25, ly - 6), (lado * 82, ly - 16)], fill=MARCO, width=6, capstyle="round")
+        for lx, ly, tinte in lentes:                                 # vidrio de color
+            ovalo(lx, ly, 26, 24, fill=tinte, outline="")
+
+        # ojos (detrás del vidrio): a media asta quieto, bien abiertos escuchando
+        self._mover_mirada(estado, t)
+        ahora = time.time()
+        if ahora > self.prox_parpadeo + 0.16:                # parpadeo lento cada 3 a 6 segundos
+            self.prox_parpadeo = ahora + random.uniform(3.0, 6.0)
+        parpadea = estado not in ("ok", "error", "escuchando") and ahora >= self.prox_parpadeo
+        obj_p = {"escuchando": 0.0, "pensando": 0.18, "hablando": 0.32}.get(estado, 0.52 + 0.05 * math.sin(t * 0.7))
+        self.parpado += ((1.0 if parpadea else obj_p) - self.parpado) * (0.6 if parpadea else 0.2)
+        abierto = 1.15 if estado == "escuchando" else 1.0
+        ojos_y = -2 + (gy * 0.25 if estado == "escuchando" else 0)
+        for lado in (-1, 1):
+            ox, oy = P(lado * 31, ojos_y)
+            rx, ry = 15 * s * abierto, 17 * s * abierto
+            if estado == "ok":                                   # ojos felices ^ ^
+                c.create_arc(ox - rx, oy - ry * 0.3, ox + rx, oy + ry * 1.3, start=20, extent=140,
+                             style="arc", outline=borde, width=5)
+                continue
+            if estado == "error":                                # ojos en espiral, mareado
+                pts = []
+                for k in range(34):
+                    a = k * 0.55 + t * 8 * lado
+                    rr = 1.5 + k * 0.42
+                    pts += [ox + rr * s * math.cos(a), oy + rr * s * math.sin(a)]
+                c.create_oval(ox - rx, oy - ry, ox + rx, oy + ry, fill=OJO, outline=borde, width=2)
+                c.create_line(*pts, fill=borde, width=3, smooth=True)
+                continue
+            c.create_oval(ox - rx, oy - ry, ox + rx, oy + ry, fill=OJO, outline=borde, width=2)
+            # mirada medio perdida: cada pupila mira un poquito para su lado
+            bizco = {"pensando": (-0.55 * lado, -0.55)}.get(estado, (0.12 * lado, 0.05 * lado) if estado == "quieto" else (0, 0))
+            px = ox + (self.mirada[0] + bizco[0]) * rx * 0.45
+            py = oy + (self.mirada[1] + bizco[1]) * ry * 0.45 + (3 if estado == "quieto" else 0)
+            rp = (8.5 if estado == "escuchando" else 7) * s
+            c.create_oval(px - rp, py - rp, px + rp, py + rp, fill=PUPILA, outline="")
+            c.create_oval(px - rp * 0.5 - 2, py - rp * 0.6 - 2, px - rp * 0.5 + 2, py - rp * 0.6 + 2, fill=OJO, outline="")
+            f = max(0.0, min(1.0, self.parpado))
+            if f > 0.96:                                         # ojo cerrado
+                c.create_oval(ox - rx, oy - ry, ox + rx, oy + ry, fill=piel, outline=borde, width=2)
+                c.create_line(ox - rx, oy + 2, ox + rx, oy + 2, fill=borde, width=3)
+            elif f > 0.02:                                       # párpado caído
+                h = max(-0.99, min(0.99, 1 - 2 * f))
+                a0 = math.degrees(math.asin(h))
+                c.create_arc(ox - rx, oy - ry, ox + rx, oy + ry, start=a0, extent=180 - 2 * a0, style="chord",
+                             fill=piel, outline=borde, width=3)
+
+        # marco de las gafas, puente y brillo del vidrio
+        for lx, ly, _ in lentes:
+            ovalo(lx, ly, 26, 24, outline=MARCO, width=6)
+            linea([(lx - 15, ly - 9), (lx - 8, ly - 16)], fill="#FFFFFF", width=3, capstyle="round")
+            linea([(lx - 16, ly - 1), (lx - 14, ly - 3)], fill="#FFFFFF", width=3, capstyle="round")
+        arco(0, -2 + gy, 9, 7, 20, 140, style="arc", outline=MARCO, width=5)
+
+        # cejas por encima de las gafas: una más alta que la otra (cara de «¿eh?»)
+        for lado in (-1, 1):
+            alto = -36 - (10 if estado == "escuchando" else 0) - (6 if lado == 1 and estado != "error" else 0)
+            if estado == "pensando":
+                alto += 4 * lado
+            if estado == "hablando":
+                alto -= 3 * n
+            linea([(lado * 31 - 13, alto + 2), (lado * 31, alto - 3), (lado * 31 + 13, alto + 1)],
+                  smooth=True, fill=borde, width=5, capstyle="round")
+
+        # boca con dientes de conejo, corrida un poquito para un costado
+        bx, by = 5, 44
+        if estado == "hablando":
+            alto = 5 + 20 * n
+            ovalo(bx, by + alto / 2 - 4, 17 + 5 * n, alto / 2 + 2, fill=BOCA, outline=borde, width=3)
+            if alto > 12:
+                ovalo(bx, by + alto - 6, 9, 4, fill=LENGUA, outline="")
+            self._dientes(poligono, bx, by - 4, borde)
+        elif estado == "ok":
+            poligono([(bx - 24, by - 6), (bx + 26, by - 8), (bx + 14, by + 12), (bx, by + 15), (bx - 14, by + 10)],
+                     smooth=True, fill=BOCA, outline=borde, width=3)
+            self._dientes(poligono, bx, by - 6, borde)
+        elif estado == "error":
+            linea([(bx - 16, by + 4), (bx - 6, by - 2), (bx + 4, by + 4), (bx + 14, by - 2)], smooth=True,
+                  fill=borde, width=4)
+        elif estado == "pensando":                               # lengua afuera, concentrado
+            linea([(bx - 14, by), (bx + 2, by + 3), (bx + 16, by - 2)], smooth=True, fill=borde, width=4,
+                  capstyle="round")
+            ovalo(bx + 13, by + 6, 7, 8, fill=LENGUA, outline=borde, width=2)
+            linea([(bx + 13, by + 2), (bx + 13, by + 9)], fill=_mezclar(LENGUA, 0.7), width=2)
+        else:                                                    # sonrisa floja
+            poligono([(bx - 22, by - 5), (bx + 25, by - 9), (bx + 15, by + 6), (bx, by + 9), (bx - 13, by + 4)],
+                     smooth=True, fill=BOCA, outline=borde, width=3)
+            self._dientes(poligono, bx, by - 6, borde)
+
+        # extras de cada estado, todos de colores
+        if estado == "escuchando":                               # ondas de sonido que siguen tu voz
+            for lado in (-1, 1):
+                for i in range(3):
+                    r = (18 + i * 12) * (0.6 + n)
+                    x = cx + lado * 100 * s
+                    c.create_arc(x - r, cy - r, x + r, cy + r, start=-40 if lado > 0 else 140, extent=80,
+                                 style="arc", outline=_hsv(arcoiris + i * 0.18, 0.55, 0.6 + 0.4 * n), width=3)
+        elif estado == "pensando":                               # burbujitas que suben
+            for i in range(3):
+                fase = (t * 0.9 + i / 3) % 1.0
+                r = 5 + 6 * fase
+                x, y = cx + 62 + 10 * i, cy - 72 - 40 * fase
+                c.create_oval(x - r, y - r, x + r, y + r, outline=_hsv(arcoiris + i * 0.3, 0.6, 1.0), width=2)
+        elif estado == "ok":                                     # estrellitas de colores
+            for i in range(5):
+                ang = t * 2 + i * 2 * math.pi / 5
+                x, y = cx + 97 * math.cos(ang), cy - 10 + 72 * math.sin(ang)
+                _estrella(c, x, y, 7, _hsv(arcoiris + i / 5, 0.6, 1.0))
+        elif estado == "quieto":                                 # un par de destellitos tranquilos
+            for i, (dx, dy) in enumerate(((-88, -62), (90, -48), (78, 64))):
+                brillo = 0.5 + 0.5 * math.sin(t * 1.3 + i * 2.1)
+                if brillo > 0.35:
+                    _estrella(c, cx + dx, cy + dy, 2 + 4 * brillo, _hsv(arcoiris + i * 0.33, 0.45, 1.0))
+
+    @staticmethod
+    def _dientes(poligono, bx, by, borde):
+        for x0 in (bx - 7, bx):
+            poligono([(x0, by), (x0 + 7, by), (x0 + 7, by + 8), (x0, by + 8)], fill="#FFFDF5", outline=borde, width=2)
+
+    # ------------------------------------------------------------ diseño clásico
+    def _dibujar_clasico(self, estado, t, n):
         c = self.c
         c.delete("all")
         m = self.TAM / 2
@@ -244,6 +444,11 @@ def _estrella(c, x, y, r, color):
         rr = r if i % 2 == 0 else r * 0.45
         pts += [x + rr * math.cos(a), y - rr * math.sin(a)]
     c.create_polygon(pts, fill=color, outline="")
+
+
+def _hsv(h, s, v):
+    r, g, b = colorsys.hsv_to_rgb(h % 1.0, max(0.0, min(1.0, s)), max(0.0, min(1.0, v)))
+    return "#%02x%02x%02x" % tuple(max(4, int(x * 255)) for x in (r, g, b))
 
 
 def _mezclar(color, factor):
