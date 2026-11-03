@@ -185,7 +185,7 @@ Máximo 4 (podés dar 2 opciones del personaje). Respondé SOLO con JSON, sin ex
 [{{"nombre": "logo_wow", "url": "https://…", "que": "logo de World of Warcraft", "recortar": false}}]
 Poné "recortar": true si es un personaje o criatura (el programa se fija solo si ya viene sin fondo)."""
     from overlays import SIN_HERRAMIENTAS, SOLO_ESTO
-    comando = [exe, "-p", "--max-turns", "20", "--model", config.CLAUDE_MODELO or "sonnet"] + SOLO_ESTO
+    comando = [exe, "-p", "--max-turns", "20", "--model", config.CLAUDE_MODELO_REVISION or "sonnet"] + SOLO_ESTO
     comando += ["--disallowedTools"] + [h for h in SIN_HERRAMIENTAS if h not in ("WebFetch", "WebSearch")]
     comando += ["--allowedTools", "WebSearch", "WebFetch"]
     vacia = tempfile.mkdtemp(prefix="cerebro_busca_")          # carpeta vacía: no hay nada que leer
@@ -286,6 +286,14 @@ Idea de Mr. H: {idea or "ninguna en especial: elegí la composición que mejor v
 {estilo_propio}Archivos que podés usar (están en la misma carpeta que el HTML, usalos con rutas relativas):
 {_preparar(carpeta, extras)}
 {ejemplos}
+Objetivo: el máximo de clics (CTR). Pensá como el mejor diseñador de miniaturas de YouTube gaming:
+- Se tiene que entender en 1 segundo y en chico (168x94 en el celular): UN foco, contraste brutal, nada de detalles finos.
+- Jerarquía: 1) el protagonista con una emoción clara, 2) el texto, 3) el fondo. Máximo tres elementos.
+- Dos colores saturados que choquen (fuego/arcano, oro/azul noche) sobre fondo oscuro; luz de contraluz o halo
+  detrás del protagonista; el fondo desenfocado u oscurecido para que el primer plano salte.
+- El texto, del lado opuesto a la cara y lejos de la esquina de abajo a la derecha (ahí YouTube pone la duración).
+- Que se distinga de las miniaturas de al lado en la página de YouTube: bordes nítidos, recortes con contorno.
+
 Reglas:
 - Un solo archivo HTML con el CSS adentro, sin JavaScript que dependa de internet y sin cargar nada de internet.
 - La misma página se va a sacar en 1280x720 (horizontal) y en 1080x1920 (vertical, para TikTok): ocupá siempre el 100%

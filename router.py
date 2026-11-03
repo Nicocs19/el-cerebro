@@ -169,6 +169,7 @@ Reglas:
 - El CHAT del stream (Kick y YouTube) no es el Discord. "Mandá al chat el link del discord" -> mandar_al_chat (el enlace se llama discord, pero va al chat del stream). "Avisá en Discord", "en general" o "a la guild" -> mensaje_discord o publicar_anuncio.
 - Overlays: carteles o gráficos en la pantalla (OBS) -> overlay, aunque nombre un enlace. En descripcion, los textos EXACTOS que dijo; un enlace va como "enlace de discord" (el programa pone el real).
 - Descripción del directo (YouTube) -> cambiar_descripcion_stream: la redactás vos (2 a 4 frases con onda, sin enlaces); en enlaces los nombres que pidió; hashtags si los pidió.
+- Empaquetado ("armá el empaquetado", "un título con gancho y la miniatura") -> cambiar_titulo_stream (con miniatura si la pide): el programa se lo pasa al agente de marketing.
 - "¿Qué título tengo?" o "revisá mi directo/emisión" -> consultar_titulo. Nunca inventes lo que escribió alguien en el chat si no tenés sus mensajes acá.
 - Moderación del chat: banear = para siempre; silenciar, timeout, mutear o castigar = un rato. En usuario COPIA el nombre tal como lo dijo (el programa busca al más parecido en el chat): no lo completes ni lo inventes. Nunca pongas enlaces en el texto: los enlaces salen de la lista guardada.
 
@@ -1009,6 +1010,76 @@ def _corrige_lo_hecho(texto, hecha, nombre, args):
     return nombre, args, hecha
 
 
+EMPAQUETA = re.compile(r"empaquet|facher|gancho|que venda|vendedor|clickbait|click ?bait|\bctr\b|marketing|optimiz|"
+                       r"magnetic|llamativ|viral|irresistible|que (de|den) ganas|que atrape|persuasiv|letal|"
+                       r"(titulo|miniatura|descripcion)\w* (pro|profesional|bueno|buena|potente|epic\w*)")
+DICTA_TEXTO = re.compile(r"que diga|diciendo|con el texto|con la frase|que ponga")
+AVISO_TRABAJO = [None]           # El Cerebro pone acá cómo mostrar «El agente de marketing está armando…»
+
+
+def _empaquetar(texto, nombre, args):
+    """Título, miniatura y descripción los arma el agente de Marketing y Empaquetado (Opus), pensados juntos.
+
+    Se usa cuando lo pidió («con gancho», «fachero», «armá el empaquetado»), en las descripciones, en miniaturas sin
+    texto dictado y, con EMPAQUETAR_SIEMPRE, en todos los títulos. Lo que dictó tal cual se respeta.
+    """
+    n = _norm(texto)
+    if config.EMPAQUETADO and re.search(r"empaquet", n) and nombre not in (
+            "cambiar_titulo_stream", "cambiar_descripcion_stream", "crear_miniatura", "pedir_aclaracion"):
+        nombre, args = "cambiar_titulo_stream", {"titulo": "Directo de WoW Forever", "plataformas": []}   # lo arma el agente
+    if not config.EMPAQUETADO or nombre not in ("cambiar_titulo_stream", "cambiar_descripcion_stream", "crear_miniatura"):
+        return nombre, args
+    pide = bool(EMPAQUETA.search(n))
+    completo = bool(re.search(r"empaquet", n))
+    partes = []
+    if nombre == "cambiar_titulo_stream" or completo:
+        partes.append("titulo")
+    if nombre == "crear_miniatura" or not H._vacio(args.get("miniatura")) or completo or (pide and PIDE_MINIATURA.search(n)):
+        partes.append("miniatura")
+    if nombre == "cambiar_descripcion_stream" or not H._vacio(args.get("descripcion")) or completo or PIDE_DESCRIPCION.search(n):
+        partes.append("descripcion")
+    dicta_titulo = nombre == "cambiar_titulo_stream" and not (pide or config.EMPAQUETAR_SIEMPRE)
+    dicta_mini = bool(DICTA_TEXTO.search(n)) and not pide
+    usar = pide or config.EMPAQUETAR_SIEMPRE or "descripcion" in partes or (
+        nombre == "crear_miniatura" and not dicta_mini)
+    if not usar:
+        return nombre, args
+    fijos = {}
+    if dicta_titulo:
+        fijos["titulo"] = args.get("titulo")
+    if dicta_mini:
+        fijos["miniatura"] = args.get("miniatura") if nombre == "cambiar_titulo_stream" else args.get("titulo")
+    if AVISO_TRABAJO[0]:
+        AVISO_TRABAJO[0]("El agente de Marketing y Empaquetado está armando " + " + ".join(
+            {"titulo": "el título", "miniatura": "la miniatura", "descripcion": "la descripción"}[p] for p in partes)
+            + " (puede tardar un minuto)…")
+    try:
+        import empaquetado
+        e = empaquetado.armar(texto, partes, fijos)
+    except Exception as ex:  # noqa: BLE001
+        _p(f"[router] el agente de empaquetado no pudo ({ex}); sigue lo de la IA local")
+        return nombre, args
+    _p(f"[router] empaquetado: {json.dumps(e, ensure_ascii=False)}")
+    if "titulo" in partes and e.get("titulo"):
+        nuevo = {**args, "titulo": e["titulo"], "_empaquetado": True}
+        if nombre != "cambiar_titulo_stream":
+            nuevo["plataformas"] = ["kick", "youtube", "tiktok"]
+        if "miniatura" in partes and e.get("miniatura"):
+            nuevo.update(miniatura=e["miniatura"], miniatura_subtitulo=e.get("miniatura_subtitulo") or "",
+                         miniatura_idea=e.get("miniatura_idea") or args.get("miniatura_idea") or "")
+        if "descripcion" in partes and e.get("descripcion"):
+            nuevo.update(descripcion=e["descripcion"], enlaces=e.get("enlaces") or args.get("enlaces") or [],
+                         hashtags=e.get("hashtags") or args.get("hashtags") or [])
+        return "cambiar_titulo_stream", nuevo
+    if nombre == "crear_miniatura" and e.get("miniatura"):
+        return nombre, {**args, "titulo": e["miniatura"], "subtitulo": e.get("miniatura_subtitulo") or "",
+                        "idea": e.get("miniatura_idea") or args.get("idea") or "", "_empaquetado": True}
+    if nombre == "cambiar_descripcion_stream" and e.get("descripcion"):
+        return nombre, {**args, "descripcion": e["descripcion"], "enlaces": e.get("enlaces") or args.get("enlaces") or [],
+                        "hashtags": e.get("hashtags") or args.get("hashtags") or [], "_empaquetado": True}
+    return nombre, args
+
+
 def interpretar(texto, pendiente=None, nota="", hecha=None):
     """Devuelve (Accion, origen). Lanza H.ErrorOrden si la orden no se puede ejecutar.
 
@@ -1053,6 +1124,8 @@ def interpretar(texto, pendiente=None, nota="", hecha=None):
         args = {**args, **{k: H.texto_fiel(texto, args[k], quitar_hoy=nombre == "overlay")
                            for k in ("titulo", "texto", "descripcion") if args.get(k)}}
         args = _enlaces_reales(texto, nombre, args)
+    if origen == "ia" and pendiente is None and corrige is None:
+        nombre, args = _empaquetar(texto, nombre, args)
     if nombre in ("cambiar_descripcion_stream", "cambiar_titulo_stream"):
         args = _enlaces_de_la_descripcion(texto, nombre, args)
     _p(f"[router] {origen}: {nombre} {json.dumps(args, ensure_ascii=False)}")

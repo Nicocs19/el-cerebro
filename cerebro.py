@@ -56,6 +56,7 @@ class Cerebro:
         self.contexto = None            # orden incompleta mientras se responde una aclaración
         self.ultimo_relleno = 0.0       # para no decir «a ver…» a cada rato
         self.hecha = None               # lo último que se hizo, por si dice «lo hiciste mal» (CORREGIR_MINUTOS)
+        router.AVISO_TRABAJO[0] = lambda t: self.mostrar(t, "info", 0)     # «El agente de marketing está armando…»
 
     def manejar_texto(self, texto, auto_confirmar=False, estricto=False):
         texto = texto.strip()

@@ -13,8 +13,34 @@ import time
 
 import dictado
 import herramientas as H
+import config
 import router
 router.REGISTRAR = False          # las pruebas no ensucian data/router.log
+config.EMPAQUETADO = False        # el agente de marketing (Opus) se prueba aparte: `probar_router.py empaquetado`
+
+EMPAQUETADO = [
+    "armá el empaquetado del directo de hoy: arrancamos WoW Forever subiendo al guerrero desde nivel 1",
+    "cambiá el título a subiendo al guerrero en el lanzamiento y la descripción con mi Discord, mi Kick y hashtags",
+    "hacé una miniatura fachera de que pesco relajado en el muelle",
+    "cambiá la descripción del directo, algo con gancho de que hoy vamos a Molten Core con la hermandad",
+]
+
+
+def probar_empaquetado():
+    """El agente de Marketing y Empaquetado de verdad (Opus, usa tu plan): muestra lo que arma, sin publicar nada."""
+    config.EMPAQUETADO = True
+    bien = 0
+    for f in EMPAQUETADO:
+        t0 = time.time()
+        try:
+            accion, origen = router.interpretar(dictado.limpiar(f))
+            ok = bool(accion.datos.get("titulo") or accion.datos.get("descripcion"))
+            print(f"{'OK ' if ok else 'FALLO'} ({time.time() - t0:4.1f} s) {f}\n    -> {accion.tipo}:\n{accion.resumen}\n")
+            bien += ok
+        except H.ErrorOrden as e:
+            print(f"ERR ({time.time() - t0:4.1f} s) {f}\n    -> {e}\n")
+    print(f"{bien}/{len(EMPAQUETADO)} bien (empaquetado).")
+    return bien, len(EMPAQUETADO)
 
 FRASES = [
     "lanza un anuncio a la guild que esta noche hacemos mazmorras a las 10, que vengan con pociones",
@@ -107,7 +133,7 @@ FRASES_CHAT = {
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
     modos = {"chat": probar_chat, "charla": probar_charla, "flujo": probar_flujo, "rapido": probar_rapido,
-             "corregir": probar_corregir, "todo": probar_todo}
+             "corregir": probar_corregir, "empaquetado": probar_empaquetado, "todo": probar_todo}
     if sys.argv[1:2] and sys.argv[1] in modos:
         bien, total = modos[sys.argv[1]]()
         return 0 if bien == total else 1
@@ -365,8 +391,61 @@ def probar_corregir():
         bien += ok
         if not ok:
             print(f"FALLO {nombre}: salió {salio!r}, tenía que ser {esperado!r}")
-    print(f"{bien}/{len(casos)} bien (corregir lo hecho, con IA de mentira).")
-    return bien, len(casos)
+    casos += _casos_empaquetado()
+    print(f"{bien + sum(1 for _, a, b in casos[-5:] if a == b)}/{len(casos)} bien (corregir lo hecho y empaquetado, "
+          "con IA de mentira).")
+    return bien + sum(1 for _, a, b in casos[-5:] if a == b), len(casos)
+
+
+def _casos_empaquetado():
+    """Cuándo entra el agente de Marketing y Empaquetado (con un agente y una IA de mentira: no gasta tu plan)."""
+    import empaquetado
+    import enlaces
+    viejos = (router._llamar_ollama, empaquetado.armar, enlaces.leer, config.EMPAQUETADO)
+    llamadas = []
+
+    def armar(orden, partes, fijos=None):
+        llamadas.append(list(partes))
+        f = fijos or {}
+        return {"titulo": f.get("titulo") or "WoW Forever: ¿llega el Warrior a 10 HOY?", "miniatura": f.get("miniatura")
+                or "NIVEL 1", "miniatura_subtitulo": "", "miniatura_idea": "Cara sorprendida a la izquierda",
+                "descripcion": "Arrancó WoW Forever.", "enlaces": ["discord"], "hashtags": ["WoWForever"], "por_que": ""}
+
+    def ia(texto, pendiente=None, solo=None, temperatura=0.2, nota="", hecha=None):
+        if solo == ["cambiar_descripcion_stream"]:
+            return "cambiar_descripcion_stream", {"descripcion": "", "enlaces": ["discord"]}
+        if "miniatura" in router._norm(texto):
+            return "crear_miniatura", {"titulo": "Noche de pesca", "idea": "pesca"}
+        return "cambiar_titulo_stream", {"titulo": "Día 2 subiendo al war", "plataformas": ["kick", "youtube", "tiktok"]}
+
+    router._llamar_ollama, empaquetado.armar, config.EMPAQUETADO = ia, armar, True
+    enlaces.leer = lambda: {"discord": "https://discord.gg/prueba"}
+    casos = []
+    try:
+        a, _ = router.interpretar("armá el empaquetado del directo: subimos al guerrero desde nivel 1")
+        casos.append(("«armá el empaquetado»: título + miniatura + descripción del agente",
+                      (a.datos.get("titulo"), (a.datos.get("miniatura") or {}).get("titulo"), "discord.gg/prueba" in
+                       str(a.datos.get("descripcion"))), ("WoW Forever: ¿llega el Warrior a 10 HOY?", "NIVEL 1", True)))
+        llamadas.clear()
+        a, _ = router.interpretar("cambiá el título a día 2 subiendo al war")
+        casos.append(("título dictado tal cual: no pasa por el agente", (list(llamadas), a.datos.get("titulo")),
+                      ([], "Día 2 subiendo al war")))
+        a, _ = router.interpretar("hacé una miniatura fachera de pesca")
+        casos.append(("miniatura sin texto dictado: texto del agente", a.datos.get("titulo"), "NIVEL 1"))
+        llamadas.clear()
+        a, _ = router.interpretar("hacé una miniatura que diga noche de pesca")
+        casos.append(("miniatura con texto dictado: queda su texto", (list(llamadas), a.datos.get("titulo")),
+                      ([], "Noche de pesca")))
+        a, _ = router.interpretar("cambiá el título a día 2 subiendo al war y la descripción con mi discord")
+        casos.append(("título dictado + descripción del agente", (a.datos.get("titulo"), "Arrancó" in
+                                                                   str(a.datos.get("descripcion"))),
+                      ("Día 2 subiendo al war", True)))
+    finally:
+        router._llamar_ollama, empaquetado.armar, enlaces.leer, config.EMPAQUETADO = viejos
+    for nombre, salio, esperado in casos:
+        if salio != esperado:
+            print(f"FALLO {nombre}: salió {salio!r}, tenía que ser {esperado!r}")
+    return casos
 
 
 # ---------------------------------------------------------------- flujo completo, simulado

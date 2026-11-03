@@ -700,7 +700,10 @@ def construir(nombre, a):
         mini = None
         if not _vacio(a.get("miniatura")):
             mini = {"titulo": _txt(a, "miniatura", 60), "subtitulo": _txt(a, "miniatura_subtitulo", 60, False),
-                    "idea": _txt(a, "miniatura_idea", 500, False)}
+                    "idea": _txt(a, "miniatura_idea", 1500, False)}
+            # El diseñador sabe el título del directo: la miniatura lo complementa, no lo repite
+            mini["idea"] = (mini["idea"] + f"\n(El título del directo es «{titulo}»: la miniatura lo complementa, no lo "
+                            "repite.)").strip()
         juego = "" if _vacio(a.get("juego")) else _txt(a, "juego", 80, False)
         resumen = f"Título «{titulo}» en {', '.join(NOMBRES[p] for p in plataformas)}"
         descripcion = None
@@ -716,7 +719,8 @@ def construir(nombre, a):
             resumen += f"\nJuego en Kick: {juego}"
         if mini:
             resumen += f"\nMiniatura «{mini['titulo']}»" + (f" · {mini['subtitulo']}" if mini["subtitulo"] else "")
-            resumen += f" ({mini['idea']})" if mini["idea"] else ""
+            idea_dicha = mini["idea"].split("\n(El título del directo es")[0].strip()
+            resumen += (f"\nArte: {idea_dicha[:300]}" if a.get("_empaquetado") else f" ({idea_dicha})") if idea_dicha else ""
             resumen += " y la subo a YouTube" if "youtube" in plataformas or config.MINIATURA_SUBIR_YOUTUBE else ""
         # El título se ve en público: se confirma con «dale» igual que lo de Discord (salvo CONFIRMAR=nada)
         datos = {"titulo": titulo, "plataformas": plataformas, "miniatura": mini, "juego": juego}
@@ -742,10 +746,12 @@ def construir(nombre, a):
 
     if nombre == "crear_miniatura":
         d = {"titulo": _txt(a, "titulo", 60), "subtitulo": _txt(a, "subtitulo", 60, False),
-             "subir_youtube": bool(a.get("subir_youtube")) or config.MINIATURA_SUBIR_YOUTUBE, "idea": _txt(a, "idea", 500, False)}
+             "subir_youtube": bool(a.get("subir_youtube")) or config.MINIATURA_SUBIR_YOUTUBE, "idea": _txt(a, "idea", 1500, False)}
         destino = " y subirla a YouTube" if d["subir_youtube"] else ""
-        return Accion("miniatura", d, f"Miniatura «{d['titulo']}» {d['subtitulo']}{destino}".strip(),
-                      d["subir_youtube"] and publica)
+        resumen = f"Miniatura «{d['titulo']}» {d['subtitulo']}{destino}".strip()
+        if a.get("_empaquetado"):
+            resumen += f"\nArte: {d['idea'][:300]}"
+        return Accion("miniatura", d, resumen, d["subir_youtube"] and publica)
 
     if nombre == "moderar_chat":
         import moderacion
