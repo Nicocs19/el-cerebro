@@ -141,9 +141,10 @@ def interpretar(texto, pendiente=None):
             args = {**args, "fecha": fecha}
     if nombre in ("crear_encuesta", "crear_sorteo") and not PIDE_ETIQUETA.search(_norm(texto)):
         args = {**args, "mencionar": "ninguno"}          # en encuestas y sorteos se etiqueta solo si lo pidió
-    if nombre in ("publicar_anuncio", "mensaje_discord"):
-        # Lo que dijo Nicolas manda: mismo día y sin instrucciones que no pidió
-        args = {**args, **{k: H.texto_fiel(texto, args[k]) for k in ("titulo", "texto") if args.get(k)}}
+    if nombre in ("publicar_anuncio", "mensaje_discord", "overlay"):
+        # Lo que dijo Nicolas manda: mismo día, sin «hoy» inventado y sin instrucciones que no pidió
+        args = {**args, **{k: H.texto_fiel(texto, args[k], quitar_hoy=nombre == "overlay")
+                           for k in ("titulo", "texto", "descripcion") if args.get(k)}}
     print(f"[router] {origen}: {nombre} {json.dumps(args, ensure_ascii=False)}")
     return H.construir(nombre, args), origen
 

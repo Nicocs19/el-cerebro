@@ -317,7 +317,7 @@ def corregir_dia(texto, fecha_ia, hoy=None):
 _ACCION_INVENTADA = re.compile(r"anot|inscrib|apunt|registr|https?://|#\w", re.I)
 
 
-def texto_fiel(dicho, texto):
+def texto_fiel(dicho, texto, quitar_hoy=False):
     """Arregla lo que el modelo agrega por su cuenta en textos públicos.
 
     - Si dijiste «mañana» y el texto dice «hoy» / «esta noche» (o al revés), se corrige al día que dijiste.
@@ -331,6 +331,8 @@ def texto_fiel(dicho, texto):
         t = re.sub(r"\b[Hh]oy\b", lambda m: "Mañana" if m.group(0)[0] == "H" else "mañana", t)
     elif dijo_hoy and not dijo_manana:
         t = re.sub(r"(?<!de la )(?<!por la )\b[Mm]añana\b", lambda m: "Hoy" if m.group(0)[0] == "M" else "hoy", t)
+    if quitar_hoy and not dijo_hoy and not dijo_manana and not dia_en_texto(dicho):
+        t = re.sub(r"\s*[·•\-–|,]?\s*\b[Hh]oy\b", "", t)       # no dijo ningún día: no se inventa «hoy»
     if not _ACCION_INVENTADA.search(d):
         frases = re.split(r"(?<=[.!?…])\s+", t)
         limpias = [f for f in frases if not _ACCION_INVENTADA.search(f)]
