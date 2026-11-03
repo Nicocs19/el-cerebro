@@ -149,5 +149,40 @@ class Ejecutor:
             msg += " y subida a YouTube"
         return msg + "."
 
+    # ------------------------------------------------ chat del stream
+    def _moderar(self, accion):
+        import moderacion
+        resultado = moderacion.ejecutar(accion, self.kick, self._yt_si_hace_falta(accion), self.estado, self.simular)
+        self._guardar()
+        return resultado
+
+    def _yt_si_hace_falta(self, accion):
+        return self.yt if any(o["plataforma"] == "youtube" for o in accion.datos.get("objetivos", [])) else None
+
+    def _chat(self, accion):
+        texto, hechas, fallos = accion.datos["texto"], [], []
+        for p in accion.datos["plataformas"]:
+            try:
+                if self.simular:
+                    hechas.append(f"{p} (simulado)")
+                elif p == "kick":
+                    self.kick.escribir(texto)
+                    hechas.append("Kick")
+                elif p == "youtube":
+                    self.yt.escribir(texto)
+                    hechas.append("YouTube")
+            except Exception as e:  # noqa: BLE001
+                fallos.append(f"{p}: {e}")
+        partes = (["Mandado al chat de " + " y ".join(hechas) + "."] if hechas else []) + \
+                 (["Falló " + "; ".join(fallos)] if fallos else [])
+        if not hechas:
+            raise RuntimeError(" ".join(partes))
+        return " ".join(partes)
+
+    def _guardar_enlace(self, accion):
+        import enlaces
+        reemplazo = enlaces.guardar(accion.datos["nombre"], accion.datos["url"])
+        return f"Enlace «{accion.datos['nombre']}» {'actualizado' if reemplazo else 'guardado'}."
+
     def _aclaracion(self, accion):
         return accion.datos["pregunta"]

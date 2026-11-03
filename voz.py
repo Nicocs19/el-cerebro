@@ -100,6 +100,7 @@ class Grabadora:
 
     def __init__(self):
         self.activa = False
+        self.nivel = 0.0
         self._lock = threading.Lock()
         self._bloques = []
         self._stream = None
@@ -110,6 +111,7 @@ class Grabadora:
         ahora = time.time()
         with self._lock:
             self._bloques.append(bloque)
+            self.nivel = rms
             if rms > config.VAD_THRESHOLD:
                 self.bloques_voz += 1
                 self.ultima_voz = ahora
@@ -120,6 +122,7 @@ class Grabadora:
         self._bloques = []
         self.hablo = False
         self.bloques_voz = 0
+        self.nivel = 0.0
         self.inicio = self.ultima_voz = time.time()
         self._stream = sd.InputStream(samplerate=SR, channels=1, dtype="float32",
                                       blocksize=BLOQUE, device=_mic(), callback=self._callback)
@@ -156,6 +159,12 @@ def calibrar(segundos=8):
         time.sleep(segundos)
     print("\nPon VAD_THRESHOLD en .env algo por encima del nivel en silencio "
           "y claramente por debajo del nivel cuando hablas.")
+
+
+def listar_salidas():
+    for i, d in enumerate(sd.query_devices()):
+        if d["max_output_channels"] > 0:
+            print(f"{i:3d}  {d['name']}")
 
 
 def listar_micros():

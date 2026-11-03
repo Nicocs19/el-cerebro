@@ -5,3 +5,4 @@ salida/
 .venv/
 __pycache__/
 *.pyc
+enlaces.txt

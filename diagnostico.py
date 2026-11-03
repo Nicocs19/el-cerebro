@@ -101,6 +101,45 @@ def kick():
     return OK, f"canal {c.get('slug')}, título «{c.get('stream_title')}»"
 
 
+@check("Moderación y chat de Kick")
+def kick_chat():
+    from kick import Kick
+    import chat_vivo
+    if not config.KICK_TOKENS.exists():
+        return AVISO, "Kick no conectado"
+    k = Kick()
+    faltan = k.faltan_permisos("moderation:ban", "chat:write")
+    if faltan or "scope" not in (k.tokens or {}):
+        return AVISO, "falta el permiso de moderar/escribir: doble clic en conectar_kick.bat"
+    sala = chat_vivo.sala_guardada(k.canal().get("slug"))
+    return (OK, f"permisos listos, sala del chat {sala}") if sala else \
+        (AVISO, "permisos listos; falta el número del chat (conectar_kick.bat): sin él, solo nombres exactos")
+
+
+@check("Enlaces para el chat")
+def enlaces_chat():
+    import enlaces
+    e = enlaces.leer()
+    return (OK if e else AVISO), (", ".join(e) if e else f"ninguno todavía (se guardan en {config.ENLACES.name})")
+
+
+@check("Voz de Jarvis")
+def voz_jarvis():
+    if not config.JARVIS_VOZ:
+        return AVISO, "apagada (JARVIS_VOZ=false)"
+    if not config.ELEVEN_API_KEY:
+        return AVISO, "sin clave de ElevenLabs: usa la voz local (conectar_voz.bat para la de ElevenLabs)"
+    r = requests.get("https://api.elevenlabs.io/v1/user/subscription", headers={"xi-api-key": config.ELEVEN_API_KEY},
+                     timeout=10)
+    if r.status_code == 401 and "permission" in r.text.lower():
+        return OK, f"ElevenLabs ({config.ELEVEN_VOZ}); la clave no deja ver los créditos que quedan"
+    if r.status_code != 200:
+        return MAL, f"ElevenLabs rechazó la clave (HTTP {r.status_code}): conectar_voz.bat"
+    d = r.json()
+    quedan = int(d.get("character_limit", 0)) - int(d.get("character_count", 0))
+    return OK, f"ElevenLabs ({config.ELEVEN_VOZ}), quedan {quedan:,} créditos".replace(",", ".")
+
+
 @check("YouTube")
 def youtube():
     if not config.YOUTUBE_TOKEN.exists():
@@ -130,7 +169,8 @@ def main():
     except Exception:  # noqa: BLE001
         pass
     print("=== Diagnóstico de El Cerebro ===\n")
-    for f in (python, gpu, whisper, micro, ollama, hogger, webhook, kick, youtube, obs, tiktok):
+    for f in (python, gpu, whisper, micro, ollama, hogger, webhook, kick, kick_chat, youtube, obs, tiktok,
+              enlaces_chat, voz_jarvis):
         f()
     malos = [r for r in resultados if r[0] == MAL]
     print(f"\n{len(resultados) - len(malos)}/{len(resultados)} sin errores.")

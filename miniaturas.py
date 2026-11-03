@@ -37,13 +37,14 @@ def captura_obs():
         return Image.open(io.BytesIO(base64.b64decode(datos.split(",", 1)[1]))).convert("RGB")
 
     if config.OBS_FUENTE:
+        # Solo el juego: la escena en vivo puede ser la captura de pantalla completa (Discord, chats, El Cerebro).
         try:
             img = foto(config.OBS_FUENTE)
-            if not es_negra(img):
-                return img
-            print(f"[miniatura] «{config.OBS_FUENTE}» está en negro (¿el juego está cerrado?); uso lo que sale en directo.")
         except Exception as e:  # noqa: BLE001
-            print(f"[miniatura] OBS no me dio «{config.OBS_FUENTE}» ({e}); uso lo que sale en directo.")
+            raise MiniaturaError(f"OBS no me dio «{config.OBS_FUENTE}» ({e}).")
+        if es_negra(img):
+            raise MiniaturaError(f"«{config.OBS_FUENTE}» está en negro (¿el juego está cerrado?).")
+        return img
     img = foto(cl.get_current_program_scene().current_program_scene_name)
     if es_negra(img):
         raise MiniaturaError("La captura de OBS está en negro.")

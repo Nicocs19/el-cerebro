@@ -26,8 +26,9 @@ from avisos import pitido
 class Cerebro:
     """La lógica: interpreta, pide confirmación y ejecuta. Corre en un solo hilo de trabajo."""
 
-    def __init__(self, mostrar, simular=False):
+    def __init__(self, mostrar, simular=False, avisar=None):
         self.mostrar = mostrar          # mostrar(texto, tipo, segundos)
+        self.avisar = avisar or (lambda evento, accion=None, detalle=None: None)   # modo Jarvis: voz y orbe
         self.ejecutor = Ejecutor(simular)
         self.pendiente = None           # Accion esperando "dale"
         self.pendiente_hasta = 0
@@ -52,22 +53,27 @@ class Cerebro:
         except H.ErrorOrden as e:
             self.contexto = None
             pitido("error")
+            self.avisar("pregunta", None, str(e))
             return self.mostrar(f"«{texto}»\n{e}", "error", 10)
         except Exception as e:  # noqa: BLE001
             self.contexto = None
             pitido("error")
+            self.avisar("error", None, str(e))
             return self.mostrar(f"Error al interpretar: {e}", "error", 10)
 
         if accion.tipo == "aclaracion":
             self.contexto = consulta
             pitido("pregunta")
+            self.avisar("pregunta", accion)
             return self.mostrar(accion.resumen + "\n(pulsa la tecla y responde)", "pregunta", 25)
         self.contexto = None
         if accion.confirmar and not auto_confirmar:
             self.pendiente = accion
             self.pendiente_hasta = time.time() + config.CONFIRMAR_SEGUNDOS
             pitido("pregunta")
-            return self.mostrar(f"{accion.resumen}\n\n¿Publico? Di «dale» o pulsa {config.CONFIRM_HOTKEY.upper()}. "
+            self.avisar("confirmar", accion)
+            pregunta = "¿Lo hago?" if accion.tipo == "moderar" else "¿Publico?"
+            return self.mostrar(f"{accion.resumen}\n\n{pregunta} Di «dale» o pulsa {config.CONFIRM_HOTKEY.upper()}. "
                                 "«Cancela» para descartar; también puedes corregir.", "pregunta",
                                 config.CONFIRMAR_SEGUNDOS)
         self._ejecutar(accion)
@@ -86,6 +92,7 @@ class Cerebro:
         self.pendiente = None
         self.contexto = None
         pitido("fin")
+        self.avisar("cancelado")
         self.mostrar("Cancelado.", "info", 3)
 
     def _ejecutar(self, accion):
@@ -95,8 +102,10 @@ class Cerebro:
         except Exception as e:  # noqa: BLE001
             log(f"ERROR: {e}")
             pitido("error")
+            self.avisar("error", accion, str(e))
             return self.mostrar(f"No se pudo: {e}", "error", 12)
         pitido("ok")
+        self.avisar("hecho", accion, resultado)
         self.mostrar(resultado, "ok", 8)
 
 
@@ -115,7 +124,14 @@ class App:
         self.ui = queue.Queue()
         self.tareas = queue.Queue()
         self.eventos = queue.Queue()
-        self.cerebro = Cerebro(lambda t, tipo="info", s=6: self.ui.put((t, tipo, s)), simular)
+        self.voz = self.orbe = None
+        if config.JARVIS_VOZ or config.JARVIS_ORBE:
+            import jarvis
+            self.voz = jarvis.Voz() if config.JARVIS_VOZ else None
+            if config.JARVIS_ORBE:
+                self.orbe = jarvis.Orbe(self.root)
+                self.orbe.fuente = self._estado_orbe
+        self.cerebro = Cerebro(lambda t, tipo="info", s=6: self.ui.put((t, tipo, s)), simular, self._avisar)
         self.overlay.mostrar("Cargando Whisper…", "info", 0)
         self.root.update()
         self.stt = Transcriptor()
@@ -129,6 +145,30 @@ class App:
                              f"Cancelar: {config.CANCEL_HOTKEY.upper()}", "ok", 8)
         if config.USE_OLLAMA:
             self.tareas.put(("precargar", None))
+        try:  # escucha el chat de Kick para la moderación por voz
+            import chat_vivo
+            chat_vivo.empezar()
+        except Exception as e:  # noqa: BLE001
+            print(f"[chat] No pude escuchar el chat de Kick: {e}")
+        self._avisar("saludo")
+
+    def _avisar(self, evento, accion=None, detalle=None):
+        """Modo Jarvis: lo dice en voz alta y hace destellar el orbe (se llama desde el hilo de trabajo)."""
+        if self.orbe and evento in ("hecho", "error", "cancelado"):
+            self.orbe.destellar("error" if evento == "error" else "ok")
+        if self.voz:
+            import jarvis
+            self.voz.decir(jarvis.frase(evento, accion, detalle))
+
+    def _estado_orbe(self):
+        """Qué muestra el orbe ahora: escuchando (sigue tu voz), pensando, hablando (sigue su voz) u oculto."""
+        if self.grab.activa:
+            return "escuchando", min(1.0, self.grab.nivel * 12)
+        if self.voz and self.voz.hablando:
+            return "hablando", min(1.0, self.voz.nivel)
+        if self.ocupado:
+            return "pensando", 0.4
+        return "oculto", 0.0
 
     def _teclas(self):
         import keyboard
@@ -193,6 +233,8 @@ class App:
                     elif self.ocupado:
                         self.overlay.mostrar("Espera, sigo con la orden anterior…", "info", 3)
                     else:
+                        if self.voz:
+                            self.voz.callar()
                         self.grab.empezar()
                         pitido("inicio")
                         self.overlay.mostrar("🎙 Escuchando…", "info", 0)
@@ -251,11 +293,24 @@ def main():
     ap.add_argument("--simular", action="store_true", help="no publica nada")
     ap.add_argument("--calibrar", action="store_true")
     ap.add_argument("--micros", action="store_true")
+    ap.add_argument("--salidas", action="store_true", help="lista las salidas de audio (para VOZ_DISPOSITIVO)")
+    ap.add_argument("--decir", help="prueba la voz de Jarvis con este texto")
     a = ap.parse_args()
     try:
         sys.stdout.reconfigure(encoding="utf-8")
     except Exception:  # noqa: BLE001
         pass
+    if a.salidas:
+        import voz
+        return voz.listar_salidas()
+    if a.decir:
+        import jarvis
+        v = jarvis.Voz()
+        v.decir(a.decir)
+        time.sleep(0.5)
+        while v.hablando or not v._cola.empty():
+            time.sleep(0.2)
+        return None
     if a.micros or a.calibrar:
         import voz
         return voz.listar_micros() if a.micros else voz.calibrar()

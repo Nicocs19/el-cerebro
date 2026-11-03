@@ -58,6 +58,9 @@ class Kick:
             if r.status_code == 401 and intento == 0:
                 self._refrescar()
                 continue
+            if r.status_code == 403:
+                raise KickError(f"Kick no dio permiso ({r.text[:200]}). Si era moderar o escribir en el chat, "
+                                "doble clic en conectar_kick.bat para darle ese permiso.")
             if r.status_code >= 400:
                 raise KickError(f"Kick respondio {r.status_code}: {r.text[:300]}")
             return r
@@ -80,3 +83,59 @@ class Kick:
         if cat:
             cuerpo["category_id"] = int(cat)
         self._pedir("PATCH", "/channels", json=cuerpo)
+
+    # ---------- permisos ----------
+    def faltan_permisos(self, *scopes):
+        """Permisos que el token de Kick no tiene (los tokens viejos sin lista no se pueden revisar: se intenta igual)."""
+        dado = (self.tokens or {}).get("scope")
+        if dado is None:
+            return []
+        dado = set(str(dado).replace(",", " ").split())
+        return [s for s in scopes if s not in dado]
+
+    def _exigir(self, *scopes):
+        if self.faltan_permisos(*scopes):
+            raise KickError("A El Cerebro le falta el permiso de Kick para moderar y escribir en el chat. "
+                            "Doble clic en conectar_kick.bat (te guía paso a paso).")
+
+    def mi_id(self):
+        if not getattr(self, "_mi_id", None):
+            self._mi_id = int(self.canal()["broadcaster_user_id"])
+        return self._mi_id
+
+    # ---------- usuarios ----------
+    def usuario(self, nombre):
+        """Busca un usuario de Kick por su nombre exacto (cada usuario tiene un canal con ese nombre)."""
+        base = str(nombre or "").strip().lstrip("@").lower().replace(" ", "")
+        if not base:
+            return None
+        for slug in dict.fromkeys([base, base.replace("_", "-")]):
+            try:
+                datos = self._pedir("GET", "/channels", params={"slug": slug}).json().get("data") or []
+            except KickError:
+                continue
+            if datos and datos[0].get("broadcaster_user_id"):
+                return {"id": int(datos[0]["broadcaster_user_id"]), "usuario": datos[0].get("slug") or slug}
+        return None
+
+    # ---------- moderación y chat ----------
+    def banear(self, user_id, minutos=None, motivo=""):
+        """Sin minutos es para siempre; con minutos es un silencio temporal (Kick admite de 1 minuto a 7 días)."""
+        self._exigir("moderation:ban")
+        cuerpo = {"broadcaster_user_id": self.mi_id(), "user_id": int(user_id)}
+        if minutos:
+            cuerpo["duration"] = max(1, min(10080, int(minutos)))
+        if motivo:
+            cuerpo["reason"] = str(motivo)[:100]
+        self._pedir("POST", "/moderation/bans", json=cuerpo)
+
+    def desbanear(self, user_id):
+        self._exigir("moderation:ban")
+        self._pedir("DELETE", "/moderation/bans", json={"broadcaster_user_id": self.mi_id(), "user_id": int(user_id)})
+
+    def escribir(self, texto):
+        """Escribe en el chat de tu canal con tu cuenta."""
+        self._exigir("chat:write")
+        r = self._pedir("POST", "/chat", json={"type": "user", "content": str(texto)[:500],
+                                               "broadcaster_user_id": self.mi_id()})
+        return ((r.json() or {}).get("data") or {}).get("message_id")

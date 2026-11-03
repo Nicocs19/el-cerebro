@@ -61,7 +61,7 @@ class ErrorOrden(Exception):
 
 class Accion:
     def __init__(self, tipo, datos, resumen, confirmar):
-        self.tipo = tipo            # hogger, titulo, deshacer, consultar_titulo, restaurar_titulo, miniatura, aclaracion
+        self.tipo = tipo            # hogger, titulo, deshacer, consultar_titulo, restaurar_titulo, miniatura, moderar, chat, guardar_enlace, aclaracion
         self.datos = datos
         self.resumen = resumen
         self.confirmar = confirmar
@@ -135,6 +135,24 @@ def esquemas():
             "subtitulo": {"type": "string", "description": "Texto chico opcional (p. ej. Día 1, Nivel 20-30)"},
             "subir_youtube": {"type": "boolean", "description": "true si pide ponerla en YouTube"},
         }, ["titulo"]),
+        _f("moderar_chat", "Banea, silencia (timeout) o desbanea a alguien del chat del stream en Kick y/o YouTube.", {
+            "accion": {"type": "string", "enum": ["banear", "silenciar", "desbanear"],
+                       "description": "banear = para siempre; silenciar = un rato (timeout, mutear, castigar); desbanear = quitar el ban"},
+            "usuario": {"type": "string", "description": "El nombre del usuario COPIADO tal como lo dijo, sin completarlo ni inventarlo"},
+            "minutos": {"type": "integer", "description": "Solo para silenciar: cuántos minutos (1 hora = 60). 0 si no lo dijo"},
+            "plataformas": {"type": "array", "items": {"type": "string", "enum": ["kick", "youtube"]},
+                            "description": "Las que nombró; vacío si no nombró ninguna (se busca en las dos)"},
+            "motivo": {"type": "string", "description": "El motivo si lo dijo; vacío si no"},
+        }, ["accion", "usuario"]),
+        _f("mandar_al_chat", "Escribe en el chat del stream (Kick y YouTube): un enlace guardado y/o un texto corto.", {
+            "enlace": {"type": "string", "description": "Nombre del enlace que pidió (discord, instagram, tienda…); vacío si no pidió un enlace"},
+            "texto": {"type": "string", "description": "Lo que pidió escribir, corregido; vacío si solo pidió el enlace"},
+            "plataformas": {"type": "array", "items": {"type": "string", "enum": ["kick", "youtube"]},
+                            "description": "Las que nombró; vacío si no nombró ninguna (va a las dos)"},
+        }, ["enlace", "texto"]),
+        _f("guardar_enlace", "Guarda el enlace que Nicolas tiene copiado con el nombre que dice, para mandarlo al chat después.", {
+            "nombre": {"type": "string", "description": "Nombre corto para el enlace, p. ej. discord, instagram, tienda"},
+        }, ["nombre"]),
         _f("pedir_aclaracion", "Úsala SOLO si falta un dato imprescindible o la orden no tiene sentido.", {
             "pregunta": {"type": "string", "description": "Pregunta corta para Nicolas"},
         }, ["pregunta"]),
@@ -448,6 +466,39 @@ def construir(nombre, a):
         destino = " y subirla a YouTube" if d["subir_youtube"] else ""
         return Accion("miniatura", d, f"Miniatura «{d['titulo']}» {d['subtitulo']}{destino}".strip(),
                       d["subir_youtube"] and publica)
+
+    if nombre == "moderar_chat":
+        import moderacion
+        return moderacion.construir(a)
+
+    if nombre == "mandar_al_chat":
+        import enlaces
+        plataformas = [p for p in (a.get("plataformas") or []) if p in ("kick", "youtube")] or ["kick", "youtube"]
+        enlace = None
+        if not _vacio(a.get("enlace")):
+            enlace = enlaces.buscar(a["enlace"])
+            if not enlace:
+                tengo = ", ".join(enlaces.leer()) or "ninguno todavía"
+                raise ErrorOrden(f"No tengo guardado el enlace «{a['enlace']}». Tengo: {tengo}. "
+                                 "Para guardarlo: copialo y decí «guardá este enlace como …».")
+        texto = enlaces.sin_enlaces_inventados(_txt(a, "texto", 400, False), [enlace[1]] if enlace else [])
+        if enlace:
+            texto = f"{texto} {enlace[1]}" if texto else f"{enlace[0].capitalize()}: {enlace[1]}"
+        if not texto:
+            raise ErrorOrden("¿Qué mando al chat?")
+        return Accion("chat", {"texto": texto, "plataformas": plataformas},
+                      f"Mandar al chat de {' y '.join(NOMBRES[p] for p in plataformas)}:\n«{texto}»", publica)
+
+    if nombre == "guardar_enlace":
+        import enlaces
+        n = _txt(a, "nombre", 40)
+        try:
+            url = enlaces.del_portapapeles()
+        except ValueError as e:
+            raise ErrorOrden(str(e))
+        ya = enlaces.buscar(n)
+        extra = f" (reemplaza el que tenía: {ya[1]})" if ya and enlaces._clave(ya[0]) == enlaces._clave(n) else ""
+        return Accion("guardar_enlace", {"nombre": n, "url": url}, f"Guardar el enlace «{n}»: {url}{extra}", False)
 
     if nombre == "pedir_aclaracion":
         return Accion("aclaracion", {"pregunta": _txt(a, "pregunta", 200)}, _txt(a, "pregunta", 200), False)

@@ -79,6 +79,13 @@ KICK_CLIENT_SECRET = _s("KICK_CLIENT_SECRET")
 KICK_REDIRECT_URI = _s("KICK_REDIRECT_URI", "http://localhost:8765/callback")
 KICK_CATEGORY_ID = _s("KICK_CATEGORY_ID")
 KICK_TOKENS = DATA / "kick_tokens.json"
+# --- Chat del stream (moderación por voz y enlaces) ---
+CHAT_KICK = _b("CHAT_KICK", True)                       # escuchar el chat de Kick para encontrar a quién moderar
+KICK_CHATROOM_ID = _s("KICK_CHATROOM_ID")               # número de la sala del chat (conectar_kick.bat lo guarda solo)
+KICK_PUSHER_URL = _s("KICK_PUSHER_URL", "wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679"
+                                        "?protocol=7&client=js&version=8.4.0&flash=false")
+SILENCIO_MINUTOS = int(_f("SILENCIO_MINUTOS", 10))      # «silenciá a X» sin decir cuánto
+ENLACES = BASE / "enlaces.txt"                          # los enlaces que se pueden mandar al chat
 
 # --- YouTube ---
 YOUTUBE_CLIENT_SECRET = BASE / _s("YOUTUBE_CLIENT_SECRET", "client_secret.json")
@@ -87,6 +94,20 @@ YOUTUBE_CATEGORY_ID = _s("YOUTUBE_CATEGORY_ID", "20")  # 20 = Gaming
 
 # --- TikTok LIVE Studio ---
 TIKTOK_MODO = _s("TIKTOK_MODO", "portapapeles").lower()  # portapapeles | automatico
+
+# --- Modo Jarvis: voz que te habla y orbe animado ---
+JARVIS_VOZ = _b("JARVIS_VOZ", True)
+JARVIS_ORBE = _b("JARVIS_ORBE", True)
+JARVIS_SALUDO = _s("JARVIS_SALUDO", "Sistemas en línea.")
+ELEVEN_API_KEY = _s("ELEVEN_API_KEY")                     # ElevenLabs (voz principal); vacío = solo voz local
+ELEVEN_VOZ = _s("ELEVEN_VOZ", "Daniel")                    # nombre de la voz en tu cuenta o su ID
+ELEVEN_MODELO = _s("ELEVEN_MODELO", "eleven_flash_v2_5")   # rápido y gasta la mitad de créditos
+VOZ_MODELO = _s("VOZ_MODELO", "es_MX-claude-high")      # voz local de respaldo (Piper, rhasspy/piper-voices)
+VOZ_DISPOSITIVO = _s("VOZ_DISPOSITIVO")                  # salida de audio (nombre o número); vacío = la predeterminada
+VOZ_VELOCIDAD = _f("VOZ_VELOCIDAD", 1.1)
+VOZ_VOLUMEN = _f("VOZ_VOLUMEN", 0.9)
+ORBE_COLOR = _s("ORBE_COLOR", "jarvis").lower()           # jarvis (celeste) o dorado
+ORBE_POSICION = _s("ORBE_POSICION", "abajo-derecha").lower()
 
 # --- OBS (para las capturas de las miniaturas) ---
 OBS_HOST = _s("OBS_HOST", "localhost")

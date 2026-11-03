@@ -76,3 +76,46 @@ class YouTube:
         vid, _ = self._video(video_id)
         self.api.thumbnails().set(videoId=vid, media_body=MediaFileUpload(str(ruta), mimetype="image/jpeg")).execute()
         return vid
+
+    # ---------------------------------------------------------- chat en vivo
+    def chat_en_vivo(self):
+        """El id del chat del directo en curso (solo existe mientras estás en vivo)."""
+        r = self.api.liveBroadcasts().list(part="snippet", broadcastStatus="active", broadcastType="all",
+                                           maxResults=5).execute()
+        for b in r.get("items", []):
+            chat = (b.get("snippet") or {}).get("liveChatId")
+            if chat:
+                return chat
+        raise YoutubeError("No estás en vivo en YouTube ahora.")
+
+    def mensajes_recientes(self, maximo=500):
+        """Los últimos mensajes del chat con el canal de cada autor (cuesta 5 de las 10.000 unidades diarias)."""
+        r = self.api.liveChatMessages().list(liveChatId=self.chat_en_vivo(), part="snippet,authorDetails",
+                                             maxResults=maximo).execute()
+        mensajes = []
+        for m in r.get("items", []):
+            autor = m.get("authorDetails") or {}
+            if not autor.get("channelId"):
+                continue
+            mensajes.append({"id": autor["channelId"], "usuario": autor.get("displayName") or "",
+                             "texto": (m.get("snippet") or {}).get("displayMessage") or "",
+                             "cuando": (m.get("snippet") or {}).get("publishedAt") or "",
+                             "protegido": bool(autor.get("isChatOwner") or autor.get("isChatModerator"))})
+        return mensajes
+
+    def banear(self, canal_id, segundos=None):
+        """Sin segundos es para siempre. Devuelve el id del baneo (hace falta para quitarlo después)."""
+        sn = {"liveChatId": self.chat_en_vivo(), "type": "temporary" if segundos else "permanent",
+              "bannedUserDetails": {"channelId": canal_id}}
+        if segundos:
+            sn["banDurationSeconds"] = int(segundos)
+        return self.api.liveChatBans().insert(part="snippet", body={"snippet": sn}).execute().get("id")
+
+    def desbanear(self, ban_id):
+        self.api.liveChatBans().delete(id=ban_id).execute()
+
+    def escribir(self, texto):
+        """Escribe en el chat del directo con tu canal (YouTube corta en 200 caracteres)."""
+        self.api.liveChatMessages().insert(part="snippet", body={"snippet": {
+            "liveChatId": self.chat_en_vivo(), "type": "textMessageEvent",
+            "textMessageDetails": {"messageText": str(texto)[:200]}}}).execute()
