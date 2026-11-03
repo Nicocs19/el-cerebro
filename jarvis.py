@@ -69,7 +69,8 @@ def _nombre_hablado(usuario):
     return t.strip()
 
 
-RELLENOS = ("A ver, a ver…", "Mmm…", "Ya, un toque…", "Ajá, dejame ver…")
+RELLENOS = ("A ver, a ver…", "Mmm…", "Ya, un toque…", "Ajá, dejame ver…", "Dejame pensar…", "Pensando, pensando…",
+            "Ahí va…", "Uh, buena pregunta…")
 BUSCANDO = ("Dejame buscar…", "Ya te lo busco…", "Un toque, lo busco en internet…")
 BUSCANDO_MAS = ("Sigo buscando, un toque más…", "Ya casi, está lenta la internet…", "Aguantá que ya lo encuentro…")
 BANEO_ANSIOSO = ("¡De una! Tengo el dedo en el botón. ¿Baneo a {quien}? Decime «dale» y lo saco volando.",
@@ -78,6 +79,16 @@ BANEO_ANSIOSO = ("¡De una! Tengo el dedo en el botón. ¿Baneo a {quien}? Decim
 BANEADO = ("Listo, {quien} baneado. ¡Chau, chau, andá a llorar a otro stream!",
            "Fuiste, {quien}. Baneado.",
            "Listo, a {quien} lo saqué volando.")
+
+
+_ULTIMA = {}
+
+
+def _elegir(opciones):
+    """Una frase al azar, pero nunca la misma que la última vez."""
+    resto = [o for o in opciones if o != _ULTIMA.get(opciones)] or list(opciones)
+    _ULTIMA[opciones] = random.choice(resto)
+    return _ULTIMA[opciones]
 
 
 def frase(evento, accion=None, detalle=None):
@@ -89,11 +100,11 @@ def frase(evento, accion=None, detalle=None):
     if evento == "pregunta":
         return detalle or (accion.resumen if accion else "")
     if evento == "relleno":
-        return random.choice(RELLENOS)
+        return _elegir(RELLENOS)
     if evento == "buscando":
-        return random.choice(BUSCANDO)
+        return _elegir(BUSCANDO)
     if evento == "buscando_mas":
-        return random.choice(BUSCANDO_MAS)
+        return _elegir(BUSCANDO_MAS)
     if evento == "cancelado":
         return "Cancelado."
     if evento == "trabajando":
@@ -118,7 +129,7 @@ def frase(evento, accion=None, detalle=None):
         if tipo == "moderar" and d.get("accion") == "banear":
             quienes = " y ".join(f"{_nombre_hablado(o['usuario'])} en {_PLAT.get(o['plataforma'], o['plataforma'])}"
                                  for o in d.get("objetivos", []))
-            return random.choice(BANEO_ANSIOSO).format(quien=quienes)
+            return _elegir(BANEO_ANSIOSO).format(quien=quienes)
         if tipo == "moderar":
             verbo = {"banear": "¿Baneo a", "silenciar": f"¿Silencio {d.get('minutos')} minutos a",
                      "desbanear": "¿Desbaneo a"}.get(d.get("accion"), "¿Moderar a")
@@ -161,7 +172,7 @@ def frase(evento, accion=None, detalle=None):
                 return "Hecho a medias. Te dejo el detalle en pantalla."
             if d.get("accion") == "banear":
                 quien = " y ".join(dict.fromkeys(_nombre_hablado(o["usuario"]) for o in d.get("objetivos", [])))
-                return random.choice(BANEADO).format(quien=quien or "ese")
+                return _elegir(BANEADO).format(quien=quien or "ese")
             return {"banear": "Listo, baneado.", "silenciar": "Listo, silenciado.",
                     "desbanear": "Listo, desbaneado."}.get(d.get("accion"), "Listo.")
         if tipo == "chat":

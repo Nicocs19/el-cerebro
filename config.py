@@ -116,7 +116,8 @@ MEMORIA_MINUTOS = _f("MEMORIA_MINUTOS", 10)           # cuánto se acuerda de lo
 MEMORIA_FRASES = int(_f("MEMORIA_FRASES", 12))        # cuántas frases (tuyas y de él) como máximo
 BUSQUEDA_RAPIDA_PRIMERO = _b("BUSQUEDA_RAPIDA_PRIMERO", True)   # con clave de ollama.com, primero la rápida
 VOZ_RELLENO = _b("VOZ_RELLENO", True)                     # dice «a ver…» si la IA tarda en contestar
-VOZ_RELLENO_SEGUNDOS = _f("VOZ_RELLENO_SEGUNDOS", 1.2)
+VOZ_RELLENO_SEGUNDOS = _f("VOZ_RELLENO_SEGUNDOS", 3)
+VOZ_RELLENO_PAUSA = _f("VOZ_RELLENO_PAUSA", 60)        # como mucho un «a ver…» por minuto
 VOZ_VOLUMEN = _f("VOZ_VOLUMEN", 0.9)
 ORBE_COLOR = _s("ORBE_COLOR", "jarvis").lower()           # solo para el estilo orbe: jarvis (celeste) o dorado
 ORBE_ESTILO = _s("ORBE_ESTILO", "cerebro").lower()         # cerebro (con ojos) u orbe (la bolita)
@@ -142,7 +143,9 @@ CLAUDE_MODELO = _s("CLAUDE_MODELO", "sonnet")           # modelo de Claude para 
 CLAUDE_EXE = _s("CLAUDE_EXE")                           # ruta a claude.exe si no se encuentra solo
 
 # --- Respuesta ---
-BEEPS = _b("BEEPS", True)
+BEEPS = _b("BEEPS", True)                               # false = sin ningún sonido
+SONIDOS = _s("SONIDOS", "suave").lower()                # suave (tonos bajitos), pitidos (los de antes) o nada
+SONIDO_VOLUMEN = _f("SONIDO_VOLUMEN", 0.12)             # volumen de los sonidos suaves (0 a 1)
 OVERLAY = _b("OVERLAY", True)
 VOICE_FEEDBACK = _b("VOICE_FEEDBACK", False)
 DRY_RUN = _b("DRY_RUN", False)

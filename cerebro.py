@@ -35,6 +35,7 @@ class Cerebro:
         self.pendiente = None           # Accion esperando "dale"
         self.pendiente_hasta = 0
         self.contexto = None            # orden incompleta mientras se responde una aclaración
+        self.ultimo_relleno = 0.0       # para no decir «a ver…» a cada rato
 
     def manejar_texto(self, texto, auto_confirmar=False):
         texto = texto.strip()
@@ -54,9 +55,9 @@ class Cerebro:
         # (si es banear, igual vuelve a pedir «dale» con el nombre a la vista)
         consulta = f"{self.contexto}. {texto}" if self.contexto else texto
         self.mostrar(f"«{texto}»\nPensando…", "info", 0)
-        relleno = threading.Timer(config.VOZ_RELLENO_SEGUNDOS, self.avisar, args=("relleno",))
-        if config.VOZ_RELLENO:
-            relleno.start()           # si la IA tarda, dice «a ver…» para que no parezca colgado
+        relleno = threading.Timer(config.VOZ_RELLENO_SEGUNDOS, self._relleno)
+        if config.VOZ_RELLENO and time.time() - self.ultimo_relleno > config.VOZ_RELLENO_PAUSA:
+            relleno.start()           # si la IA tarda mucho, dice «a ver…» (como mucho uno por minuto)
         try:
             accion, origen = router.interpretar(consulta, self.pendiente)
         except H.ErrorOrden as e:
@@ -94,6 +95,10 @@ class Cerebro:
                                 "«Cancela» para descartar; también puedes corregir.", "pregunta",
                                 config.CONFIRMAR_SEGUNDOS)
         self._ejecutar(accion)
+
+    def _relleno(self):
+        self.ultimo_relleno = time.time()
+        self.avisar("relleno")
 
     def confirmar(self):
         if not self.pendiente or time.time() > self.pendiente_hasta:
