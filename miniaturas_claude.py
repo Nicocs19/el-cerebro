@@ -88,18 +88,58 @@ def _sitio_ok(url):
     return True
 
 
-def recortar(ruta):
-    """Saca el fondo de un personaje (necesita rembg: pip install rembg). Devuelve la ruta nueva o None."""
-    try:
-        from rembg import remove
+def tiene_transparencia(img):
+    """True si la imagen ya viene sin fondo (al menos 8% de píxeles transparentes): no hace falta recortarla."""
+    if img.mode != "RGBA":
+        return False
+    alfa = img.getchannel("A").resize((128, 128))
+    transparentes = sum(alfa.histogram()[:20])
+    return transparentes >= 0.08 * 128 * 128
+
+
+def _limpiar(sin_fondo):
+    """Saca los restos del recorte: lo semitransparente y las manchas sueltas lejos del personaje."""
+    alfa = sin_fondo.getchannel("A").point(lambda a: 0 if a < 60 else a)
+    try:                                        # si está numpy/scipy (vienen con rembg): queda solo la figura principal
+        import numpy as np
+        from scipy import ndimage
+        a = np.array(alfa)
+        partes, n = ndimage.label(a > 0)
+        if n > 1:
+            tamanos = ndimage.sum(np.ones_like(a), partes, range(1, n + 1))
+            grande = tamanos.max()
+            quedan = [i + 1 for i, t in enumerate(tamanos) if t >= 0.15 * grande]   # la figura y partes grandes (arma)
+            a[~np.isin(partes, quedan)] = 0
+            alfa = Image.fromarray(a)
     except ImportError:
-        return None
+        pass
+    sin_fondo.putalpha(alfa)
+    return sin_fondo
+
+
+def recortar(ruta):
+    """Saca el fondo de un personaje (necesita rembg: pip install rembg). Devuelve la ruta nueva o None.
+
+    Si la imagen ya es un PNG sin fondo, no la toca (solo le recorta el borde vacío).
+    """
     try:
         with Image.open(ruta) as im:
-            sin_fondo = remove(im.convert("RGBA"))
+            img = im.convert("RGBA")
+        if tiene_transparencia(img):
+            sin_fondo = img
+        else:
+            try:
+                from rembg import remove
+            except ImportError:
+                return None
+            try:
+                sin_fondo = remove(img, post_process_mask=True)
+            except TypeError:
+                sin_fondo = remove(img)
+            sin_fondo = _limpiar(sin_fondo)
         caja = sin_fondo.getbbox()
-        if not caja:
-            return None
+        if not caja or (caja[2] - caja[0]) * (caja[3] - caja[1]) < 0.03 * img.width * img.height:
+            return None                         # no quedó casi nada: el recorte no sirve
         nueva = ruta.with_name(ruta.stem + "_recorte.png")
         sin_fondo.crop(caja).save(nueva)
         return nueva
@@ -130,11 +170,14 @@ Usá WebSearch y WebFetch para encontrar URLs DIRECTAS de archivos de imagen (pn
 mientras sea de World of Warcraft y encaje con lo que pide la idea (arte, renders, logos, capturas, wallpapers).
 Suele haber buen arte en: {", ".join(SITIOS_SUGERIDOS)}. Elegí imágenes grandes, nítidas y sin marca de agua.
 En las wikis las páginas de clases, razas, jefes y logos tienen el arte: abrí la página con WebFetch y sacá la URL
-del archivo. Para un personaje o clase, preferí un
-render o arte con fondo transparente (PNG). Si piden el logo, buscá el logo completo de World of Warcraft (con letras),
-no solo el ícono. Máximo 4. Respondé SOLO con JSON, sin explicaciones:
+del archivo.
+Para un personaje o clase lo mejor es un RENDER de UN SOLO personaje, de cuerpo entero o medio cuerpo, en PNG con
+fondo transparente (buscá cosas como "warrior render png", "transparent", arte de personaje recortado). Si no hay,
+uno solo sobre fondo liso. Evitá escenas con varios personajes, paisajes detrás o el personaje chiquito.
+Si piden el logo, buscá el logo completo de World of Warcraft (con letras), no solo el ícono.
+Máximo 4 (podés dar 2 opciones del personaje). Respondé SOLO con JSON, sin explicaciones:
 [{{"nombre": "logo_wow", "url": "https://…", "que": "logo de World of Warcraft", "recortar": false}}]
-Poné "recortar": true si es un personaje o criatura que NO tiene fondo transparente (hay que recortarlo)."""
+Poné "recortar": true si es un personaje o criatura (el programa se fija solo si ya viene sin fondo)."""
     from overlays import SIN_HERRAMIENTAS, SOLO_ESTO
     comando = [exe, "-p", "--max-turns", "20", "--model", config.CLAUDE_MODELO or "sonnet"] + SOLO_ESTO
     comando += ["--disallowedTools"] + [h for h in SIN_HERRAMIENTAS if h not in ("WebFetch", "WebSearch")]
@@ -170,11 +213,12 @@ Poné "recortar": true si es un personaje o criatura que NO tiene fondo transpar
             img.save(carpeta / archivo)
             que = re.sub(r"[^\w áéíóúñÁÉÍÓÚÑ,.()-]", "", str(c.get("que") or nombre))[:80]   # solo una descripción corta
             log.append(f"bajada: {archivo} <- {url}")
-            if c.get("recortar") is True:
+            if c.get("recortar") is True or tiene_transparencia(img):
+                ya = tiene_transparencia(img)
                 recorte = recortar(carpeta / archivo)
                 if recorte:
-                    archivo, que = recorte.name, que + ", recortado sin fondo"
-                    log.append(f"recortada: {archivo}")
+                    archivo, que = recorte.name, que + (", PNG sin fondo" if ya else ", recortado sin fondo")
+                    log.append(f"{'ya venía sin fondo' if ya else 'recortada'}: {archivo}")
             bajadas.append((archivo, f"{que} (imagen de {url.split('/')[2]})"))
         except Exception as e:  # noqa: BLE001
             log.append(f"no sirvió {url}: {e}")
@@ -216,6 +260,9 @@ Reglas:
   usá text-shadow (varias sombras) o paint-order: stroke fill.
 - Si una imagen tiene otras figuras o restos en los bordes, recortala con object-fit/object-position, overflow:hidden
   o una máscara (mask-image con degradé) para que se vea solo lo importante.
+- El personaje principal es el protagonista: GRANDE, de 75% a 100% del alto en horizontal (puede salirse por abajo)
+  y bien visible en vertical. Nada de personajes chiquitos.
+- Las armas, manos y bordes del personaje no tocan las cajas de texto ni el logo: dejá aire alrededor.
 - Ninguna letra puede quedar cortada ni salirse de la pantalla, sobre todo en vertical (1080 de ancho): ahí el título
   va en 2 o 3 líneas, con tamaño en vw (font-size: min(13vw, …)), white-space: normal y sin cortar palabras.
   Dejá al menos 5% de margen a los costados.
@@ -251,10 +298,18 @@ _rev_youtube.png (1280x720) y _rev_tiktok.png (1080x1920). Son la foto de este H
 
 {html}
 
-Revisá con ojo de diseñador: ¿algún logo o texto tapa la cara o la cabeza de un personaje? ¿hay letras cortadas o
-que se salen? ¿elementos pegados o superpuestos? ¿restos de otras figuras en los bordes? ¿letras con rayas raras?
-¿se lee bien en chico? Si está todo bien respondé solo: OK
-Si no, respondé SOLO el HTML completo corregido (mismos textos y mismas imágenes, solo arreglá los problemas)."""
+Revisá con ojo de diseñador, sé exigente:
+- ¿algún logo o texto tapa la cara o la cabeza de un personaje?
+- ¿hay letras cortadas o que se salen? ¿letras con rayas raras?
+- ¿elementos pegados o superpuestos? ¿un arma o una mano toca una caja de texto o el logo?
+- ¿quedaron restos del fondo original alrededor de un personaje recortado (manchas, rectángulos, bordes de otra
+  imagen) o pedazos de otras figuras? Escondelos con mask-image (degradé), clip-path, object-position o achicando
+  lo que se ve de esa imagen; si no hay forma, sacá esa imagen y resolvelo con diseño.
+- en la horizontal, ¿el personaje principal es grande (al menos 75% del alto)? si es chico, agrandalo.
+- ¿se lee bien en chico?
+Si está todo bien respondé solo: OK
+Si no, respondé SOLO el HTML completo corregido (mismos textos y las mismas imágenes o menos, solo arreglá los
+problemas)."""
 
 
 def revisar(carpeta, html):

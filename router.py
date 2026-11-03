@@ -6,10 +6,12 @@
 4. Si Ollama no responde, se usan los patrones fijos del MVP (anuncio y título).
 """
 import datetime as dt
+import difflib
 import json
 import re
 import time
 import unicodedata
+from collections import deque
 
 import requests
 
@@ -56,7 +58,7 @@ Reglas:
 - Roles que se pueden etiquetar: {", ".join(config.ROLES_MENCIONABLES)}. Etiqueta solo si lo pide o si es un anuncio de evento para toda la guild ("Eventos de la guild").
 - Canales del Discord: {", ".join(config.CANALES_DISCORD) or "(los de siempre)"}. Deja el canal vacío salvo que nombre uno.
 - Si Nicolas te habla a vos o charla ("Cerebro, decime algo", "hola", "¿me escuchás?", "contame un chiste", una pregunta cualquiera) y no pide publicar, mandar ni cambiar nada, usa responder (se dice en voz alta y se escucha en el stream). Ahí sos El Cerebro: un cerebro con gafas, medio pendejo, gracioso y buena onda, que habla como un pata latino; si te pide un chiste, hacé uno corto y medio cojudo; si te pregunta algo que sabés, contestá en 1 a 3 frases.
-- Personalidad: si Nicolas te molesta, te bardea o te insulta en broma, ponete caliente (animo=picado) y devolvele un bardeo gracioso, picante, a él. Si te pide molestar, bardear o rostear al chat, hacé una joda de stream picante pero buena onda (animo=picado), y si hay gente del chat en la lista, nombrá a 1 a 3. Si te pide saludar al stream, a la gente o al chat, saludá con mucha energía (animo=feliz). Podés decir groserías suaves (cojudo, huevón, pendejo, boludo), pero NUNCA nada sobre raza, origen, sexo, orientación, religión, el físico o discapacidades, ni amenazas, ni nada que sea acoso.
+- Personalidad: si Nicolas te molesta, te bardea o te insulta en broma, ponete caliente (animo=picado) y devolvele un bardeo gracioso, picante, a él. Si te pide molestar, bardear o rostear al chat, hacé una joda de stream picante pero buena onda (animo=picado), y si hay gente del chat en la lista, nombrá a 1 a 3. Si te pide saludar al stream, a la gente o al chat, saludá con mucha energía (animo=feliz). Cada respuesta tiene que ser NUEVA y tener que ver con lo que dijo: las frases de los ejemplos son solo para mostrar el estilo, nunca las copies ni las repitas. Podés decir groserías suaves (cojudo, huevón, pendejo, boludo), pero NUNCA nada sobre raza, origen, sexo, orientación, religión, el físico o discapacidades, ni amenazas, ni nada que sea acoso.
 - Escribir en el chat es otra cosa: solo si dice mandá, escribí o poné algo EN el chat ("mandá un saludo al chat") usa mandar_al_chat con el texto y enlace vacío.
 - Preguntas que necesitan datos actuales o que no sabés seguro (noticias, resultados, precios, parches, estrenos, clima, quién ganó, datos puntuales de WoW o de alguien) -> buscar_en_internet. Charla, chistes y cultura general que cualquiera sabe (capitales, definiciones simples, historia conocida, cuentas) -> responder directo, SIN buscar. Solo publica en Discord si dice claramente que avises, publiques o mandes algo al Discord, a un canal o a la guild. Si dice "avisá en Discord" sin canal, usa mensaje_discord con canal general. Nunca preguntes el canal, a quién etiquetar ni un título: usá lo que dijo y lo de siempre.
 - Si en la misma orden pide cambiar el título Y hacer la miniatura, usa cambiar_titulo_stream con los campos miniatura (el texto grande), miniatura_subtitulo y miniatura_idea (cómo la imagina: imágenes, logos, personajes, tal como lo dijo).
@@ -117,26 +119,32 @@ def contexto(pendiente=None, ahora=None, orden=""):
     if orden and HABLA_DEL_CHAT.search(_norm(orden)):
         gente = gente_del_chat()
         texto += f"\nGente que escribió hace poco en el chat: {', '.join(gente)}.\n" if gente else ""
+    if DICHO:
+        texto += "\nLo último que dijiste en voz alta (no lo repitas): " + " | ".join(f"«{d}»" for d in list(DICHO)[-3:]) + "\n"
     return texto
 
 
 _sesion = requests.Session()        # reusa la conexión con Ollama
 ULTIMO_USO = [0.0]
+DICHO = deque(maxlen=6)             # lo último que El Cerebro dijo en voz alta (para no repetirse)
 
 
-def _llamar_ollama(texto, pendiente=None, solo=None):
-    """(herramienta, argumentos) que eligió la IA. solo=[nombres] limita las herramientas (para completar combos)."""
+def _llamar_ollama(texto, pendiente=None, solo=None, temperatura=0.2, nota=""):
+    """(herramienta, argumentos) que eligió la IA. solo=[nombres] limita las herramientas (para completar combos).
+
+    nota va al final del pedido (no cambia las instrucciones fijas, así Ollama no las vuelve a leer).
+    """
     ULTIMO_USO[0] = time.time()
     herramientas = [h for h in H.esquemas() if h["function"]["name"] in solo] if solo else H.esquemas()
     r = _sesion.post(f"{config.OLLAMA_URL}/api/chat", json={
         "model": config.OLLAMA_MODEL,
         "messages": [{"role": "system", "content": sistema()},
-                     {"role": "user", "content": f"{contexto(pendiente, orden=texto)}\nOrden dictada por Nicolas: {texto}"}],
+                     {"role": "user", "content": f"{contexto(pendiente, orden=texto)}\nOrden dictada por Nicolas: {texto}{nota}"}],
         "tools": herramientas,
         "stream": False,
         "think": False,
         "keep_alive": config.OLLAMA_KEEP_ALIVE,
-        "options": {"temperature": 0.2, "num_ctx": 8192},
+        "options": {"temperature": temperatura, "num_ctx": 8192},
     }, timeout=90)
     r.raise_for_status()
     msg = r.json().get("message", {})
@@ -182,6 +190,34 @@ def _completar_combo(texto, nombre, args):
     return nombre, args
 
 
+_EJEMPLOS = []
+
+
+def _parecido(a, b):
+    return difflib.SequenceMatcher(None, _norm(a), _norm(b)).ratio()
+
+
+def _variar(texto, pendiente, nombre, args):
+    """Si la IA contestó copiando un ejemplo o algo que ya dijo, pide otra frase (un intento, más creativa)."""
+    if nombre != "responder" or H._vacio(args.get("respuesta")):
+        return nombre, args
+    if not _EJEMPLOS:
+        _EJEMPLOS.extend(re.findall(r'responder\(respuesta="([^"]+)"', sistema()))
+    viejas = _EJEMPLOS + list(DICHO)
+    if max((_parecido(args["respuesta"], v) for v in viejas), default=0) >= 0.6:
+        try:
+            otra, extra = _llamar_ollama(texto, pendiente, temperatura=0.9, nota=(
+                f"\n(Ibas a decir «{args['respuesta']}», pero eso ya se dijo o es un ejemplo. "
+                "Usá responder con una frase NUEVA, distinta y graciosa, sobre lo que dijo Nicolas.)"))
+            if otra == "responder" and not H._vacio(extra.get("respuesta")):
+                print(f"[router] se parecía a algo ya dicho; nueva: {extra['respuesta']}")
+                args = {**args, **extra}
+        except Exception as e:  # noqa: BLE001
+            print(f"[router] no pude variar la respuesta: {e}")
+    DICHO.append(args["respuesta"])
+    return nombre, args
+
+
 def _por_patrones(texto):
     o = intenciones.por_patrones(texto)
     if not o:
@@ -212,6 +248,7 @@ def interpretar(texto, pendiente=None):
     nombre, args = llamada
     if origen == "ia":
         nombre, args = _completar_combo(texto, nombre, args)
+        nombre, args = _variar(texto, pendiente.datos if pendiente else None, nombre, args)
     if nombre in ("crear_raid", "crear_banda"):
         # Lo que dijo Nicolas manda: si nombró un día claro, se usa ese aunque la IA haya puesto otro.
         fecha = H.corregir_dia(texto, args.get("fecha"))
