@@ -30,15 +30,20 @@ Si Ollama no responde, usa patrones fijos para anuncios y títulos.
 
 1. Python 3.12, Git y Ollama instalados. Descarga el modelo: `ollama pull qwen3.5:9b`.
 2. `git clone https://github.com/Nicocs19/el-cerebro C:\ElCerebro` y doble clic en `instalar.bat`.
-3. Abre `.env` y rellena:
-   - `HOGGER_TOKEN` y `HOGGER_GUILD_ID`: los mismos del `.env` de Hogger.
+3. Doble clic en `conectar_todo.bat`. Copia las claves de Hogger y de OBS al `.env` sin mostrarlas y actualiza Hogger en Google Cloud: hace copia de seguridad, reinicia y, si algo falla, vuelve solo a la versión anterior. El registro queda en `data/actualizar_hogger.log`.
+4. Lo que falta en `.env`:
+   - `HOGGER_TOKEN` y `HOGGER_GUILD_ID`: los mismos del `.env` de Hogger (los pone `conectar_todo.bat`).
    - `KICK_CLIENT_ID` y `KICK_CLIENT_SECRET`: de la app de kick.com/settings/developer (Redirect URL `http://localhost:8765/callback`, scopes `user:read channel:read channel:write`). Luego `conectar_kick.bat`.
    - YouTube: en Google Cloud, habilita "YouTube Data API v3", crea un ID de cliente OAuth de tipo "App de escritorio", descarga el JSON como `client_secret.json` en esta carpeta y ejecuta `conectar_youtube.bat`. Pon la pantalla de consentimiento en "En producción" para que la sesión no caduque cada 7 días.
-   - OBS: Herramientas, Ajustes del servidor WebSocket, activar y copiar la contraseña a `OBS_PASSWORD`.
-4. `diagnostico.bat` revisa cada pieza y te dice qué falta.
-5. `iniciar.bat` arranca El Cerebro. Asigna Ctrl+Shift+F12 (hablar), F11 (dale) y F10 (cancelar) a botones del Loupedeck.
+   - OBS: Herramientas, Ajustes del servidor WebSocket, activar (la contraseña la copia `conectar_todo.bat`).
+5. `diagnostico.bat` revisa cada pieza y te dice qué falta.
+6. `iniciar.bat` arranca El Cerebro. Asigna Ctrl+Shift+F12 (hablar), F11 (dale) y F10 (cancelar) a botones del Loupedeck.
 
-Actualizar: `actualizar.bat` (hace `git pull`).
+Actualizar: `actualizar.bat` (hace `git pull`). Actualizar solo Hogger en el servidor: `python actualizar_hogger.py`.
+
+## Fechas
+
+La IA copia el día tal como lo dijiste («viernes», «mañana», «el 15», «sábado 14») y la fecha exacta la calcula Python (`herramientas.resolver_dia`). Si la IA pone un día distinto del que dijiste, gana lo que dijiste. Si el número y el día no coinciden («sábado 13» cuando el 13 es viernes), te pregunta.
 
 ## Pruebas sin publicar
 
@@ -58,5 +63,6 @@ Actualizar: `actualizar.bat` (hace `git pull`).
 | `miniaturas.py` | Miniaturas desde una captura de OBS |
 | `voz.py`, `overlay.py`, `avisos.py` | Whisper, cartel flotante y pitidos |
 | `diagnostico.py` | Revisión completa del sistema |
+| `conectar_claves.py`, `actualizar_hogger.py`, `servidor/desplegar_hogger.sh` | Lo que hace `conectar_todo.bat` |
 
 Secretos (`.env`, `client_secret.json`, `data/`) nunca se suben al repositorio.

@@ -8,6 +8,7 @@ El modelo solo propone; nada se publica sin pasar por la validación.
 """
 import datetime as dt
 import re
+import unicodedata
 
 import config
 
@@ -41,7 +42,8 @@ def _f(nombre, descripcion, propiedades, requeridos):
 
 def esquemas():
     menciones = ["ninguno", "everyone"] + config.ROLES_MENCIONABLES
-    fecha = {"type": "string", "description": "Fecha AAAA-MM-DD, sacada del calendario del sistema"}
+    fecha = {"type": "string", "description": "El día COPIADO tal como lo dijo: 'hoy', 'mañana', 'viernes', "
+                                              "'sábado 14', 'el 20 de noviembre'. No calcules la fecha: la calcula el programa"}
     hora = {"type": "string", "description": "Hora HH:MM en formato 24 h (las 9 de la noche = 21:00)"}
     return [
         _f("publicar_anuncio", "Publica un anuncio con el estilo de la guild en el Discord.", {
@@ -130,14 +132,124 @@ def _hora(texto):
     return h, mi
 
 
+MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre",
+         "noviembre", "diciembre"]
+_DIAS_N = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"]
+_RE_DIA = re.compile(r"\b(" + "|".join(_DIAS_N) + r")\b")
+_RE_SEMANA_QUE_VIENE = re.compile(r"semana (que viene|proxima|siguiente)|proxima semana|otra semana")
+_RE_MANANA = re.compile(r"(?<!la )\bmanana\b")        # "mañana", pero no "de la mañana"
+_RE_HOY = re.compile(r"\b(hoy|esta noche|esta tarde|esta mañana|esta manana)\b")
+
+
+def _norm(t):
+    t = "".join(c for c in unicodedata.normalize("NFD", str(t or "").lower()) if unicodedata.category(c) != "Mn")
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def resolver_dia(dia, hoy=None):
+    """Convierte el día que dijo Nicolas en una fecha. Lo calcula Python, no la IA.
+
+    Devuelve (fecha, por_nombre): por_nombre es True si vino de un nombre de día ("viernes"),
+    para pasar a la semana siguiente si ese día es hoy y la hora ya pasó.
+    """
+    hoy = hoy or dt.date.today()
+    t = _norm(dia)
+    if not t:
+        raise ErrorOrden("Falta el día.")
+    m = re.search(r"\b(\d{4})-(\d{1,2})-(\d{1,2})\b", t)
+    if m:
+        try:
+            return dt.date(int(m.group(1)), int(m.group(2)), int(m.group(3))), False
+        except ValueError:
+            raise ErrorOrden(f"La fecha «{dia}» no existe.")
+    nombres = set(_RE_DIA.findall(t))
+    if len(nombres) > 1:
+        raise ErrorOrden(f"Nombraste varios días ({', '.join(sorted(nombres))}): ¿cuál?")
+    nombre = nombres.pop() if nombres else None
+
+    # número de día: "el 15", "15 de noviembre", "14/11"
+    m = re.search(r"\b(\d{1,2})(?:\s*(?:de\s+)?(" + "|".join(MESES) + r")|\s*[/-]\s*(\d{1,2}))?\b", t)
+    if m:
+        num = int(m.group(1))
+        mes = MESES.index(m.group(2)) + 1 if m.group(2) else int(m.group(3)) if m.group(3) else None
+        anio = hoy.year
+        try:
+            if mes:
+                d = dt.date(anio, mes, num)
+                if d < hoy:
+                    d = dt.date(anio + 1, mes, num)
+            else:
+                d = dt.date(anio, hoy.month, num) if num >= hoy.day else None
+                if d is None:
+                    sig = (hoy.replace(day=1) + dt.timedelta(days=32)).replace(day=1)
+                    d = dt.date(sig.year, sig.month, num)
+        except ValueError:
+            raise ErrorOrden(f"El día «{dia}» no existe.")
+        if nombre and _DIAS_N[d.weekday()] != nombre:
+            raise ErrorOrden(f"El {d.day:02d}/{d.month:02d} es {DIAS[d.weekday()]}, no {DIAS[_DIAS_N.index(nombre)]}: ¿qué día es?")
+        return d, False
+
+    if nombre:
+        objetivo = _DIAS_N.index(nombre)
+        if _RE_SEMANA_QUE_VIENE.search(t):
+            lunes_sig = hoy + dt.timedelta(days=7 - hoy.weekday())
+            return lunes_sig + dt.timedelta(days=objetivo), False
+        return hoy + dt.timedelta(days=(objetivo - hoy.weekday()) % 7), True
+    if "pasado manana" in t:
+        return hoy + dt.timedelta(days=2), False
+    if _RE_MANANA.search(t):
+        return hoy + dt.timedelta(days=1), False
+    if _RE_HOY.search(t):
+        return hoy, False
+    raise ErrorOrden(f"No entendí el día «{dia}».")
+
+
+def dia_en_texto(texto):
+    """El día que Nicolas dijo en la frase original, si es uno solo y claro (si no, None).
+
+    Sirve para corregir a la IA si calculó mal: lo que dijo Nicolas manda.
+    """
+    t = _norm(texto)
+    nombres = set(_RE_DIA.findall(t))
+    if len(nombres) > 1:
+        return None
+    if nombres:
+        nombre = nombres.pop()
+        m = re.search(nombre + r"\s+(\d{1,2}(?:\s*[/-]\s*\d{1,2})?)\b", t)
+        if m:
+            return f"{nombre} {m.group(1)}"
+        return nombre + (" de la semana que viene" if _RE_SEMANA_QUE_VIENE.search(t) else "")
+    if "pasado manana" in t:
+        return "pasado mañana"
+    if _RE_MANANA.search(t):
+        return "mañana"
+    if _RE_HOY.search(t):
+        return "hoy"
+    return None
+
+
+def corregir_dia(texto, fecha_ia, hoy=None):
+    """Devuelve el día a usar: el de la IA, salvo que contradiga lo que Nicolas dijo en la frase."""
+    dicho = dia_en_texto(texto)
+    if not dicho:
+        return fecha_ia
+    d_dicho, solo_nombre = resolver_dia(dicho, hoy)
+    try:
+        d_ia, _ = resolver_dia(fecha_ia, hoy)
+    except ErrorOrden:
+        return dicho
+    if solo_nombre:                       # dijo "el viernes": basta con que la IA haya puesto un viernes
+        return fecha_ia if d_ia.weekday() == d_dicho.weekday() else dicho
+    return fecha_ia if d_ia == d_dicho else dicho
+
+
 def fecha_hora(fecha, hora, ahora=None):
     ahora = ahora or dt.datetime.now()
-    try:
-        d = dt.date.fromisoformat(str(fecha).strip())
-    except ValueError:
-        raise ErrorOrden(f"No entendí la fecha «{fecha}».")
+    d, por_nombre = resolver_dia(fecha, ahora.date())
     h, mi = _hora(hora)
     cuando = dt.datetime(d.year, d.month, d.day, h, mi)
+    if por_nombre and cuando < ahora:
+        cuando += dt.timedelta(days=7)      # "el martes" dicho un martes a la noche = el martes que viene
     if cuando < ahora:
         raise ErrorOrden(f"El {fecha_legible(cuando)} ya pasó.")
     if cuando > ahora + dt.timedelta(days=120):

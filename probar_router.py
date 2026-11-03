@@ -21,16 +21,35 @@ FRASES = [
 ]
 
 
+def _el(dia):
+    d, _ = H.resolver_dia(dia)
+    return f"{H.DIAS[d.weekday()]} {d.day:02d}/{d.month:02d}"
+
+
+# Lo que tiene que salir sí o sí (si no, la prueba marca FALLO)
+CHEQUEOS = {
+    FRASES[0]: lambda r: "raids-signup" not in r,
+    FRASES[1]: lambda r: _el("viernes") in r and "21:00" in r,
+    FRASES[2]: lambda r: _el("mañana") in r,
+    FRASES[11]: lambda r: _el("sábado") in r and "18:00" in r,
+}
+
+
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
     frases = sys.argv[1:] or FRASES
+    fallos = 0
     for f in frases:
         t0 = time.time()
         try:
             accion, origen = router.interpretar(f)
-            print(f"OK  ({time.time() - t0:4.1f} s, {origen}) {f}\n    -> {accion.tipo}: {accion.resumen}\n")
+            bien = CHEQUEOS.get(f, lambda r: True)(accion.resumen)
+            fallos += not bien
+            print(f"{'OK ' if bien else 'FALLO'} ({time.time() - t0:4.1f} s, {origen}) {f}\n    -> {accion.tipo}: {accion.resumen}\n")
         except H.ErrorOrden as e:
+            fallos += 1
             print(f"ERR ({time.time() - t0:4.1f} s) {f}\n    -> {e}\n")
+    print(f"{len(frases) - fallos}/{len(frases)} bien.")
 
 
 if __name__ == "__main__":

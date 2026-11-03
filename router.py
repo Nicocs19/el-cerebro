@@ -45,9 +45,9 @@ Ahora es {H.DIAS[ahora.weekday()]} {ahora:%Y-%m-%d %H:%M}. Calendario de los pr�
 {H.calendario(ahora.date())}
 
 Reglas:
-- Fechas: convierte "hoy", "mañana", "el viernes", "el 15" a AAAA-MM-DD usando SOLO el calendario de arriba. Nunca una fecha pasada.
+- Fechas: en el campo fecha COPIA el día tal como lo dijo ("hoy", "mañana", "viernes", "sábado 14", "el 20 de noviembre"). No lo conviertas: el programa calcula la fecha exacta. Si corriges una orden pendiente y no cambia el día, copia el día de esa orden.
 - Horas en 24 h. Para raids, bandas y eventos, "a las 9" sin más significa 21:00; "a las 9 de la mañana" es 09:00.
-- No inventes datos (horas, premios, requisitos, cupos) que Nicolas no dijo. Si falta algo imprescindible (por ejemplo la fecha u hora de una raid), usa pedir_aclaracion.
+- No inventes datos (horas, premios, requisitos, cupos) que Nicolas no dijo, ni agregues canales, instrucciones o llamados a la acción que no pidió (nada de "anótense en #raids-signup" si no lo dijo). Si falta algo imprescindible (por ejemplo la fecha u hora de una raid), usa pedir_aclaracion.
 - Textos públicos (anuncios, sorteos, encuestas): {config.TONO}. Corrige errores de dictado y redacta bien, pero respeta lo que quiso decir.
 - Títulos de stream: usa el texto que dictó, corregido, sin añadir nada.
 - Nombres de raids bien escritos: {RAIDS}. "Guild", "gil", "guil" o "hermandad" significan la hermandad.
@@ -56,7 +56,8 @@ Reglas:
 
 Ejemplos:
 - "lanza un anuncio a la guild que hoy hacemos mazmorras a las 10" -> publicar_anuncio(titulo="Hoy hay mazmorras", texto="Esta noche a las 22:00 salimos de mazmorras con la hermandad. ¡Vengan preparados! ⚔️", tipo="evento", mencionar="Eventos de la guild")
-- "arma una raid de molten cor el viernes a las 9 con 20 cupos" -> crear_raid(nombre="Molten Core", fecha=<viernes del calendario>, hora="21:00", cupo=20)
+- "arma una raid de molten cor el viernes a las 9 con 20 cupos" -> crear_raid(nombre="Molten Core", fecha="viernes", hora="21:00", cupo=20)
+- "banda de deadmines para mañana a las 6 de la tarde" -> crear_banda(nombre="Deadmines", fecha="mañana", hora="18:00", tanques=1, healers=1, dps=3)
 - "cambia el título a día 1 subiendo guerrero" -> cambiar_titulo_stream(titulo="Día 1 subiendo guerrero", plataformas=["kick","youtube","tiktok"])
 - "sortea un mes de juego entre los de la guild, dura dos días" -> crear_sorteo(premio="1 mes de juego", horas=48, ganadores=1)
 """
@@ -117,6 +118,12 @@ def interpretar(texto, pendiente=None):
         if llamada is None:
             raise H.ErrorOrden("No entendí la orden (y la IA local no está disponible).")
     nombre, args = llamada
+    if nombre in ("crear_raid", "crear_banda"):
+        # Lo que dijo Nicolas manda: si nombró un día claro, se usa ese aunque la IA haya puesto otro.
+        fecha = H.corregir_dia(texto, args.get("fecha"))
+        if fecha != args.get("fecha"):
+            print(f"[router] la IA puso «{args.get('fecha')}», pero dijiste «{fecha}»: uso lo tuyo")
+            args = {**args, "fecha": fecha}
     print(f"[router] {origen}: {nombre} {json.dumps(args, ensure_ascii=False)}")
     return H.construir(nombre, args), origen
 
