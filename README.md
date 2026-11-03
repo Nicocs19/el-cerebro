@@ -60,7 +60,7 @@ El Cerebro te lee la confirmación («Raid de Onyxia, el viernes a las 9 de la n
 - **Buscar en internet:** solo cuando la pregunta lo necesita («¿qué parche salió en WoW?»): dice «dejame buscar», busca y resume en 1 a 3 frases con la fuente en pantalla. Sin cuenta usa Wikipedia; con `conectar_busqueda.bat` (cuenta gratis de ollama.com) busca en toda la web.
 - **Título, juego y miniatura en una orden:** «cambiá el título a … , poné World of Warcraft y haceme la miniatura que diga …». Se confirma todo junto con «dale». El juego (categoría) solo se puede cambiar por voz en Kick.
 - **Dictado de WoW:** `voz.py` tiene el vocabulario (War, Pala, Lock, leveando…) y una lista de correcciones (`CORRECCIONES`) para lo que Whisper escucha mal.
-- **Miniaturas con imágenes tuyas:** poné PNG en `recursos\imagenes` con nombres claros (`logo_wow.png`, `warrior.png`): el diseño las usa cuando las nombrás en la idea.
+- **Miniaturas automáticas:** si la idea pide imágenes que no tenés («recortes oficiales de WoW, el logo y el Warrior»), Claude trabaja como agente: busca en fuentes oficiales (Blizzard, Wikimedia), baja las imágenes a la carpeta de la miniatura, las revisa, arma el diseño y El Cerebro la sube sola al directo de YouTube (`MINIATURA_SUBIR_YOUTUBE`). Tarda unos minutos, en segundo plano; el registro queda en `agente.log` de esa carpeta. También podés dejar tus PNG en `recursos\imagenes`.
 
 ## Instalación (Windows 11)
 

@@ -159,8 +159,11 @@ class Ejecutor:
         quien = "diseñadas por Claude" if rutas.get("quien") == "Claude" else "con la plantilla dorada"
         msg = f"Miniaturas listas ({quien}) en {rutas['youtube'].parent}"
         if d.get("subir_youtube") and not self.simular:
-            self.yt.subir_miniatura(rutas["youtube"])
-            msg += " y subida a YouTube"
+            try:
+                self.yt.subir_miniatura(rutas["youtube"])
+                msg += " y subida a YouTube"
+            except Exception as e:  # noqa: BLE001
+                msg += f". No la pude subir a YouTube ({str(e)[:120]}); quedó en la carpeta"
         return msg + "."
 
     # ------------------------------------------------ chat del stream

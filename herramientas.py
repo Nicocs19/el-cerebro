@@ -520,7 +520,7 @@ def construir(nombre, a):
         if mini:
             resumen += f"\nMiniatura «{mini['titulo']}»" + (f" · {mini['subtitulo']}" if mini["subtitulo"] else "")
             resumen += f" ({mini['idea']})" if mini["idea"] else ""
-            resumen += " y la subo a YouTube" if "youtube" in plataformas else ""
+            resumen += " y la subo a YouTube" if "youtube" in plataformas or config.MINIATURA_SUBIR_YOUTUBE else ""
         # El título se ve en público: se confirma con «dale» igual que lo de Discord (salvo CONFIRMAR=nada)
         return Accion("titulo", {"titulo": titulo, "plataformas": plataformas, "miniatura": mini, "juego": juego},
                       resumen, publica)
@@ -537,7 +537,7 @@ def construir(nombre, a):
 
     if nombre == "crear_miniatura":
         d = {"titulo": _txt(a, "titulo", 60), "subtitulo": _txt(a, "subtitulo", 60, False),
-             "subir_youtube": bool(a.get("subir_youtube")), "idea": _txt(a, "idea", 500, False)}
+             "subir_youtube": bool(a.get("subir_youtube")) or config.MINIATURA_SUBIR_YOUTUBE, "idea": _txt(a, "idea", 500, False)}
         destino = " y subirla a YouTube" if d["subir_youtube"] else ""
         return Accion("miniatura", d, f"Miniatura «{d['titulo']}» {d['subtitulo']}{destino}".strip(),
                       d["subir_youtube"] and publica)

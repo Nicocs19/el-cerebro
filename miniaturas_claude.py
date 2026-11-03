@@ -1,10 +1,13 @@
 """Miniaturas diseñadas por Claude: Claude escribe una página HTML con el diseño y Edge la convierte en imagen.
 
 Usa el programa `claude` de tu PC (tu plan, sin costo extra) y Microsoft Edge, que viene con Windows.
-Claude solo puede usar las imágenes de la carpeta de la miniatura: la captura del juego, el logo, la fuente Cinzel
-y las fotos que pongas en recursos/imagenes (por ejemplo paladin.png, elfa.png). No inventa ni descarga imágenes.
+Usa la captura del juego, el logo, la fuente Cinzel y las fotos que pongas en recursos/imagenes.
+Si tu idea pide imágenes que no están (logo de World of Warcraft, arte del Warrior, un jefe…), Claude trabaja como
+agente: las busca en fuentes oficiales (Blizzard, Wikimedia), las baja a la carpeta de la miniatura, las mira y arma
+el diseño. Tarda un par de minutos y corre en segundo plano.
 """
 import os
+import re
 import shutil
 import subprocess
 
@@ -49,6 +52,47 @@ def _preparar(carpeta):
     return "\n".join(lista)
 
 
+PIDE_IMAGENES = re.compile(r"logo|recorte|imagen|imagenes|foto|personaje|arte|oficial|render|warrior|guerrero|pala|"
+                           r"paladin|hunter|cazador|rogue|picaro|priest|sacerdote|mago|mage|lock|brujo|druida|druid|"
+                           r"chaman|shaman|jefe|boss|ragnaros|onyxia|zona|montura|dragon", re.I)
+
+
+def necesita_agente(idea):
+    return bool(config.MINIATURA_AGENTE and idea and PIDE_IMAGENES.search(idea))
+
+
+AGENTE = """
+Trabajás como agente, en esta carpeta y solo en esta carpeta:
+1. Si la idea pide imágenes que no están en la lista (logo oficial de World of Warcraft, arte de una clase como el
+   Warrior, un jefe, una zona…), buscalas con WebSearch/WebFetch y bajalas acá con curl, por ejemplo:
+   curl -sL -o logo_wow.png "https://…". Solo fuentes oficiales de Blizzard (blizzard.com, worldofwarcraft.blizzard.com,
+   news.blizzard.com) o Wikimedia Commons para logos. Nada de fan art de otros artistas ni imágenes con marca de agua.
+   Máximo 4 imágenes, PNG, JPG o WEBP. Abrí cada una con Read para comprobar que es la imagen correcta y se ve bien;
+   si una no sirve, buscá otra. Preferí PNG con fondo transparente para los recortes.
+2. Escribí el diseño completo en el archivo diseno.html (herramienta Write), con rutas relativas a las imágenes de
+   esta carpeta. No cargues nada de internet desde el HTML.
+3. No toques nada fuera de esta carpeta. Al terminar respondé solo: LISTO"""
+
+
+def _con_agente(pedido, carpeta):
+    from overlays import buscar_claude
+    exe = buscar_claude()
+    if not exe:
+        raise RuntimeError("no está el programa claude en esta PC")
+    comando = [exe, "-p", "--max-turns", "40"] + (["--model", config.CLAUDE_MODELO] if config.CLAUDE_MODELO else [])
+    comando += ["--allowedTools", "WebSearch", "WebFetch", "Read", "Write", "Edit", "Bash(curl:*)", "Bash(curl.exe:*)"]
+    archivo = carpeta / "diseno.html"
+    archivo.unlink(missing_ok=True)
+    r = subprocess.run(comando, input=pedido, capture_output=True, text=True, encoding="utf-8",
+                       timeout=config.MINIATURA_ESPERA, cwd=str(carpeta))
+    (carpeta / "agente.log").write_text((r.stdout or "") + "\n--- errores ---\n" + (r.stderr or ""), encoding="utf-8")
+    if not archivo.exists() or "<html" not in archivo.read_text(encoding="utf-8", errors="ignore").lower():
+        raise RuntimeError(f"el agente no dejó el diseño ({r.returncode}): {(r.stderr or r.stdout or '')[:200]}")
+    bajadas = [f.name for f in carpeta.iterdir() if f.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp")]
+    print(f"[miniatura] El agente terminó. Imágenes en la carpeta: {', '.join(bajadas)}")
+    return archivo
+
+
 def disenar(carpeta, titulo, subtitulo, idea):
     from overlays import pedir_a_claude
     pedido = f"""Diseñá la miniatura de un directo de Twitch/Kick/YouTube como UNA página HTML.
@@ -71,6 +115,12 @@ Reglas:
 - El logo y los textos nunca se tocan ni se superponen, tampoco en vertical: dejá aire entre ellos.
 - No agregues textos, fechas ni datos que no estén arriba.
 Respondé solo con el HTML."""
+    if necesita_agente(idea):
+        try:
+            return _con_agente(pedido.replace("Respondé solo con el HTML.", AGENTE)
+                               .replace("- Si la idea pide algo que no está en los archivos", "- Si aun así falta algo"), carpeta)
+        except Exception as e:  # noqa: BLE001
+            print(f"[miniatura] El agente no pudo ({e}); la diseño con lo que hay en la carpeta.")
     archivo = carpeta / "diseno.html"
     archivo.write_text(pedir_a_claude(pedido, carpeta), encoding="utf-8")
     return archivo

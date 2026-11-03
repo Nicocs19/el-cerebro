@@ -112,12 +112,12 @@ class Cerebro:
         if self._tarda(accion):
             self.avisar("trabajando", accion)
             if self.fondo and ejecutor is None:
-                self.mostrar(f"{accion.resumen}\nLo estoy diseñando (hasta 2 minutos). Te aviso; mientras, podés "
+                self.mostrar(f"{accion.resumen}\nLo estoy diseñando (unos minutos). Te aviso; mientras, podés "
                              "seguir dándome órdenes.", "info", 10)
                 threading.Thread(target=self._ejecutar, args=(accion, Ejecutor(self.ejecutor.simular)),
                                  daemon=True, name=f"diseño-{accion.tipo}").start()
                 return
-            self.mostrar(f"{accion.resumen}\nDiseñándolo (hasta 2 minutos)…", "info", 0)
+            self.mostrar(f"{accion.resumen}\nDiseñándolo (unos minutos)…", "info", 0)
         elif accion.tipo == "busqueda":
             self.avisar("buscando", accion)
             self.mostrar(f"{accion.resumen}\nBuscando…", "info", 0)
@@ -137,7 +137,8 @@ class Cerebro:
         if m:                        # «cambiá el título y haceme la miniatura»: ya se confirmó todo junto
             if isinstance(m, str):
                 m = {"titulo": m, "subtitulo": "", "idea": ""}
-            mini = H.Accion("miniatura", {**m, "subir_youtube": "youtube" in accion.datos["plataformas"]},
+            mini = H.Accion("miniatura", {**m, "subir_youtube": "youtube" in accion.datos["plataformas"]
+                                          or config.MINIATURA_SUBIR_YOUTUBE},
                             f"Miniatura «{m['titulo']}»", False)
             self._ejecutar(mini)
 
