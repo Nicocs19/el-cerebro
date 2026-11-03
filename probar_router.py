@@ -33,7 +33,7 @@ CHEQUEOS = {
     FRASES[1]: lambda r: _el("viernes") in r and "21:00" in r,
     FRASES[2]: lambda r: _el("mañana") in r,      # sin hora: tiene que preguntar «¿A qué hora...?»
     FRASES[11]: lambda r: _el("sábado") in r and "18:00" in r,
-    FRASES[12]: lambda r: not any(x in r.lower() for x in ("anot", "vengan preparados", "no falten")),
+    FRASES[12]: lambda r: not any(x in r.lower() for x in ("anot", "inscrib", "#", "http")),  # sin instrucciones inventadas
 }
 
 

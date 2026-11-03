@@ -8,10 +8,13 @@ Uso:
   python cerebro.py --calibrar | --micros
 """
 import argparse
+import datetime as dt
+import faulthandler
 import queue
 import sys
 import threading
 import time
+import traceback
 
 import config
 import herramientas as H
@@ -158,11 +161,20 @@ class App:
                 elif tipo == "precargar":
                     router.precargar()
             except Exception as e:  # noqa: BLE001
+                log(f"ERROR en {tipo}: {traceback.format_exc()}")
                 self.ui.put((f"Error: {e}", "error", 10))
             finally:
                 self.ocupado = False
 
     def _tick(self):
+        try:
+            self._tick_seguro()
+        except Exception:  # noqa: BLE001
+            log(f"ERROR en la pantalla: {traceback.format_exc()}")
+            self.overlay.mostrar("Error interno (anotado en data/fallos.log). Sigo funcionando.", "error", 6)
+        self.root.after(50, self._tick)
+
+    def _tick_seguro(self):
         try:
             while True:
                 texto, tipo, segundos = self.ui.get_nowait()
@@ -187,7 +199,6 @@ class App:
             pass
         if self.grab.activa and self.grab.debe_parar():
             self._procesar()
-        self.root.after(50, self._tick)
 
     def _procesar(self):
         pitido("fin")
@@ -214,6 +225,22 @@ def modo_texto(texto, simular, si):
             c.cancelar()
 
 
+def registrar_fallos():
+    """Todo error (también los que cierran el programa de golpe) queda en data/fallos.log."""
+    archivo = open(config.DATA / "fallos.log", "a", encoding="utf-8", buffering=1)  # noqa: SIM115
+    archivo.write(f"\n===== Arranque {dt.datetime.now():%Y-%m-%d %H:%M:%S} =====\n")
+    faulthandler.enable(archivo, all_threads=True)
+
+    def anotar(tipo, valor, tb, hilo="principal"):
+        texto = "".join(traceback.format_exception(tipo, valor, tb))
+        archivo.write(f"[{dt.datetime.now():%H:%M:%S}] Error en hilo {hilo}:\n{texto}\n")
+        print(texto, file=sys.stderr)
+
+    sys.excepthook = anotar
+    threading.excepthook = lambda a: anotar(a.exc_type, a.exc_value, a.exc_traceback, a.thread.name if a.thread else "?")
+    return archivo
+
+
 def main():
     ap = argparse.ArgumentParser(description="El Cerebro v2")
     ap.add_argument("--texto", help="ejecuta esta orden escrita y sale")
@@ -231,10 +258,14 @@ def main():
         return voz.listar_micros() if a.micros else voz.calibrar()
     if a.texto:
         return modo_texto(a.texto, a.simular, a.si)
+    fallos = registrar_fallos()
     try:
         App(simular=a.simular).correr()
     except KeyboardInterrupt:
         print("\nHasta luego.")
+    except Exception:  # noqa: BLE001
+        fallos.write(f"[{dt.datetime.now():%H:%M:%S}] El Cerebro se cerró por un error:\n{traceback.format_exc()}\n")
+        raise
 
 
 if __name__ == "__main__":

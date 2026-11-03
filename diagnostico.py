@@ -115,7 +115,8 @@ def youtube():
 def obs():
     from miniaturas import captura_obs
     img = captura_obs()
-    return OK, f"captura de la escena en vivo {img.size[0]}x{img.size[1]}"
+    origen = f"«{config.OBS_FUENTE}» o la escena en vivo" if config.OBS_FUENTE else "la escena en vivo"
+    return OK, f"captura de {origen} {img.size[0]}x{img.size[1]}"
 
 
 @check("TikTok LIVE Studio")

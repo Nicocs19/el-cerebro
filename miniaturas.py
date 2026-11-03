@@ -11,7 +11,7 @@ import io
 import re
 import unicodedata
 
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageStat
 
 import config
 
@@ -32,12 +32,27 @@ def captura_obs():
         cl = obs.ReqClient(host=config.OBS_HOST, port=config.OBS_PORT, password=config.OBS_PASSWORD, timeout=4)
     except Exception as e:  # noqa: BLE001
         raise MiniaturaError(f"No pude conectar con OBS ({e}). Activa el servidor WebSocket en OBS.")
-    escena = config.OBS_FUENTE or cl.get_current_program_scene().current_program_scene_name
-    try:
-        datos = cl.get_source_screenshot(escena, "png", 1920, 1080, -1).image_data
-    except Exception as e:  # noqa: BLE001
-        raise MiniaturaError(f"OBS no me dio la captura de «{escena}» ({e}). Revisá OBS_FUENTE en .env.")
-    return Image.open(io.BytesIO(base64.b64decode(datos.split(",", 1)[1]))).convert("RGB")
+    def foto(nombre):
+        datos = cl.get_source_screenshot(nombre, "png", 1920, 1080, -1).image_data
+        return Image.open(io.BytesIO(base64.b64decode(datos.split(",", 1)[1]))).convert("RGB")
+
+    if config.OBS_FUENTE:
+        try:
+            img = foto(config.OBS_FUENTE)
+            if not es_negra(img):
+                return img
+            print(f"[miniatura] «{config.OBS_FUENTE}» está en negro (¿el juego está cerrado?); uso lo que sale en directo.")
+        except Exception as e:  # noqa: BLE001
+            print(f"[miniatura] OBS no me dio «{config.OBS_FUENTE}» ({e}); uso lo que sale en directo.")
+    img = foto(cl.get_current_program_scene().current_program_scene_name)
+    if es_negra(img):
+        raise MiniaturaError("La captura de OBS está en negro.")
+    return img
+
+
+def es_negra(img):
+    """True si la imagen es (casi) toda negra: fuente sin señal o juego cerrado."""
+    return max(ImageStat.Stat(img.convert("L").resize((64, 36))).extrema[0]) < 12
 
 
 def _fuente(tam, peso=800):
