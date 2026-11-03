@@ -77,9 +77,12 @@ class Cerebro:
             self.pendiente = None
             return self.mostrar("No hay nada esperando confirmación.", "info", 4)
         accion, self.pendiente = self.pendiente, None
+        log(f"CONFIRMADO: {accion.resumen.splitlines()[0]}")
         self._ejecutar(accion)
 
     def cancelar(self):
+        if self.pendiente:
+            log(f"CANCELADO: {self.pendiente.resumen.splitlines()[0]}")
         self.pendiente = None
         self.contexto = None
         pitido("fin")

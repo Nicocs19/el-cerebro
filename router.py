@@ -19,7 +19,7 @@ import intenciones
 CONFIRMA = re.compile(r"^(dale|si|sí|confirmo|confirma|publica(lo)?|manda(lo)?|ok|okay|adelante|hazlo|hacelo|listo|va)\b")
 CANCELA = re.compile(r"^(no|cancela(lo)?|olvidalo|olvídalo|dejalo|déjalo|para|stop)\b")
 
-RAIDS = "Molten Core, Onyxia, Blackwing Lair, Zul'Gurub, Ruinas de Ahn'Qiraj (AQ20), Templo de Ahn'Qiraj (AQ40), Naxxramas"
+RAIDS = ", ".join(H.RAIDS)
 
 
 def _norm(t):

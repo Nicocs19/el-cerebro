@@ -15,7 +15,9 @@ import config
 SR = 16000
 BLOQUE = 1600  # 0,1 s
 PROMPT = ("Ordenes de un streamer en español: anuncio a mi guild, hermandad, Discord, Kick, YouTube, "
-          "TikTok, título del stream, World of Warcraft, raid, mazmorra, guerrero, nivel.")
+          "TikTok, título del stream, World of Warcraft, raid, mazmorra, guerrero, nivel. Raids: Molten Core, "
+          "Onyxia, Blackwing Lair, Zul'Gurub, Naxxramas, Karazhan, Gruul, Magtheridon, Monte Hyjal, Templo Oscuro, "
+          "Zul'Aman, Ulduar. Mazmorras: Deadmines, Stratholme, Scholomance.")
 VOZ_MINIMA = 3  # bloques de 0,1 s por encima del umbral para contar como voz (un clic de teclado no alcanza)
 
 # Frases que Whisper "escucha" en el silencio o el ruido (aprendidas de subtítulos de YouTube)

@@ -13,6 +13,43 @@ import unicodedata
 import config
 
 DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+
+# Nombres bien escritos de raids y mazmorras (Classic, TBC y WotLK). El dictado los escribe "como suenan"
+# ("monte aijal", "molten cor"): se corrigen al más parecido de esta lista.
+RAIDS = ["Molten Core", "Onyxia", "Blackwing Lair", "Zul'Gurub", "Ruinas de Ahn'Qiraj", "Templo de Ahn'Qiraj",
+         "Naxxramas", "Karazhan", "Guarida de Gruul", "Guarida de Magtheridon", "Caverna Santuario Serpiente",
+         "El Ojo", "Monte Hyjal", "Templo Oscuro", "Zul'Aman", "Meseta de La Fuente del Sol", "Ulduar",
+         "Prueba del Cruzado", "Ciudadela de la Corona de Hielo", "Sagrario Rubí", "Cámara de Archavon",
+         "El Santuario Obsidiana", "El Ojo de la Eternidad"]
+MAZMORRAS = ["Deadmines", "Wailing Caverns", "Shadowfang Keep", "Blackfathom Deeps", "Stockade", "Gnomeregan",
+             "Razorfen Kraul", "Razorfen Downs", "Scarlet Monastery", "Uldaman", "Zul'Farrak", "Maraudon",
+             "Sunken Temple", "Blackrock Depths", "Lower Blackrock Spire", "Upper Blackrock Spire", "Dire Maul",
+             "Stratholme", "Scholomance", "Ragefire Chasm"]
+
+
+ALIAS = {"mc": "Molten Core", "bwl": "Blackwing Lair", "zg": "Zul'Gurub", "aq20": "Ruinas de Ahn'Qiraj",
+         "aq40": "Templo de Ahn'Qiraj", "naxx": "Naxxramas", "kara": "Karazhan", "gruul": "Guarida de Gruul",
+         "magtheridon": "Guarida de Magtheridon", "ssc": "Caverna Santuario Serpiente", "tk": "El Ojo",
+         "hyjal": "Monte Hyjal", "hiyal": "Monte Hyjal", "aijal": "Monte Hyjal", "cima hyjal": "Monte Hyjal",
+         "bt": "Templo Oscuro", "za": "Zul'Aman", "swp": "Meseta de La Fuente del Sol", "icc": "Ciudadela de la Corona de Hielo",
+         "toc": "Prueba del Cruzado", "minas de la muerte": "Deadmines", "las minas de la muerte": "Deadmines",
+         "vc": "Deadmines", "sm": "Scarlet Monastery", "monasterio escarlata": "Scarlet Monastery",
+         "brd": "Blackrock Depths", "ubrs": "Upper Blackrock Spire", "lbrs": "Lower Blackrock Spire",
+         "strat": "Stratholme", "scholo": "Scholomance", "dm": "Dire Maul", "la masacre": "Dire Maul"}
+
+
+def nombre_conocido(nombre):
+    """Corrige el nombre de una raid o mazmorra al más parecido de las listas (si se parece lo suficiente)."""
+    import difflib
+    limpio = str(nombre or "").strip()
+    if not limpio:
+        return limpio
+    clave = _norm(re.sub(r"^(la |el )?(raid|banda|mazmorra) (de |del )?", "", limpio, flags=re.I))
+    if clave in ALIAS:
+        return ALIAS[clave]
+    canon = {n.lower(): n for n in RAIDS + MAZMORRAS}
+    m = difflib.get_close_matches(limpio.lower(), list(canon), n=1, cutoff=0.72)
+    return canon[m[0]] if m else limpio
 PLATAFORMAS = ["kick", "youtube", "tiktok"]
 NOMBRES = {"kick": "Kick", "youtube": "YouTube", "tiktok": "TikTok"}
 TIPOS_ANUNCIO = ["aviso", "evento", "importante", "parche"]
@@ -340,7 +377,7 @@ def construir(nombre, a):
 
     if nombre == "crear_raid":
         cuando = fecha_hora(a.get("fecha"), a.get("hora"))
-        orden = {"accion": "raid", "nombre": _txt(a, "nombre", 100), "fecha": cuando.strftime("%Y-%m-%d %H:%M"),
+        orden = {"accion": "raid", "nombre": nombre_conocido(_txt(a, "nombre", 100)), "fecha": cuando.strftime("%Y-%m-%d %H:%M"),
                  "cupo": _ent(a, "cupo", 5, 40, 20), "nota": _txt(a, "nota", 500, False),
                  "avisar": a.get("avisar", True) is not False}
         resumen = (f"Raid {orden['nombre']} el {fecha_legible(cuando)}, {orden['cupo']} cupos"
@@ -350,7 +387,7 @@ def construir(nombre, a):
 
     if nombre == "crear_banda":
         cuando = fecha_hora(a.get("fecha"), a.get("hora"))
-        orden = {"accion": "banda", "nombre": _txt(a, "nombre", 100),
+        orden = {"accion": "banda", "nombre": nombre_conocido(_txt(a, "nombre", 100)),
                  "cuando": f"{DIAS[cuando.weekday()].capitalize()} {cuando:%d/%m %H:%M}",
                  "tanques": _ent(a, "tanques", 0, 40, 1), "healers": _ent(a, "healers", 0, 40, 1),
                  "dps": _ent(a, "dps", 0, 40, 3), "nota": _txt(a, "nota", 500, False)}
