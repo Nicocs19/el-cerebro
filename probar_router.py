@@ -58,7 +58,10 @@ FRASES_CHAT = {
     n == "crear_encuesta" and "raid" in str(a.get("canal")).lower(),
     "cuál es la capital de francia": lambda n, a: n == "responder" and "par" in str(a.get("respuesta")).lower(),
     "pon un cartel arriba a la derecha que diga raid de onyxia a las 10": lambda n, a: n == "overlay"
-    and a.get("accion") == "crear" and a.get("posicion") == "arriba-derecha",
+    and a.get("accion") == "crear" and a.get("posicion") == "arriba-derecha"
+    and "21:00" not in H.texto_fiel("raid de onyxia a las 10", str(a.get("descripcion")), True),   # hora que dijo
+    "¿qué es un tanque en wow?": lambda n, a: n == "responder"
+    and not re.search(r"pendej|huev|boludo|cojud", str(a.get("respuesta")).lower()),     # pregunta normal: sin insultos
     "cambia el título a día 2 de wow forever y hazme la miniatura que diga día 2": lambda n, a:
     n == "cambiar_titulo_stream" and "2" in str(a.get("miniatura")),
     "cambia el título a leviando al washer del 1 al 10 y aparte hazme la miniatura con recortes oficiales de world of "

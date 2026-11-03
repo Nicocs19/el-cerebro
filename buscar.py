@@ -82,7 +82,8 @@ No leas links ni digas «según el resultado 2»: contalo natural. Números y fe
 
 CLAUDE_PEDIDO = """Sos El Cerebro, el asistente gracioso del stream de Nicolas (Mr. H, streamer de World of Warcraft Forever).
 Te preguntó: {pregunta}
-Buscá en la web lo necesario (WebSearch y WebFetch) y contestá en 1 a 3 frases cortas para decir en voz alta,
+Es en vivo y tiene que ser rápido: hacé UNA búsqueda con WebSearch y contestá con lo que diga. Usá WebFetch solo si
+los resultados no alcanzan, y como mucho una página. Contestá en 1 a 3 frases cortas para decir en voz alta,
 en español latino y con onda. Solo datos que encontraste; si no lo encontrás, decilo. Sin links ni markdown.
 En la última línea poné: FUENTE: <dominio de donde sacaste el dato>"""
 
@@ -96,7 +97,7 @@ def _con_claude(pregunta):
     exe = buscar_claude()
     if not exe:
         raise RuntimeError("no está el programa claude")
-    comando = [exe, "-p", "--max-turns", "8", "--model", config.CLAUDE_MODELO_BUSQUEDA] + SOLO_ESTO
+    comando = [exe, "-p", "--max-turns", "5", "--model", config.CLAUDE_MODELO_BUSQUEDA] + SOLO_ESTO
     comando += ["--disallowedTools"] + [h for h in SIN_HERRAMIENTAS if h not in ("WebFetch", "WebSearch")]
     comando += ["--allowedTools", "WebSearch", "WebFetch"]
     r = subprocess.run(comando, input=CLAUDE_PEDIDO.format(pregunta=pregunta), capture_output=True, text=True,
@@ -112,8 +113,22 @@ def _con_claude(pregunta):
 
 
 def contestar(pregunta):
-    """(respuesta, fuente). Primero Claude con búsqueda web; si no, búsqueda + IA local."""
+    """(respuesta, fuente).
+
+    Con clave de ollama.com (conectar_busqueda.bat) va primero la búsqueda rápida + IA local (unos segundos) y Claude
+    queda de respaldo; sin clave, Claude busca (más completo, pero tarda 15 a 30 s) y si no, Wikipedia.
+    """
     t0 = time.time()
+    if config.OLLAMA_API_KEY and config.BUSQUEDA_RAPIDA_PRIMERO:
+        try:
+            resultados = [r for r in _ollama_web(pregunta, 4) if r.get("texto")]
+            if resultados:
+                texto, fuente = _resumir(pregunta, resultados)
+                print(f"[buscar] búsqueda rápida en {time.time() - t0:.1f} s")
+                if "no encontr" not in texto.lower():
+                    return texto, fuente
+        except Exception as e:  # noqa: BLE001
+            print(f"[buscar] La búsqueda rápida falló ({e}).")
     if config.BUSCAR_CON_CLAUDE:
         try:
             texto, fuente = _con_claude(pregunta)
@@ -124,6 +139,13 @@ def contestar(pregunta):
     resultados = [r for r in buscar(pregunta) if r.get("texto")]
     if not resultados:
         return "Busqué y no encontré nada sobre eso. Preguntame de otra forma.", ""
+    texto, fuente = _resumir(pregunta, resultados)
+    print(f"[buscar] {len(resultados)} resultados, respuesta en {time.time() - t0:.1f} s")
+    return texto, fuente
+
+
+def _resumir(pregunta, resultados):
+    """La IA local arma la respuesta con los resultados (misma configuración que el router: no recarga el modelo)."""
     material = "\n\n".join(f"[{i + 1}] {r['titulo']} ({dominio(r['url'])}): {r['texto'][:1200]}"
                            for i, r in enumerate(resultados[:4]))
     r = requests.post(f"{config.OLLAMA_URL}/api/chat", json={
@@ -135,7 +157,6 @@ def contestar(pregunta):
     }, timeout=60)
     r.raise_for_status()
     texto = (r.json().get("message", {}).get("content") or "").strip()
-    print(f"[buscar] {len(resultados)} resultados, respuesta en {time.time() - t0:.1f} s")
     return texto[:600] or "No pude armar la respuesta con lo que encontré.", dominio(resultados[0]["url"])
 
 

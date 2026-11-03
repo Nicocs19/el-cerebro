@@ -71,6 +71,7 @@ def _nombre_hablado(usuario):
 
 RELLENOS = ("A ver, a ver…", "Mmm…", "Ya, un toque…", "Ajá, dejame ver…")
 BUSCANDO = ("Dejame buscar…", "Ya te lo busco…", "Un toque, lo busco en internet…")
+BUSCANDO_MAS = ("Sigo buscando, un toque más…", "Ya casi, está lenta la internet…", "Aguantá que ya lo encuentro…")
 BANEO_ANSIOSO = ("¡De una! Tengo el dedo en el botón. ¿Baneo a {quien}? Decime «dale» y lo saco volando.",
                  "Uff, con gusto. ¿Le doy ban a {quien}? Decime «dale» y chau.",
                  "¡Ya era hora! ¿Baneo a {quien}? Vos decime «dale» y lo baneo ahorita.")
@@ -91,6 +92,8 @@ def frase(evento, accion=None, detalle=None):
         return random.choice(RELLENOS)
     if evento == "buscando":
         return random.choice(BUSCANDO)
+    if evento == "buscando_mas":
+        return random.choice(BUSCANDO_MAS)
     if evento == "cancelado":
         return "Cancelado."
     if evento == "trabajando":

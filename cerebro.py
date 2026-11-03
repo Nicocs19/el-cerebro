@@ -132,14 +132,19 @@ class Cerebro:
             self.mostrar(f"{accion.resumen}\nBuscando…", "info", 0)
         else:
             self.mostrar(f"{accion.resumen}\nEjecutando…", "info", 0)
+        sigue = threading.Timer(12, self.avisar, args=("buscando_mas",))
+        if accion.tipo == "busqueda":
+            sigue.start()             # si internet tarda, avisa que sigue buscando
         try:
             resultado = (ejecutor or self.ejecutor).ejecutar(accion)
         except Exception as e:  # noqa: BLE001
+            sigue.cancel()
             log(f"ERROR: {e}")
             memoria.anotar("Vos", f"no pudiste hacer «{accion.resumen.splitlines()[0]}»: {e}")
             pitido("error")
             self.avisar("error", accion, str(e))
             return self.mostrar(f"No se pudo: {e}", "error", 12)
+        sigue.cancel()
         if accion.tipo in ("respuesta", "busqueda"):
             memoria.anotar("Vos", f"dijiste en voz alta: {str(resultado).split(chr(10) + '(Fuente:')[0]}")
         else:
@@ -177,7 +182,7 @@ class App:
             import jarvis
             self.voz = jarvis.Voz() if config.JARVIS_VOZ else None
             if self.voz and config.VOZ_RELLENO:
-                self.voz.precalentar(jarvis.RELLENOS + jarvis.BUSCANDO)   # «a ver…» listo para salir al instante
+                self.voz.precalentar(jarvis.RELLENOS + jarvis.BUSCANDO + jarvis.BUSCANDO_MAS)   # «a ver…» listo para salir al instante
             if config.JARVIS_ORBE:
                 if config.ORBE_ESTILO == "orbe":
                     self.orbe = jarvis.Orbe(self.root)

@@ -114,6 +114,7 @@ VOZ_VELOCIDAD = _f("VOZ_VELOCIDAD", 1.1)
 MEMORIA = _b("MEMORIA", True)
 MEMORIA_MINUTOS = _f("MEMORIA_MINUTOS", 10)           # cuánto se acuerda de lo que hablaron
 MEMORIA_FRASES = int(_f("MEMORIA_FRASES", 12))        # cuántas frases (tuyas y de él) como máximo
+BUSQUEDA_RAPIDA_PRIMERO = _b("BUSQUEDA_RAPIDA_PRIMERO", True)   # con clave de ollama.com, primero la rápida
 VOZ_RELLENO = _b("VOZ_RELLENO", True)                     # dice «a ver…» si la IA tarda en contestar
 VOZ_RELLENO_SEGUNDOS = _f("VOZ_RELLENO_SEGUNDOS", 1.2)
 VOZ_VOLUMEN = _f("VOZ_VOLUMEN", 0.9)

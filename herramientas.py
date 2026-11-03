@@ -328,11 +328,32 @@ def corregir_dia(texto, fecha_ia, hoy=None):
 _ACCION_INVENTADA = re.compile(r"anot|inscrib|apunt|registr|https?://|#\w", re.I)
 
 
+_RE_HORA_DICHA = re.compile(r"\ba las (\d{1,2})(?::(\d{2})| y (media|cuarto))?(?: (?:de la )?(manana|tarde|noche|am|pm))?")
+
+
+def hora_fiel(dicho, texto):
+    """Dijiste «a las 10» y el texto dice 21:00: se pone la hora que dijiste (a las 10 = 22:00, salvo «de la mañana»)."""
+    dichas = _RE_HORA_DICHA.findall(_norm(dicho))
+    escritas = re.findall(r"\b(\d{1,2}):(\d{2})\b", texto)
+    if len(dichas) != 1 or len(escritas) != 1:
+        return texto
+    h, mi, frac, parte = dichas[0]
+    h = int(h)
+    mi = int(mi) if mi else (30 if frac == "media" else 15 if frac == "cuarto" else 0)
+    if h > 23 or mi > 59:
+        return texto
+    hh = h % 12 if parte in ("manana", "am") else (h + 12 if h <= 11 else h)
+    if (int(escritas[0][0]), int(escritas[0][1])) in ((hh, mi), (h, mi)):
+        return texto
+    return re.sub(r"\b\d{1,2}:\d{2}\b", f"{hh:02d}:{mi:02d}", texto, count=1)
+
+
 def texto_fiel(dicho, texto, quitar_hoy=False):
     """Arregla lo que el modelo agrega por su cuenta en textos públicos.
 
     - Si dijiste «mañana» y el texto dice «hoy» / «esta noche» (o al revés), se corrige al día que dijiste.
     - Quita las frases con instrucciones que no pediste («anótense», «inscríbanse», canales, links).
+    - La hora es la que dijiste (hora_fiel).
     """
     d = _norm(dicho)
     t = str(texto or "")
@@ -342,6 +363,7 @@ def texto_fiel(dicho, texto, quitar_hoy=False):
         t = re.sub(r"\b[Hh]oy\b", lambda m: "Mañana" if m.group(0)[0] == "H" else "mañana", t)
     elif dijo_hoy and not dijo_manana:
         t = re.sub(r"(?<!de la )(?<!por la )\b[Mm]añana\b", lambda m: "Hoy" if m.group(0)[0] == "M" else "hoy", t)
+    t = hora_fiel(dicho, t)
     if quitar_hoy and not dijo_hoy and not dijo_manana and not dia_en_texto(dicho):
         t = re.sub(r"\s*[·•\-–|,]?\s*\b[Hh]oy\b", "", t)       # no dijo ningún día: no se inventa «hoy»
     if not _ACCION_INVENTADA.search(d):
