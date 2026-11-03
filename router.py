@@ -463,11 +463,31 @@ def _parecido(a, b):
     return difflib.SequenceMatcher(None, _norm(a), _norm(b)).ratio()
 
 
+def _lo_que_dijo(texto):
+    """La última frase que El Cerebro dijo en voz alta (a la persona de la que hablan, si la nombró o venían con ella)."""
+    import moderacion
+    dichas = [f.split("dijiste en voz alta:", 1)[1].strip() for f in memoria.frases("Vos") if "dijiste en voz alta:" in f]
+    if not dichas:
+        return ""
+    a_alguien = re.search(r"\ble\b", _norm(texto)) and memoria.persona()        # «¿qué LE dijiste?»: a esa persona
+    nombres = memoria.personas_en(texto) or ([memoria.persona()["usuario"]] if a_alguien else [])
+    for nombre in nombres:
+        claves = {moderacion.clave(nombre)} | set(re.findall(r"[a-z]{4,}", moderacion.clave(nombre)))
+        suyas = [d for d in dichas if any(c in moderacion.clave(d) for c in claves)]
+        if suyas:
+            return suyas[-1]
+    return dichas[-1]
+
+
 def _variar(texto, pendiente, nombre, args):
     """Si la IA contestó copiando un ejemplo o algo que ya dijo, pide otra frase (un intento, más creativa)."""
     if nombre != "responder" or H._vacio(args.get("respuesta")):
         return nombre, args
-    if PIDE_REPETIR.search(_norm(texto)):            # «¿qué le habías dicho?»: repetir está bien
+    if PIDE_REPETIR.search(_norm(texto)):            # «¿qué le habías dicho?»: lo que de verdad dijo, sin inventar
+        dicho = _lo_que_dijo(texto)
+        if dicho:
+            print(f"[router] repite lo que dijo de verdad: «{dicho}»")
+            args = {**args, "respuesta": f"Le dije: «{dicho}»" if re.search(r"\ble\b", _norm(texto)) else f"Dije: «{dicho}»"}
         DICHO.append(args["respuesta"])
         return nombre, args
     if not _EJEMPLOS:
