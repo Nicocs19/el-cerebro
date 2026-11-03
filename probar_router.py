@@ -233,7 +233,11 @@ def probar_rapido():
               ("«con 40 cupos»", H.cupos_dichos("hoy a las 9 con 40 cupos"), 40),
               ("sin cupos", H.cupos_dichos("hoy a las 9"), None),
               ("«estar previstos» = pre-BiS", dictado.limpiar("tienen que estar previstos"), "tienen que estar pre-BiS"),
-              ("«está previsto» queda igual", dictado.limpiar("está previsto para las 9"), "está previsto para las 9")]
+              ("«está previsto» queda igual", dictado.limpiar("está previsto para las 9"), "está previsto para las 9"),
+              ("pregunta normal sin «pendejo»", router._sin_groserias("¿qué es un tanque en wow?", "responder", {
+                  "respuesta": "Un tanque, pendejo, es el que aguanta."})["respuesta"], "Un tanque es el que aguanta."),
+              ("si lo bardea, sí", router._sin_groserias("cerebro, sos un inútil", "responder", {
+                  "respuesta": "¡Andá a farmear, pendejo!"})["respuesta"], "¡Andá a farmear, pendejo!")]
     bien = 0
     for nombre, salio, esperado in casos:
         ok = salio == esperado

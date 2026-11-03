@@ -359,6 +359,29 @@ PIDE_BAN = re.compile(r"\b(ban|banea\w*|banemos|baneamos|baneame|banealo|bloquea
 NO_BAN = re.compile(r"^(no|nah|nel)\b|\bmejor no\b|\bno lo\b|\bno le\b|perdon|dejalo|desbane|olvida")
 
 
+GROSERIA = r"(pendej[oa]s?|huev[oó]n(es)?|bolud[oa]s?|cojud[oa]s?)"
+PROVOCA = re.compile(r"bard|insult|molest|rost|\bjod|bolud|pendej|huev|cojud|idiot|inutil|tont|\bgil|bobo|\bmalo\b|"
+                     r"basura|mierda|carajo|forro|puto|picante|calienta|decile|dile\b|ubica|contestale|respondele|"
+                     r"chat|lonzo|banco|baneamos|banealo")
+
+
+def _sin_groserias(texto, nombre, args):
+    """Pregunta normal («¿qué es un tanque?»): sin «pendejo» ni «huevón» (la IA a veces se los cuela igual)."""
+    if nombre != "responder" or not isinstance(args.get("respuesta"), str) or PROVOCA.search(_norm(texto)):
+        return args
+    t = args["respuesta"]
+    t = re.sub(r"\s*,\s*" + GROSERIA + r"\s*,\s*", " ", t, flags=re.I)          # «Un tanque, pendejo, es…»
+    t = re.sub(r"\s*,\s*" + GROSERIA + r"\s*(?=[.!?…]|$)", "", t, flags=re.I)     # «…a farmear, pendejo!»
+    t = re.sub(r"(^|(?<=[.!?¡¿]\s))" + GROSERIA + r"\s*,\s*", "", t, flags=re.I)   # «Pendejo, el tanque…»
+    t = re.sub(r"\s+" + GROSERIA + r"\b", "", t, flags=re.I)
+    t = re.sub(r"\s{2,}", " ", t).strip()
+    t = t[:1].upper() + t[1:] if t else t
+    if t != args["respuesta"]:
+        print(f"[router] pregunta normal: saqué la grosería → «{t}»")
+        return {**args, "respuesta": t}
+    return args
+
+
 def _limpiar_respuesta(nombre, args):
     """La IA a veces deja «, animo="picado"» pegado al final del texto: se saca para que no lo lea en voz alta."""
     if nombre != "responder" or not isinstance(args.get("respuesta"), str):
@@ -586,7 +609,7 @@ def _por_patrones(texto):
 def _pulir(texto, pendiente, nombre, args):
     """Lo que el programa corrige después de la IA (combos, texto limpio, bans, variedad, enlaces, plataformas, canal)."""
     nombre, args = _completar_combo(texto, nombre, args)
-    nombre, args = _ban_de_la_charla(texto, nombre, _limpiar_respuesta(nombre, args))
+    nombre, args = _ban_de_la_charla(texto, nombre, _sin_groserias(texto, nombre, _limpiar_respuesta(nombre, args)))
     nombre, args = _variar(texto, pendiente, nombre, args)
     args = _usuario_de_la_charla(nombre, args)
     _no_en_tiktok(texto, nombre, args)
