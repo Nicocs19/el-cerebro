@@ -43,6 +43,12 @@ def persona(minutos=None):
     return max(vivas, key=lambda p: p["cuando"]) if vivas else None
 
 
+def frases(quien=None, minutos=None):
+    """Lo último que dijo quien («Nicolas» o «Vos»), del más viejo al más nuevo."""
+    with _lock:
+        return [f["texto"] for f in _vigentes(_charla, minutos) if quien is None or f["quien"] == quien]
+
+
 def hay_charla(minutos=3):
     with _lock:
         return bool(_vigentes(_charla, minutos))

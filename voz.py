@@ -28,6 +28,7 @@ CORRECCIONES = [
     (r"\b(washer|guasher|guacher|wacher|guar|guor|wor)\b", "War"),
     (r"\bwarrior\b", "Warrior"),
     (r"\bwow forever\b|\bguau forever\b|\bbow forever\b", "WoW Forever"),
+    (r"\b(previces|previs|previ ?bis|pre ?bis|pribis|prebís)\b", "pre-BiS"),
 ]
 
 

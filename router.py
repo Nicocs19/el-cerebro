@@ -53,7 +53,7 @@ Reglas:
 - No inventes datos (horas, premios, requisitos, cupos) que Nicolas no dijo, ni agregues canales, instrucciones o llamados a la acción que no pidió (nada de "anótense en #raids-signup" si no lo dijo). Si falta algo imprescindible (por ejemplo la fecha u hora de una raid), usa pedir_aclaracion.
 - Textos públicos (anuncios, sorteos, encuestas): {config.TONO}. Corrige errores de dictado y redacta bien lo que dijo, con tildes correctas, y podés cerrar con una frase corta de ánimo, pero no inventes datos, canales, links ni instrucciones que Nicolas no dijo (nada de "anótense en #raids-signup" si no lo pidió).
 - Títulos de stream: usa el texto que dictó, corregido, sin añadir nada. Respetá su jerga: "leveando al War del 1 al 10" queda así (no lo traduzcas ni lo cambies por otra palabra).
-- Jerga de WoW: War = Warrior (guerrero), Pala = Paladín, Lock = Warlock, Hunter, Rogue, Priest, Mago, Druida, Chamán; levear o levelear = subir de nivel. El dictado a veces escribe mal esas palabras: "washer", "guasher" o "wor" junto a levear, subir o una clase es "War"; "leviando" es "leveando". Corregilas en lo que escribas.
+- Jerga de WoW: War = Warrior (guerrero), Pala = Paladín, Lock = Warlock, Hunter, Rogue, Priest, Mago, Druida, Chamán; levear o levelear = subir de nivel. El dictado a veces escribe mal esas palabras: "washer", "guasher" o "wor" junto a levear, subir o una clase es "War"; "leviando" es "leveando"; "previces" o "prebis" es "pre-BiS" (el mejor equipo antes de raidear). Corregilas en lo que escribas.
 - Si en la misma orden pide cambiar el juego o la categoría junto con el título, poné el juego en el campo juego. Si solo pide cambiar el juego ("poné World of Warcraft", "cambiá la categoría a Just Chatting"), usa cambiar_juego.
 - Nombres de raids bien escritos: {RAIDS}. "Guild", "gil", "guil" o "hermandad" significan la hermandad.
 - Roles que se pueden etiquetar: {", ".join(config.ROLES_MENCIONABLES)}. Etiqueta solo si lo pide o si es un anuncio de evento para toda la guild ("Eventos de la guild").
@@ -333,6 +333,25 @@ def _usuario_de_la_charla(nombre, args):
 PIDE_GUARDAR = re.compile(r"guard|agend|anot|recorda|grab")
 
 
+TIKTOK = re.compile(r"tik ?tok|tictoc|tiktoc")
+
+
+def _no_en_tiktok(texto, nombre, args):
+    """En TikTok no hay forma de banear por voz: si hablaban de alguien de TikTok, no se banea a otro en Kick."""
+    if nombre != "moderar_chat" or args.get("accion") == "desbanear":
+        return
+    import moderacion
+    if TIKTOK.search(_norm(texto)):
+        raise H.ErrorOrden("En TikTok no puedo banear ni silenciar por voz: hacelo desde LIVE Studio.")
+    quien = moderacion.clave(str(args.get("usuario") or ""))
+    if len(quien) < 3 or (memoria.persona() and moderacion.clave(memoria.persona()["usuario"]) == quien):
+        return                          # lo vimos en el chat de Kick: es de ahí
+    for f in memoria.frases("Nicolas", minutos=10):
+        if TIKTOK.search(_norm(f)) and quien in moderacion.clave(f):
+            raise H.ErrorOrden(f"{args.get('usuario')} es de TikTok, y ahí no puedo banear por voz: hacelo desde "
+                               "LIVE Studio. (No lo busco en Kick para no banear a otro con el mismo nombre.)")
+
+
 def _enlace_al_chat(texto, nombre, args):
     """«Pasá en el chat mi instagram» es mandar, no guardar: guardar solo si lo dice."""
     if nombre == "guardar_enlace" and not PIDE_GUARDAR.search(_norm(texto)):
@@ -360,6 +379,7 @@ def _pulir(texto, pendiente, nombre, args):
     nombre, args = _ban_de_la_charla(texto, nombre, _limpiar_respuesta(nombre, args))
     nombre, args = _variar(texto, pendiente, nombre, args)
     args = _usuario_de_la_charla(nombre, args)
+    _no_en_tiktok(texto, nombre, args)
     return _enlace_al_chat(texto, nombre, args)
 
 
