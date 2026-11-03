@@ -29,9 +29,12 @@ FRASES = [
     "avisa en general que en 10 minutos empiezo directo",
     "arma una banda para deadmines el sábado a las 6 de la tarde, 1 tanque 1 healer 3 dps",
     "lanza un anuncio a la guild que mañana a las 10 de la noche arrancamos la primera raid",
-    "mandá un aviso de write para registrarse a la raid de molten core de hoy a las 9",
+    "mandá un aviso de write para registrarse a la raid de molten core de mañana a las 9 con 40 cupos",
     "Ya mira, lo apreté. Lanzá un registro de write sin app para onyxia el sábado a las 9",
     "avisá en el canal Rising Up que hoy a las 9 hacemos raid",
+    "mandes un registro de raid para hoy a las 9 de la noche con 40 cupos y en notas pone que todos tienen que estar previstos",
+    "mandá un registro de raid de molten core para mañana a las 9, 40 cupos, en notas poné que vengan pre bis",
+    "aviso de raid molten core mañana a las 9 con 40 cupos",
 ]
 
 
@@ -47,9 +50,13 @@ CHEQUEOS = {
     FRASES[2]: lambda r: _el("mañana") in r,      # sin hora: tiene que preguntar «¿A qué hora...?»
     FRASES[11]: lambda r: _el("sábado") in r and "18:00" in r,
     FRASES[12]: lambda r: not any(x in r.lower() for x in ("anot", "inscrib", "#", "http")),  # sin instrucciones inventadas
-    FRASES[13]: lambda r: "#raids-signup" in r and "21:00" in r,
-    FRASES[14]: lambda r: "#raids-signup" in r and "mira" not in r.lower() and "apret" not in r.lower(),
-    FRASES[15]: lambda r: "#raids-signup" in r,
+    # Registro de raid = SIEMPRE crear_raid (el de Hogger con cupos), nunca un anuncio; lo que no dijo, lo pregunta
+    FRASES[13]: lambda r: r.startswith("Raid Molten Core") and "21:00" in r and "40 cupos" in r,
+    FRASES[14]: lambda r: r.startswith("¿Cuántos cupos") and "Onyxia" in r,
+    FRASES[15]: lambda r: r.startswith("¿Qué raid es?"),
+    FRASES[16]: lambda r: r.startswith("¿Qué raid es?"),               # no dijo qué raid: no inventa «Molten Core»
+    FRASES[17]: lambda r: r.startswith("Raid Molten Core") and "40 cupos" in r and "pre-BiS" in r,
+    FRASES[18]: lambda r: r.startswith("Raid Molten Core") and "40 cupos" in r,
 }
 
 
@@ -91,8 +98,8 @@ FRASES_CHAT = {
     "qué parche salió ayer en wow forever": lambda n, a: n == "buscar_en_internet",
     "manda el link de youtube a mi canal de kick": lambda n, a: n == "mandar_al_chat" and a.get("plataformas") == ["kick"],
     "mandá un saludo solo al chat de youtube": lambda n, a: n == "mandar_al_chat" and a.get("plataformas") == ["youtube"],
-    "un aviso para la guild que hoy hacemos raid, en el canal donde hacen los registros": lambda n, a:
-    n in ("publicar_anuncio", "mensaje_discord") and a.get("canal") == "raids-signup",
+    "un aviso para la guild que hoy hacemos raid, en el canal donde hacen los registros": lambda n, a: n == "crear_raid",
+    "mandá un registro de raid de onyxia para el sábado a las 9 con 20 cupos": lambda n, a: n == "crear_raid",
 }
 
 
@@ -220,6 +227,13 @@ def probar_rapido():
     casos += [(f"plataformas «{t}»", router.plataformas_dichas(t), e) for t, e in PLATAFORMAS.items()]
     casos += [(f"dictado «{t[:40]}»", dictado.limpiar(t), e) for t, e in DICTADO.items()]
     casos += [("sin «sí» en el mensaje", router.quitar_afirmacion("Simandalo https://discord.gg/x"), "https://discord.gg/x")]
+    casos += [("no inventa la raid", H.raid_dicha("mandes un registro de raid para hoy con 40 cupos", "Molten Core"), False),
+              ("«molten cor» es Molten Core", H.raid_dicha("registro de molten cor", "Molten Core"), True),
+              ("«zul gurub» es Zul'Gurub", H.raid_dicha("registro de zul gurub", "Zul'Gurub"), True),
+              ("«con 40 cupos»", H.cupos_dichos("hoy a las 9 con 40 cupos"), 40),
+              ("sin cupos", H.cupos_dichos("hoy a las 9"), None),
+              ("«estar previstos» = pre-BiS", dictado.limpiar("tienen que estar previstos"), "tienen que estar pre-BiS"),
+              ("«está previsto» queda igual", dictado.limpiar("está previsto para las 9"), "está previsto para las 9")]
     bien = 0
     for nombre, salio, esperado in casos:
         ok = salio == esperado
@@ -255,9 +269,13 @@ def probar_flujo():
     pasos = [
         ("mandá un saludo al chat de kick", lambda: pendiente("chat", plataformas=["kick"])),
         ("Daleh.", hecho),
-        ("mandá un aviso de write para registrarse a la raid de onyxia del sábado a las 9",
-         lambda: pendiente("hogger", accion="anuncio", canal="raids-signup")),
+        ("mandá un aviso de write para registrarse a la raid de onyxia del sábado a las 9 con 40 cupos",
+         lambda: pendiente("hogger", accion="raid", nombre="Onyxia", cupo=40)),
         ("mejor no", lambda: not c.pendiente),
+        ("mandes un registro de raid para mañana a las 9 de la noche con 40 cupos", lambda: not c.pendiente and c.contexto
+         and "qué raid" in vistos[-1].lower()),                       # no dijo qué raid: pregunta, no inventa
+        ("molten core", lambda: pendiente("hogger", accion="raid", nombre="Molten Core", cupo=40)),
+        ("no", lambda: not c.pendiente),
         ("cambiá el título solo en kick a raid nocturna con la guild", lambda: pendiente("titulo", plataformas=["kick"])),
         ("Simandalo, dale.", hecho),
         ("banea a tanlonzo", lambda: pendiente("moderar", accion="banear")),
@@ -272,8 +290,8 @@ def probar_flujo():
     for f, chequeo in pasos:
         t0 = time.time()
         d = dictado.limpiar(f)
-        if c.pendiente:
-            c.respuesta(d)               # como en vivo: después de «¿Lo publico?» te escucha sin tecla
+        if c.pendiente or c.contexto:
+            c.respuesta(d)               # como en vivo: después de «¿Lo publico?» o «¿Qué raid?» te escucha sin tecla
         else:
             c.manejar_texto(d)
         ok = chequeo()

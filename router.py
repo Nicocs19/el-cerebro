@@ -138,7 +138,8 @@ Reglas:
 - Si en la misma orden pide cambiar el juego o la categoría junto con el título, poné el juego en el campo juego. Si solo pide cambiar el juego ("poné World of Warcraft", "cambiá la categoría a Just Chatting"), usa cambiar_juego.
 - Nombres de raids bien escritos: {RAIDS}. "Guild", "gil", "guil" o "hermandad" significan la hermandad.
 - Roles que se pueden etiquetar: {", ".join(config.ROLES_MENCIONABLES)}. Etiqueta solo si lo pide o si es un anuncio de evento para toda la guild ("Eventos de la guild").
-- Canales del Discord: {", ".join(config.CANALES_DISCORD) or "(los de siempre)"}. Deja el canal vacío salvo que nombre uno. Todo lo que sea para registrarse o anotarse a una raid ("aviso de raid para registrarse", "registro de raid", "donde se hacen los registros", "sign up") va al canal raids-signup.
+- Canales del Discord: {", ".join(config.CANALES_DISCORD) or "(los de siempre)"}. Deja el canal vacío salvo que nombre uno.
+- Registro de raid: si habla de registro, inscripción, anotarse, sign up o cupos de una raid, o dice "aviso de raid" ("mandá un aviso de raid de registro", "registro de raid", "abrí el registro de Molten Core", "raid para registrarse con 40 cupos"), usa SIEMPRE crear_raid: es el registro de Hogger con cupos y botones. Nunca publicar_anuncio ni mensaje_discord para eso.
 - El dictado a veces trae al principio palabras sueltas o comentarios que no son para vos ("ya mira", "a ver", "lo apreté y ya está"): ignoralos, quedate con la orden y nunca los pongas en un texto.
 - Si Nicolas te habla a vos o charla ("Cerebro, decime algo", "hola", "¿me escuchás?", "contame un chiste", una pregunta cualquiera) y no pide publicar, mandar ni cambiar nada, usa responder (se dice en voz alta y se escucha en el stream). Ahí sos El Cerebro: un cerebro con gafas, medio pendejo, gracioso y buena onda, que habla como un pata latino; si te pide un chiste, hacé uno corto y medio cojudo; si te pregunta algo que sabés, contestá en 1 a 3 frases.
 - Personalidad: si Nicolas te molesta, te bardea o te insulta en broma, ponete caliente (animo=picado) y devolvele un bardeo gracioso, picante, a él. Si te pide molestar, bardear o rostear al chat, hacé una joda de stream picante pero buena onda (animo=picado), y si hay gente del chat en la lista, nombrá a 1 a 3. Si te pide saludar al stream, a la gente o al chat, saludá con mucha energía (animo=feliz). Cada respuesta tiene que ser NUEVA y tener que ver con lo que dijo: las frases de los ejemplos son solo para mostrar el estilo, nunca las copies ni las repitas. Groserías suaves (cojudo, huevón, pendejo, boludo) solo cuando te bardea o te pide bardear a alguien; si te pregunta algo normal o te pide un chiste, contestá con onda pero sin insultarlo. Cuando le hablás a alguien del chat, hablale a esa persona (a Nicolas decile jefe o Mr. H). NUNCA nada sobre raza, origen, sexo, orientación, religión, el físico o discapacidades, ni amenazas, ni nada que sea acoso.
@@ -159,7 +160,7 @@ Ejemplos:
 - "sortea un mes de juego entre los de la guild, dura dos días" -> crear_sorteo(premio="1 mes de juego", horas=48, ganadores=1)
 - "cerebro, decime algo" -> responder(respuesta="¡Acá estoy, listo para pensar por los dos! ¿Qué hacemos hoy?")
 - "avisa en el discord que en 10 minutos empiezo" -> mensaje_discord(texto="¡En 10 minutos arranco directo! Pasen 🔴", canal="general")
-- "mandá un aviso de raid para registrarse, hoy molten core a las 9" -> publicar_anuncio(titulo="Raid de Molten Core hoy", texto="Hoy a las 21:00 vamos a Molten Core. ¡Regístrense para la raid! ⚔️", tipo="evento", mencionar="Eventos de la guild", canal="raids-signup")
+- "mandá un aviso de raid de registro para hoy a las 9, molten core, 40 cupos" -> crear_raid(nombre="Molten Core", fecha="hoy", hora="21:00", cupo=40)
 - "cambia el título a día 2 subiendo pícaro y haz la miniatura que diga día 2" -> cambiar_titulo_stream(titulo="Día 2 subiendo pícaro", plataformas=["kick","youtube","tiktok"], miniatura="Día 2")
 - "cambiá el título a leviando al washer del 1 al 10 y haceme la miniatura con el logo de wow y el warrior que diga no me esperaba esto, los primeros niveles" -> cambiar_titulo_stream(titulo="Leveando al War del 1 al 10", plataformas=["kick","youtube","tiktok"], miniatura="No me esperaba esto", miniatura_subtitulo="Los primeros niveles", miniatura_idea="logo de WoW y el Warrior")
 - "poné el juego world of warcraft" -> cambiar_juego(juego="World of Warcraft")
@@ -500,6 +501,27 @@ def _plataformas_que_dijo(texto, nombre, args):
     return {**args, "plataformas": validas}
 
 
+_NOMBRES_RAID = "|".join(re.escape(_norm(x)).replace("\\ ", " ?") for x in H.RAIDS)
+ES_RAID = re.compile(r"\braid|\braidear|\bincursion|" + _NOMBRES_RAID)
+REGISTRO_RAID = re.compile(r"regist|inscri|\banot(ar|arse|en|ense)\b|sign ?up|raids-signup|\bcupos?\b")
+
+
+def _registro_de_raid(texto, nombre, args):
+    """«Mandá un aviso de raid de registro…» es SIEMPRE el registro de Hogger (crear_raid), nunca un anuncio con foto."""
+    n = _norm(texto)
+    if nombre not in ("publicar_anuncio", "mensaje_discord") or not ES_RAID.search(n):
+        return nombre, args
+    if not (REGISTRO_RAID.search(n) or AVISO_DE_RAID.search(n)):
+        return nombre, args
+    try:
+        otra, extra = _llamar_ollama(texto, solo=["crear_raid"])
+        print(f"[router] es el registro de una raid, no un anuncio: crear_raid {json.dumps(extra, ensure_ascii=False)}")
+        return "crear_raid", extra if otra == "crear_raid" else {}    # sin datos: pregunta qué raid, día y hora
+    except Exception as e:  # noqa: BLE001
+        print(f"[router] no pude armar el registro de la raid: {e}")
+    raise H.ErrorOrden("Eso es un registro de raid, pero no lo pude armar. Decímelo de nuevo con la raid, el día y la hora.")
+
+
 PIDE_REGISTRO = re.compile(r"regist|inscri|\banot(ar|arse|en|ense)\b|sign ?up|raids-signup|raids signup")
 AVISO_DE_RAID = re.compile(r"\b(aviso|anuncio|mensaje)s? (de|para|por) (la |una |el )?raids?\b")
 
@@ -530,6 +552,24 @@ def _sin_si_en_el_texto(pendiente, nombre, args):
     return args
 
 
+def _raid_sin_inventos(texto, pendiente, args):
+    """La raid y los cupos son los que dijo Nicolas: si la IA los inventó, se le pregunta («¿Qué raid es?»)."""
+    dicho = texto
+    if pendiente is not None and pendiente.tipo == "hogger" and pendiente.datos.get("accion") == "raid":
+        dicho += f". {pendiente.datos.get('nombre')}, {pendiente.datos.get('cupo')} cupos"   # corrige la que espera
+    if not H._vacio(args.get("nombre")) and not H.raid_dicha(dicho, args["nombre"]):
+        print(f"[router] la IA puso la raid «{args['nombre']}», pero no la dijiste: te pregunto")
+        args = {**args, "nombre": ""}
+    cupos = H.cupos_dichos(dicho)
+    if cupos is None:
+        if not H._vacio(args.get("cupo")):
+            print(f"[router] la IA puso {args['cupo']} cupos, pero no los dijiste: te pregunto")
+        args = {**args, "cupo": None}
+    elif str(args.get("cupo")) != str(cupos):
+        args = {**args, "cupo": cupos}
+    return args
+
+
 def _por_patrones(texto):
     o = intenciones.por_patrones(texto)
     if not o:
@@ -551,6 +591,7 @@ def _pulir(texto, pendiente, nombre, args):
     args = _usuario_de_la_charla(nombre, args)
     _no_en_tiktok(texto, nombre, args)
     nombre, args = _enlace_al_chat(texto, nombre, args)
+    nombre, args = _registro_de_raid(texto, nombre, args)
     args = _plataformas_que_dijo(texto, nombre, args)
     args = _canal_del_tema(texto, nombre, args)
     return nombre, _sin_si_en_el_texto(pendiente, nombre, args)
@@ -573,6 +614,8 @@ def interpretar(texto, pendiente=None):
     nombre, args = llamada
     if origen == "ia":
         nombre, args = _pulir(texto, pendiente.datos if pendiente else None, nombre, args)
+    if nombre == "crear_raid":
+        args = _raid_sin_inventos(texto, pendiente, args)
     if nombre in ("crear_raid", "crear_banda"):
         # Lo que dijo Nicolas manda: si nombró un día claro, se usa ese aunque la IA haya puesto otro.
         fecha = H.corregir_dia(texto, args.get("fecha"))

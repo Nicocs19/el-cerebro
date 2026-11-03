@@ -50,6 +50,40 @@ def nombre_conocido(nombre):
     canon = {n.lower(): n for n in RAIDS + MAZMORRAS}
     m = difflib.get_close_matches(limpio.lower(), list(canon), n=1, cutoff=0.72)
     return canon[m[0]] if m else limpio
+
+
+def raid_dicha(dicho, nombre):
+    """¿Nicolas nombró esa raid? («molten cor», «MC», «onixia» cuentan). Si no, la IA la inventó y hay que preguntar."""
+    import difflib
+    n, canon = _norm(dicho), nombre_conocido(nombre)
+    generico = r"\b(raids?|registros?|inscripci\w*|avisos?|eventos?|anuncios?|de|del|la|el|para|hoy|manana|guild|hermandad)\b"
+    if not re.sub(generico, "", _norm(canon)).strip(" -'"):
+        return False                     # «Registro de raid» no es el nombre de una raid
+    if any(alias in n.split() and destino == canon for alias, destino in ALIAS.items()):
+        return True
+    sueltas = re.findall(r"[a-z0-9]+", n.replace("'", "").replace("’", ""))
+    palabras = sueltas + [a + b for a, b in zip(sueltas, sueltas[1:])]        # «zul gurub» = «zulgurub»
+    palabras = [w for w in palabras if len(w) >= 3]
+    claves = [w for w in re.findall(r"[a-z0-9]+", _norm(canon).replace("'", "")) if len(w) >= 4
+              and w not in ("raid", "guarida", "templo", "caverna", "meseta", "santuario", "ciudadela", "corona", "hielo")]
+    return any(difflib.get_close_matches(c, palabras, n=1, cutoff=0.75) for c in claves or [_norm(canon)])
+
+
+_NUM = r"(\d{1,2}|cinco|diez|quince|veinte|veinticinco|treinta|cuarenta)"
+_PALABRA_CUPO = r"(cupos?|jugadores|personas|plazas|lugares|players|man)"
+_NUMEROS = {"cinco": 5, "diez": 10, "quince": 15, "veinte": 20, "veinticinco": 25, "treinta": 30, "cuarenta": 40}
+
+
+def cupos_dichos(dicho):
+    """Los cupos que dijo («con 40 cupos», «cupo de 20», «raid de cuarenta personas») o None si no dijo."""
+    n = _norm(dicho)
+    m = re.search(_NUM + r"\s*" + _PALABRA_CUPO + r"\b", n) or re.search(r"\bcupos?\s*(?:de|para|:)?\s*" + _NUM + r"\b", n)
+    if not m:
+        return None
+    v = m.group(1)
+    return int(v) if v.isdigit() else _NUMEROS[v]
+
+
 PLATAFORMAS = ["kick", "youtube", "tiktok"]
 OVERLAY_POSICIONES = ["arriba-izquierda", "arriba", "arriba-derecha", "izquierda", "centro", "derecha",
                       "abajo-izquierda", "abajo", "abajo-derecha"]
@@ -85,17 +119,20 @@ def esquemas():
                                               "'sábado 14', 'el 20 de noviembre'. No calcules la fecha: la calcula el programa"}
     hora = {"type": "string", "description": "Hora HH:MM en formato 24 h (las 9 de la noche = 21:00)"}
     return [
-        _f("publicar_anuncio", "Publica un anuncio con el estilo de la guild en el Discord.", {
+        _f("publicar_anuncio", "Publica un anuncio con imagen y el estilo de la guild en el Discord. NO es para registros "
+                               "de raid ni cupos: eso es crear_raid.", {
             "titulo": {"type": "string", "description": "Título corto y llamativo (máx. 80 caracteres)"},
             "texto": {"type": "string", "description": "Cuerpo del anuncio, bien redactado, sin inventar datos"},
             "tipo": {"type": "string", "enum": TIPOS_ANUNCIO, "description": "evento para quedadas y actividades, importante para cambios serios, parche para novedades del juego, aviso para el resto"},
             "mencionar": {"type": "string", "enum": menciones, "description": "A quién etiquetar. 'ninguno' si no lo pidió"},
             "canal": {"type": "string", "description": "Solo si nombró un canal concreto; si no, vacío"},
         }, ["titulo", "texto", "tipo", "mencionar"]),
-        _f("crear_raid", "Crea la inscripción de una raid por clase y spec (estilo Raid-Helper).", {
+        _f("crear_raid", "Abre el REGISTRO de una raid: el post de Hogger con cupos y botones para anotarse por clase y "
+                         "spec (estilo Raid-Helper). Usala SIEMPRE que diga registro, inscripción, anotarse, sign up o "
+                         "cupos de una raid, o «aviso de raid».", {
             "nombre": {"type": "string", "description": "Nombre de la raid bien escrito, p. ej. Molten Core"},
             "fecha": fecha, "hora": hora,
-            "cupo": {"type": "integer", "description": "Jugadores máximos, de 5 a 40. 20 si no lo dijo"},
+            "cupo": {"type": "integer", "description": "Jugadores máximos (5 a 40) que dijo; vacío si no lo dijo"},
             "nota": {"type": "string", "description": "Requisitos o detalles que dijo; vacío si nada"},
             "avisar": {"type": "boolean", "description": "Etiquetar al rol Llamado a bandas. true salvo que diga que no"},
         }, ["nombre", "fecha", "hora", "cupo"]),
@@ -482,14 +519,18 @@ def _vacio(v):
 
 
 def _falta_dia_u_hora(nombre, a):
-    """Raid o banda sin día u hora: se pregunta (sin inventar) y la respuesta completa la orden."""
+    """Raid o banda sin raid, día, hora o cupos: se pregunta (sin inventar) y la respuesta completa la orden."""
     que = "la raid" if nombre == "crear_raid" else "la banda"
     de = f" de {str(a.get('nombre')).strip()}" if not _vacio(a.get("nombre")) else ""
-    if _vacio(a.get("fecha")):
+    if nombre == "crear_raid" and _vacio(a.get("nombre")):
+        p = "¿Qué raid es?"
+    elif _vacio(a.get("fecha")):
         p = f"¿Qué día es {que}{de}?"
     elif _vacio(a.get("hora")):
         d, _ = resolver_dia(a.get("fecha"))
         p = f"¿A qué hora es {que}{de} del {DIAS[d.weekday()]} {d.day:02d}/{d.month:02d}?"
+    elif nombre == "crear_raid" and _vacio(a.get("cupo")):
+        p = f"¿Cuántos cupos tiene {que}{de}?"
     else:
         return None
     return Accion("aclaracion", {"pregunta": p}, p, False)

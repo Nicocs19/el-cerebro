@@ -14,6 +14,8 @@ CORRECCIONES = [
     (r"\bwarrior\b", "Warrior"),
     (r"\bwow forever\b|\bguau forever\b|\bbow forever\b", "WoW Forever"),
     (r"\b(previces|previs|previ ?bis|pre ?bis|pribis|prebís)\b", "pre-BiS"),
+    # «tienen que estar previstos» en una raid = pre-BiS (solo pegado a estar/venir/ir: «previsto» también es palabra normal)
+    (r"\b(estar|esten|estén|vengan|venir|ir|vayan|tener|tengan|con|equipo|gear)\s+(previstos?|previstas?)\b", r"\1 pre-BiS"),
     # El canal de registro de raids del Discord: «Rising Up», «Raidsingup», «Raids Sin Up», «write sin app»…
     (r"\brising[ -]?up\b", "raids-signup"),
     (r"\b(raids?|raits?|writes?|wrights?|reids?)[ -]?(sign|sain|sing|sin|zain|sein)[ -]?(up|ap|app|op|amp)\b",
