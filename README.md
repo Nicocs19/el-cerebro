@@ -43,7 +43,7 @@ Cuando lo llamás aparece abajo a la derecha un cerebro con ojos: abre los ojos 
 El Cerebro te lee la confirmación («Raid de Onyxia, el viernes a las 9 de la noche, 20 cupos. ¿La publico?») y te avisa cuando está hecho. Si le hablás, le preguntás algo o le pedís un chiste, te contesta con la IA local de tu PC (gratis y sin límite) y no publica nada. Suena por la salida de audio normal, así que el stream también lo oye.
 
 - Voz: ElevenLabs (`conectar_voz.bat` guarda la clave y te deja elegir voz, normal o de dibujito). Las frases repetidas quedan guardadas y no gastan créditos. Sin clave o sin créditos usa una voz local (Piper), gratis.
-- Ajustes en `.env`: `VOZ_TONO` (0 = normal, 3 a 5 = dibujito), `ORBE_ESTILO` (`cerebro` u `orbe`), `CEREBRO_DISENO` (`gafas` o `clasico`), `CEREBRO_SIEMPRE`, `VOZ_RELLENO` (dice «a ver…» si la IA tarda), `ELEVEN_VOZ`, `VOZ_DISPOSITIVO` (`python cerebro.py --salidas` lista las salidas), `ORBE_POSICION`.
+- Ajustes en `.env`: `VOZ_TONO` (0 = normal, 3 a 5 = dibujito), `ORBE_ESTILO` (`cerebro` u `orbe`), `CEREBRO_DISENO` (`gafas` o `clasico`), `CEREBRO_SIEMPRE`, `VOZ_RELLENO` (dice «a ver…» si la IA tarda más de 3 s, como mucho uno por minuto), `SONIDOS` (`suave`, `pitidos` o `nada`) y `SONIDO_VOLUMEN`, `ELEVEN_VOZ`, `VOZ_DISPOSITIVO` (`python cerebro.py --salidas` lista las salidas), `ORBE_POSICION`.
 - Probar la voz: `python cerebro.py --decir "El Cerebro en línea"`.
 
 ## Chat del stream
