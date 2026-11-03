@@ -82,8 +82,8 @@ KICK_TOKENS = DATA / "kick_tokens.json"
 # --- Chat del stream (moderación por voz y enlaces) ---
 CHAT_KICK = _b("CHAT_KICK", True)                       # escuchar el chat de Kick para encontrar a quién moderar
 KICK_CHATROOM_ID = _s("KICK_CHATROOM_ID")               # número de la sala del chat (conectar_kick.bat lo guarda solo)
-KICK_PUSHER_URL = _s("KICK_PUSHER_URL", "wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679"
-                                        "?protocol=7&client=js&version=8.4.0&flash=false")
+KICK_PUSHER_KEY = _s("KICK_PUSHER_KEY", "34bf7a0ff419a2a775b9")   # Kick la cambió en oct 2026; se actualiza sola
+KICK_PUSHER_CLUSTER = _s("KICK_PUSHER_CLUSTER", "us2")
 SILENCIO_MINUTOS = int(_f("SILENCIO_MINUTOS", 10))      # «silenciá a X» sin decir cuánto
 ENLACES = BASE / "enlaces.txt"                          # los enlaces que se pueden mandar al chat
 
@@ -115,6 +115,9 @@ OBS_PORT = int(_f("OBS_PORT", 4455))
 OBS_PASSWORD = _s("OBS_PASSWORD")
 # Escena o fuente de OBS para el fondo de las miniaturas (p. ej. la captura del juego). Vacío = lo que sale en directo.
 OBS_FUENTE = _s("OBS_FUENTE")
+MINIATURA_CLAUDE = _b("MINIATURA_CLAUDE", True)        # las miniaturas las diseña Claude (si falla, plantilla dorada)
+OVERLAY_CLAUDE = _b("OVERLAY_CLAUDE", True)            # los overlays los diseña Claude (programa claude de tu PC)
+OVERLAY_ESPERA = int(_f("OVERLAY_ESPERA", 150))         # segundos máximos esperando el diseño de Claude
 
 # --- Respuesta ---
 BEEPS = _b("BEEPS", True)

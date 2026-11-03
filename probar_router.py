@@ -37,7 +37,7 @@ CHEQUEOS = {
 }
 
 
-# Chat del stream: se revisa solo qué herramienta elige la IA (sin buscar usuarios ni mandar nada)
+# Chat del stream, charla, overlays y título con miniatura: se revisa solo qué herramienta elige la IA (sin ejecutar nada)
 FRASES_CHAT = {
     "banea a pepe noventa y nueve": lambda n, a: n == "moderar_chat" and a.get("accion") == "banear"
     and "pepe" in str(a.get("usuario")).lower(),
@@ -50,6 +50,12 @@ FRASES_CHAT = {
     "pasa en el chat mi instagram": lambda n, a: n == "mandar_al_chat" and "insta" in str(a.get("enlace")).lower(),
     "guarda este enlace como tienda": lambda n, a: n == "guardar_enlace" and "tienda" in str(a.get("nombre")).lower(),
     "avisa en el discord que en 10 minutos empiezo": lambda n, a: n in ("mensaje_discord", "publicar_anuncio"),
+    "cerebro, dime algo": lambda n, a: n == "responder",
+    "hola cerebro, me escuchas?": lambda n, a: n == "responder",
+    "pon un cartel arriba a la derecha que diga raid de onyxia a las 10": lambda n, a: n == "overlay"
+    and a.get("accion") == "crear" and a.get("posicion") == "arriba-derecha",
+    "cambia el título a día 2 de wow forever y hazme la miniatura que diga día 2": lambda n, a:
+    n == "cambiar_titulo_stream" and "2" in str(a.get("miniatura")),
 }
 
 

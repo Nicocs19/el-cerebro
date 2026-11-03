@@ -30,6 +30,11 @@ Si Ollama no responde, usa patrones fijos para anuncios y títulos.
 | «Desbaneá a pepe» | Quita el ban (en YouTube, solo a los que baneó El Cerebro) |
 | «Mandá al chat el link del Discord» | Escribe el enlace guardado en el chat de Kick y YouTube |
 | «Guardá este enlace como tienda» (con el enlace copiado) | Lo agrega a `enlaces.txt` |
+| «Poné un cartel arriba a la derecha que diga raid de Onyxia a las 10» | Claude diseña el overlay y aparece en tu escena de OBS donde dijiste; «movelo abajo», «ocultalo», «sacalo» |
+| «Cambiá el título a Día 2 y hacé la miniatura que diga Día 2» | Título y, en segundo plano, miniatura diseñada por Claude |
+| «Cerebro, decime algo» | Te contesta en voz alta; nunca publica nada por una charla |
+
+Las miniaturas y los overlays los diseña Claude con el programa `claude` de tu PC (usa tu plan) y Edge los convierte en imagen. Para usar fotos tuyas (personajes, jefes), ponelas en `recursos/imagenes` con un nombre claro (`paladin.png`) y nombralas en tu idea. Si Claude no responde, sale la plantilla dorada de siempre. Mientras Claude diseña, podés seguir dándole órdenes.
 
 ## Modo Jarvis
 
@@ -87,6 +92,7 @@ La IA copia el día tal como lo dijiste («viernes», «mañana», «el 15», «
 | `voz.py`, `overlay.py`, `avisos.py` | Whisper, cartel flotante y pitidos |
 | `jarvis.py`, `conectar_voz.py` | Voz y orbe del modo Jarvis |
 | `moderacion.py`, `chat_vivo.py`, `enlaces.py` | Moderación por voz, chat de Kick en vivo y enlaces |
+| `overlays.py`, `miniaturas_claude.py` | Overlays de OBS y miniaturas diseñados por Claude |
 | `diagnostico.py` | Revisión completa del sistema |
 | `conectar_claves.py`, `actualizar_hogger.py`, `servidor/desplegar_hogger.sh` | Lo que hace `conectar_todo.bat` |
 | `kick_auth.py`, `youtube_auth.py`, `guia.py` | Asistentes de `conectar_plataformas.bat` |

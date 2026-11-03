@@ -142,9 +142,10 @@ class Ejecutor:
     def _miniatura(self, accion):
         import miniaturas
         d = accion.datos
-        rutas = miniaturas.crear(d["titulo"], d["subtitulo"])
-        msg = f"Miniaturas listas en {rutas['youtube'].parent}"
-        if d["subir_youtube"] and not self.simular:
+        rutas = miniaturas.crear(d["titulo"], d.get("subtitulo", ""), idea=d.get("idea", ""))
+        quien = "diseñadas por Claude" if rutas.get("quien") == "Claude" else "con la plantilla dorada"
+        msg = f"Miniaturas listas ({quien}) en {rutas['youtube'].parent}"
+        if d.get("subir_youtube") and not self.simular:
             self.yt.subir_miniatura(rutas["youtube"])
             msg += " y subida a YouTube"
         return msg + "."
@@ -183,6 +184,28 @@ class Ejecutor:
         import enlaces
         reemplazo = enlaces.guardar(accion.datos["nombre"], accion.datos["url"])
         return f"Enlace «{accion.datos['nombre']}» {'actualizado' if reemplazo else 'guardado'}."
+
+    # ------------------------------------------------ overlays de OBS
+    def _overlay(self, accion):
+        import overlays
+        d = accion.datos
+        if self.simular:
+            return f"[simulado] {accion.resumen.splitlines()[0]}"
+        if d["accion"] == "crear":
+            r = overlays.crear(d["nombre"], d["descripcion"], d["posicion"], d["tamano"])
+            hecho = "diseñado por Claude" if r["quien"] == "Claude" else "con el cartel simple (Claude no respondió)"
+            return f"Overlay «{d['nombre']}» en la escena {r['escena']}, {hecho}."
+        if d["accion"] == "mover":
+            overlays.mover(d["nombre"], d["posicion"])
+            return f"Overlay movido a {d['posicion'].replace('-', ' ')}."
+        if d["accion"] in ("ocultar", "mostrar"):
+            overlays.mostrar(d["nombre"], d["accion"] == "mostrar")
+            return "Overlay " + ("visible." if d["accion"] == "mostrar" else "oculto.")
+        overlays.quitar(d["nombre"])
+        return "Overlay quitado (el diseño queda guardado en la carpeta overlays)."
+
+    def _respuesta(self, accion):
+        return accion.datos["respuesta"]
 
     def _aclaracion(self, accion):
         return accion.datos["pregunta"]

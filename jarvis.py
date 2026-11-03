@@ -78,6 +78,8 @@ def frase(evento, accion=None, detalle=None):
         return detalle or (accion.resumen if accion else "")
     if evento == "cancelado":
         return "Cancelado."
+    if evento == "trabajando":
+        return "Lo diseño y te aviso." if tipo == "miniatura" else "Lo estoy diseñando. Dame un minuto."
     if evento == "error":
         return "No pude hacerlo. Te dejo el detalle en pantalla."
     if evento == "confirmar":
@@ -103,6 +105,8 @@ def frase(evento, accion=None, detalle=None):
             return f"{verbo} {quienes}?"
         if tipo == "chat":
             return "¿Lo mando al chat?"
+        if tipo == "overlay":
+            return f"Overlay {d.get('nombre')}, {str(d.get('posicion', '')).replace('-', ' ')}. ¿Lo diseño?"
         primera = (accion.resumen if accion else "").splitlines()[0] if accion else ""
         return f"{primera}. ¿Confirmás?"
     if evento == "hecho":
@@ -117,10 +121,10 @@ def frase(evento, accion=None, detalle=None):
             return "Listo, lo borré."
         if tipo == "restaurar_titulo":
             return "Volví al título anterior."
-        if tipo == "consultar_titulo":
+        if tipo in ("consultar_titulo", "respuesta"):
             return str(detalle or "")
         if tipo == "miniatura":
-            return "Miniaturas listas."
+            return "Miniaturas listas." + (" Ya está en YouTube." if "subida a YouTube" in str(detalle or "") else "")
         if tipo == "moderar":
             if "Falló" in str(detalle or ""):
                 return "Hecho a medias. Te dejo el detalle en pantalla."
@@ -128,6 +132,10 @@ def frase(evento, accion=None, detalle=None):
                     "desbanear": "Listo, desbaneado."}.get(d.get("accion"), "Listo.")
         if tipo == "chat":
             return "Mandado al chat." if "Falló" not in str(detalle or "") else "Mandado a medias. Mirá la pantalla."
+        if tipo == "overlay":
+            a = d.get("accion")
+            return {"crear": "Overlay listo en pantalla.", "mover": "Movido.", "ocultar": "Oculto.",
+                    "mostrar": "Ahí está.", "quitar": "Quitado."}.get(a, "Listo.")
         if tipo == "guardar_enlace":
             return f"Enlace de {d.get('nombre')} guardado."
         return "Listo."

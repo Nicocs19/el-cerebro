@@ -51,6 +51,8 @@ def nombre_conocido(nombre):
     m = difflib.get_close_matches(limpio.lower(), list(canon), n=1, cutoff=0.72)
     return canon[m[0]] if m else limpio
 PLATAFORMAS = ["kick", "youtube", "tiktok"]
+OVERLAY_POSICIONES = ["arriba-izquierda", "arriba", "arriba-derecha", "izquierda", "centro", "derecha",
+                      "abajo-izquierda", "abajo", "abajo-derecha"]
 NOMBRES = {"kick": "Kick", "youtube": "YouTube", "tiktok": "TikTok"}
 TIPOS_ANUNCIO = ["aviso", "evento", "importante", "parche"]
 
@@ -61,7 +63,7 @@ class ErrorOrden(Exception):
 
 class Accion:
     def __init__(self, tipo, datos, resumen, confirmar):
-        self.tipo = tipo            # hogger, titulo, deshacer, consultar_titulo, restaurar_titulo, miniatura, moderar, chat, guardar_enlace, aclaracion
+        self.tipo = tipo            # hogger, titulo, deshacer, consultar_titulo, restaurar_titulo, miniatura, moderar, chat, guardar_enlace, overlay, respuesta, aclaracion
         self.datos = datos
         self.resumen = resumen
         self.confirmar = confirmar
@@ -114,9 +116,9 @@ def esquemas():
             "horas": {"type": "integer", "description": "Duración en horas. 24 si no lo dijo"},
             "mencionar": {"type": "string", "enum": menciones},
         }, ["pregunta", "opciones"]),
-        _f("mensaje_discord", "Manda un mensaje simple (sin formato de anuncio) a un canal.", {
+        _f("mensaje_discord", "Manda un mensaje simple (sin formato de anuncio) a un canal del Discord. Solo si pide claramente mandarlo al Discord.", {
             "texto": {"type": "string"},
-            "canal": {"type": "string", "description": "Nombre del canal. general si no lo dijo"},
+            "canal": {"type": "string", "description": "Nombre del canal. general si no lo dijo (no preguntes)"},
         }, ["texto"]),
         _f("cerrar_inscripciones", "Cierra (o reabre) las inscripciones de la última raid o banda.", {
             "tipo": {"type": "string", "enum": ["raid", "banda"]},
@@ -127,6 +129,7 @@ def esquemas():
             "titulo": {"type": "string", "description": "El título exacto que pidió, corregido de errores de dictado (máx. 100)"},
             "plataformas": {"type": "array", "items": {"type": "string", "enum": PLATAFORMAS},
                             "description": "Las que nombró; las tres si no nombró ninguna"},
+            "miniatura": {"type": "string", "description": "Solo si pidió también la miniatura: su texto grande (2 a 6 palabras); vacío si no"},
         }, ["titulo", "plataformas"]),
         _f("consultar_titulo", "Dice el título actual del directo en Kick.", {}, []),
         _f("restaurar_titulo", "Vuelve a poner el título anterior.", {}, []),
@@ -134,6 +137,7 @@ def esquemas():
             "titulo": {"type": "string", "description": "Texto grande, 2 a 6 palabras impactantes"},
             "subtitulo": {"type": "string", "description": "Texto chico opcional (p. ej. Día 1, Nivel 20-30)"},
             "subir_youtube": {"type": "boolean", "description": "true si pide ponerla en YouTube"},
+            "idea": {"type": "string", "description": "Cómo la imagina: composición, personajes, colores, efectos (tal como lo dijo); vacío si no dijo"},
         }, ["titulo"]),
         _f("moderar_chat", "Banea, silencia (timeout) o desbanea a alguien del chat del stream en Kick y/o YouTube.", {
             "accion": {"type": "string", "enum": ["banear", "silenciar", "desbanear"],
@@ -153,6 +157,16 @@ def esquemas():
         _f("guardar_enlace", "Guarda el enlace que Nicolas tiene copiado con el nombre que dice, para mandarlo al chat después.", {
             "nombre": {"type": "string", "description": "Nombre corto para el enlace, p. ej. discord, instagram, tienda"},
         }, ["nombre"]),
+        _f("overlay", "Crea, mueve, oculta, muestra o quita un overlay (cartel o gráfico) en la pantalla del stream en OBS.", {
+            "accion": {"type": "string", "enum": ["crear", "mover", "ocultar", "mostrar", "quitar"]},
+            "nombre": {"type": "string", "description": "Nombre corto para reconocerlo después, p. ej. raid molten core, redes, cuenta regresiva"},
+            "descripcion": {"type": "string", "description": "Solo para crear: qué tiene que mostrar, con los textos EXACTOS que dijo"},
+            "posicion": {"type": "string", "enum": OVERLAY_POSICIONES, "description": "Dónde va. arriba-derecha si no lo dijo"},
+            "tamano": {"type": "string", "enum": ["chico", "mediano", "grande"], "description": "mediano si no lo dijo"},
+        }, ["accion", "nombre"]),
+        _f("responder", "Contesta en voz alta cuando Nicolas te habla a vos o charla (saludo, '¿me escuchás?', 'decime algo', una pregunta) sin pedir publicar ni cambiar nada. No publica nada.", {
+            "respuesta": {"type": "string", "description": "Lo que le contestás: una o dos frases cortas, con onda, en español"},
+        }, ["respuesta"]),
         _f("pedir_aclaracion", "Úsala SOLO si falta un dato imprescindible o la orden no tiene sentido.", {
             "pregunta": {"type": "string", "description": "Pregunta corta para Nicolas"},
         }, ["pregunta"]),
@@ -451,8 +465,10 @@ def construir(nombre, a):
     if nombre == "cambiar_titulo_stream":
         titulo = _txt(a, "titulo", 100).rstrip(" .")
         plataformas = [p for p in (a.get("plataformas") or PLATAFORMAS) if p in PLATAFORMAS] or PLATAFORMAS
-        return Accion("titulo", {"titulo": titulo, "plataformas": plataformas},
-                      f"Título «{titulo}» en {', '.join(NOMBRES[p] for p in plataformas)}", todo)
+        mini = "" if _vacio(a.get("miniatura")) else _txt(a, "miniatura", 60, False)
+        return Accion("titulo", {"titulo": titulo, "plataformas": plataformas, "miniatura": mini},
+                      f"Título «{titulo}» en {', '.join(NOMBRES[p] for p in plataformas)}"
+                      + (f"\ny miniatura «{mini}»" if mini else ""), todo)
 
     if nombre == "consultar_titulo":
         return Accion("consultar_titulo", {}, "Consultar el título de Kick", False)
@@ -462,7 +478,7 @@ def construir(nombre, a):
 
     if nombre == "crear_miniatura":
         d = {"titulo": _txt(a, "titulo", 60), "subtitulo": _txt(a, "subtitulo", 60, False),
-             "subir_youtube": bool(a.get("subir_youtube"))}
+             "subir_youtube": bool(a.get("subir_youtube")), "idea": _txt(a, "idea", 500, False)}
         destino = " y subirla a YouTube" if d["subir_youtube"] else ""
         return Accion("miniatura", d, f"Miniatura «{d['titulo']}» {d['subtitulo']}{destino}".strip(),
                       d["subir_youtube"] and publica)
@@ -499,6 +515,24 @@ def construir(nombre, a):
         ya = enlaces.buscar(n)
         extra = f" (reemplaza el que tenía: {ya[1]})" if ya and enlaces._clave(ya[0]) == enlaces._clave(n) else ""
         return Accion("guardar_enlace", {"nombre": n, "url": url}, f"Guardar el enlace «{n}»: {url}{extra}", False)
+
+    if nombre == "overlay":
+        acc = a.get("accion") if a.get("accion") in ("crear", "mover", "ocultar", "mostrar", "quitar") else "crear"
+        d = {"accion": acc, "nombre": _txt(a, "nombre", 40),
+             "posicion": a.get("posicion") if a.get("posicion") in OVERLAY_POSICIONES else "arriba-derecha",
+             "tamano": a.get("tamano") if a.get("tamano") in ("chico", "mediano", "grande") else "mediano"}
+        lugar = d["posicion"].replace("-", " ")
+        if acc == "crear":
+            d["descripcion"] = _txt(a, "descripcion", 600, False) or d["nombre"]
+            return Accion("overlay", d, f"Overlay «{d['nombre']}» ({d['tamano']}, {lugar}):\n{d['descripcion']}", publica)
+        if acc == "mover":
+            return Accion("overlay", d, f"Mover el overlay «{d['nombre']}» a {lugar}", False)
+        verbo = {"ocultar": "Ocultar", "mostrar": "Mostrar", "quitar": "Quitar"}[acc]
+        return Accion("overlay", d, f"{verbo} el overlay «{d['nombre']}»", False)
+
+    if nombre == "responder":
+        r = _txt(a, "respuesta", 300)
+        return Accion("respuesta", {"respuesta": r}, r, False)
 
     if nombre == "pedir_aclaracion":
         return Accion("aclaracion", {"pregunta": _txt(a, "pregunta", 200)}, _txt(a, "pregunta", 200), False)

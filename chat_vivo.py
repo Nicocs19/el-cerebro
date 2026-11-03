@@ -66,6 +66,35 @@ def sala_de_chat(slug):
     return sala
 
 
+CLAVE_PUSHER = config.DATA / "kick_pusher.json"
+
+
+def _url_pusher(clave, cluster):
+    return f"wss://ws-{cluster}.pusher.com/app/{clave}?protocol=7&client=js&version=8.4.0&flash=false"
+
+
+def clave_pusher(renovar=False):
+    """(clave, cluster) del chat de Kick. Kick la cambia a veces: si deja de servir, se le pregunta la actual."""
+    if not renovar:
+        try:
+            c = json.loads(CLAVE_PUSHER.read_text(encoding="utf-8"))
+            return c["clave"], c["cluster"]
+        except Exception:  # noqa: BLE001
+            return config.KICK_PUSHER_KEY, config.KICK_PUSHER_CLUSTER
+    try:
+        r = requests.post("https://web.kick.com/api/v1/realtime/connection", json={"accepted_providers": ["pusher"]},
+                          headers={"Accept": "application/json"}, timeout=15)
+        for c in ((r.json() or {}).get("data") or {}).get("connections") or []:
+            cred = c.get("credentials") or {}
+            if cred.get("app_key") and cred.get("cluster"):
+                CLAVE_PUSHER.write_text(json.dumps({"clave": cred["app_key"], "cluster": cred["cluster"]}), encoding="utf-8")
+                print(f"[chat] Kick usa ahora la clave de chat {cred['app_key']} ({cred['cluster']}).")
+                return cred["app_key"], cred["cluster"]
+    except Exception as e:  # noqa: BLE001
+        print(f"[chat] No pude preguntarle a Kick la clave nueva del chat ({e}).")
+    return None
+
+
 def _agregar(datos, mi_id):
     autor = datos.get("sender") or {}
     insignias = {(b or {}).get("type") for b in ((autor.get("identity") or {}).get("badges") or [])}
@@ -101,7 +130,7 @@ class OyenteKick(threading.Thread):
         canal = Kick().canal()
         mi_id = int(canal.get("broadcaster_user_id") or 0)
         sala = sala_de_chat(canal["slug"])
-        ws = websocket.create_connection(config.KICK_PUSHER_URL, timeout=30)
+        ws = websocket.create_connection(_url_pusher(*clave_pusher()), timeout=30)
         try:
             ws.send(json.dumps({"event": "pusher:subscribe", "data": {"auth": "", "channel": f"chatrooms.{sala}.v2"}}))
             while True:
@@ -120,7 +149,13 @@ class OyenteKick(threading.Thread):
                     ESTADO.update(conectado=True, error=None, sala=sala, desde=time.time())
                     print(f"[chat] Escuchando el chat de Kick ({canal['slug']}).")
                 elif ev == "pusher:error":
-                    raise ConnectionError(f"Pusher: {m.get('data')}")
+                    datos = m.get("data") or {}
+                    if isinstance(datos, str):
+                        datos = json.loads(datos or "{}")
+                    if datos.get("code") == 4001 and clave_pusher(renovar=True):
+                        raise ConnectionError("Kick cambió la clave del chat; me reconecto con la nueva")
+                    raise ConnectionError(f"Kick no deja leer el chat ({datos.get('message') or datos}). "
+                                          "Moderar sigue funcionando con el nombre exacto.")
                 elif ev == "App\\Events\\ChatMessageEvent":
                     datos = m.get("data")
                     _agregar(json.loads(datos) if isinstance(datos, str) else (datos or {}), mi_id)

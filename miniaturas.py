@@ -178,8 +178,12 @@ def _slug(texto):
     return re.sub(r"[^a-z0-9]+", "-", t).strip("-")[:40] or "miniatura"
 
 
-def crear(titulo, subtitulo="", fondo=None):
-    """Crea las tres miniaturas y devuelve {formato: ruta}."""
+def crear(titulo, subtitulo="", fondo=None, idea=""):
+    """Crea las tres miniaturas y devuelve {formato: ruta, "quien": "Claude" | "plantilla"}.
+
+    Si está el programa claude, el diseño lo hace Claude (HTML que Edge convierte en imagen) siguiendo tu idea;
+    si no, o si falla, se usa la plantilla dorada de siempre.
+    """
     if fondo is None:
         try:
             fondo = captura_obs()
@@ -192,6 +196,14 @@ def crear(titulo, subtitulo="", fondo=None):
     carpeta = config.SALIDA / "miniaturas" / f"{dt.datetime.now():%Y-%m-%d_%H%M}_{_slug(titulo)}"
     carpeta.mkdir(parents=True, exist_ok=True)
     fondo.save(carpeta / "captura.png")
+    if config.MINIATURA_CLAUDE:
+        try:
+            import miniaturas_claude
+            rutas = miniaturas_claude.crear(carpeta, titulo, subtitulo, idea)
+            rutas["quien"] = "Claude"
+            return rutas
+        except Exception as e:  # noqa: BLE001
+            print(f"[miniatura] Claude no pudo diseñarla ({e}); uso la plantilla.")
     rutas = {}
     for nombre, (w, h, ext) in FORMATOS.items():
         img = componer(fondo, titulo, subtitulo, w, h)
@@ -201,4 +213,5 @@ def crear(titulo, subtitulo="", fondo=None):
         else:
             img.save(ruta, "PNG", optimize=True)
         rutas[nombre] = ruta
+    rutas["quien"] = "plantilla"
     return rutas

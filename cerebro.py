@@ -26,7 +26,8 @@ from avisos import pitido
 class Cerebro:
     """La lógica: interpreta, pide confirmación y ejecuta. Corre en un solo hilo de trabajo."""
 
-    def __init__(self, mostrar, simular=False, avisar=None):
+    def __init__(self, mostrar, simular=False, avisar=None, fondo=False):
+        self.fondo = fondo              # lo que tarda (diseños de Claude) sigue en segundo plano
         self.mostrar = mostrar          # mostrar(texto, tipo, segundos)
         self.avisar = avisar or (lambda evento, accion=None, detalle=None: None)   # modo Jarvis: voz y orbe
         self.ejecutor = Ejecutor(simular)
@@ -72,7 +73,7 @@ class Cerebro:
             self.pendiente_hasta = time.time() + config.CONFIRMAR_SEGUNDOS
             pitido("pregunta")
             self.avisar("confirmar", accion)
-            pregunta = "¿Lo hago?" if accion.tipo == "moderar" else "¿Publico?"
+            pregunta = "¿Lo hago?" if accion.tipo in ("moderar", "overlay") else "¿Publico?"
             return self.mostrar(f"{accion.resumen}\n\n{pregunta} Di «dale» o pulsa {config.CONFIRM_HOTKEY.upper()}. "
                                 "«Cancela» para descartar; también puedes corregir.", "pregunta",
                                 config.CONFIRMAR_SEGUNDOS)
@@ -95,10 +96,24 @@ class Cerebro:
         self.avisar("cancelado")
         self.mostrar("Cancelado.", "info", 3)
 
-    def _ejecutar(self, accion):
-        self.mostrar(f"{accion.resumen}\nEjecutando…", "info", 0)
+    @staticmethod
+    def _tarda(accion):
+        return accion.tipo == "miniatura" or (accion.tipo == "overlay" and accion.datos.get("accion") == "crear")
+
+    def _ejecutar(self, accion, ejecutor=None):
+        if self._tarda(accion):
+            self.avisar("trabajando", accion)
+            if self.fondo and ejecutor is None:
+                self.mostrar(f"{accion.resumen}\nLo estoy diseñando (hasta 2 minutos). Te aviso; mientras, podés "
+                             "seguir dándome órdenes.", "info", 10)
+                threading.Thread(target=self._ejecutar, args=(accion, Ejecutor(self.ejecutor.simular)),
+                                 daemon=True, name=f"diseño-{accion.tipo}").start()
+                return
+            self.mostrar(f"{accion.resumen}\nDiseñándolo (hasta 2 minutos)…", "info", 0)
+        else:
+            self.mostrar(f"{accion.resumen}\nEjecutando…", "info", 0)
         try:
-            resultado = self.ejecutor.ejecutar(accion)
+            resultado = (ejecutor or self.ejecutor).ejecutar(accion)
         except Exception as e:  # noqa: BLE001
             log(f"ERROR: {e}")
             pitido("error")
@@ -107,6 +122,11 @@ class Cerebro:
         pitido("ok")
         self.avisar("hecho", accion, resultado)
         self.mostrar(resultado, "ok", 8)
+        if accion.tipo == "titulo" and accion.datos.get("miniatura"):
+            mini = H.Accion("miniatura", {"titulo": accion.datos["miniatura"], "subtitulo": "", "idea": "",
+                                          "subir_youtube": "youtube" in accion.datos["plataformas"]},
+                            f"Miniatura «{accion.datos['miniatura']}»", False)
+            self._ejecutar(mini)
 
 
 class App:
@@ -131,7 +151,7 @@ class App:
             if config.JARVIS_ORBE:
                 self.orbe = jarvis.Orbe(self.root)
                 self.orbe.fuente = self._estado_orbe
-        self.cerebro = Cerebro(lambda t, tipo="info", s=6: self.ui.put((t, tipo, s)), simular, self._avisar)
+        self.cerebro = Cerebro(lambda t, tipo="info", s=6: self.ui.put((t, tipo, s)), simular, self._avisar, fondo=True)
         self.overlay.mostrar("Cargando Whisper…", "info", 0)
         self.root.update()
         self.stt = Transcriptor()
