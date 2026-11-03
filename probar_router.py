@@ -53,6 +53,8 @@ FRASES_CHAT = {
     "cerebro, dime algo": lambda n, a: n == "responder",
     "hola cerebro, me escuchas?": lambda n, a: n == "responder",
     "cuéntame un chiste": lambda n, a: n == "responder",
+    "haz una encuesta en raids signup de qué raid hacemos primero, molten core o blackwing lair": lambda n, a:
+    n == "crear_encuesta" and "raid" in str(a.get("canal")).lower(),
     "cuál es la capital de francia": lambda n, a: n == "responder" and "par" in str(a.get("respuesta")).lower(),
     "pon un cartel arriba a la derecha que diga raid de onyxia a las 10": lambda n, a: n == "overlay"
     and a.get("accion") == "crear" and a.get("posicion") == "arriba-derecha",

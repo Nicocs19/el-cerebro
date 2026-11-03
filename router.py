@@ -20,6 +20,7 @@ CONFIRMA = re.compile(r"^(dale|si|sí|confirmo|confirma|publica(lo)?|manda(lo)?|
 CANCELA = re.compile(r"^(no|cancela(lo)?|olvidalo|olvídalo|dejalo|déjalo|para|stop)\b")
 
 RAIDS = ", ".join(H.RAIDS)
+PIDE_ETIQUETA = re.compile(r"etiquet|mencion|everyone|arroba|@|avisando a|avisales|notific")
 
 
 def _norm(t):
@@ -138,6 +139,8 @@ def interpretar(texto, pendiente=None):
         if fecha != args.get("fecha"):
             print(f"[router] la IA puso «{args.get('fecha')}», pero dijiste «{fecha}»: uso lo tuyo")
             args = {**args, "fecha": fecha}
+    if nombre in ("crear_encuesta", "crear_sorteo") and not PIDE_ETIQUETA.search(_norm(texto)):
+        args = {**args, "mencionar": "ninguno"}          # en encuestas y sorteos se etiqueta solo si lo pidió
     if nombre in ("publicar_anuncio", "mensaje_discord"):
         # Lo que dijo Nicolas manda: mismo día y sin instrucciones que no pidió
         args = {**args, **{k: H.texto_fiel(texto, args[k]) for k in ("titulo", "texto") if args.get(k)}}

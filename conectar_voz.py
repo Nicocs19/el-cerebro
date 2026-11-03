@@ -1,15 +1,16 @@
 """Conecta la voz de El Cerebro con tu cuenta de ElevenLabs y te deja elegir la voz. Se ejecuta UNA vez."""
 import sys
-import time
 import webbrowser
 
 import numpy as np
+import requests
 
 import config
 import guia
 import jarvis
 
 PAGINA = "https://elevenlabs.io/app/settings/api-keys"
+BIBLIOTECA = "https://elevenlabs.io/app/voice-library"
 OPCIONES = [("Daniel", "británico, serio"),
             ("George", "británico, cálido"),
             ("Brian", "americano, grave")]
@@ -25,6 +26,41 @@ def tocar(pcm, tono=None):
     sd.wait()
 
 
+def pedir_oculto(texto):
+    """Como input(), pero muestra asteriscos: la clave no queda a la vista (ni en una captura)."""
+    print(texto, end="", flush=True)
+    try:
+        import msvcrt
+    except ImportError:
+        import getpass
+        return getpass.getpass("").strip()
+    letras = []
+    while True:
+        ch = msvcrt.getwch()
+        if ch in ("\r", "\n"):
+            print()
+            break
+        if ch == "\x03":
+            raise KeyboardInterrupt
+        if ch in ("\x00", "\xe0"):         # flechas y teclas especiales
+            msvcrt.getwch()
+            continue
+        if ch == "\b":
+            if letras:
+                letras.pop()
+                print("\b \b", end="", flush=True)
+            continue
+        if ch == "\x16":                    # Ctrl+V que la ventana no pegó sola
+            import pyperclip
+            pegado = (pyperclip.paste() or "").strip()
+            letras.extend(pegado)
+            print("*" * len(pegado), end="", flush=True)
+            continue
+        letras.append(ch)
+        print("*", end="", flush=True)
+    return "".join(letras).strip()
+
+
 def pedir_clave():
     guia.paso(1, 3, f"""
 Se abre ElevenLabs en tu navegador ({PAGINA}). Si no estás con tu sesión, iniciá sesión.
@@ -34,7 +70,7 @@ Si ves un interruptor «Restrict Key», dejalo apagado. Tocá «Create» y copi�
 No hagas este paso con el stream en vivo: la clave es privada.""")
     webbrowser.open(PAGINA)
     for _ in range(3):
-        clave = input("Pegá la clave acá (clic derecho o Ctrl+V) y apretá Enter: ").strip()
+        clave = pedir_oculto("Pegá la clave acá (clic derecho o Ctrl+V; se ven asteriscos) y apretá Enter: ")
         if not clave or " " in clave or len(clave) < 20:
             print("Eso no parece una clave de ElevenLabs. Probá de nuevo.")
             continue
@@ -53,42 +89,60 @@ No hagas este paso con el stream en vivo: la clave es privada.""")
     sys.exit("No se guardó nada. Volvé a abrir conectar_voz.bat cuando quieras.")
 
 
-def elegir_tono(nombre, clave):
+def elegir_tono(voz_id, clave):
     """Voz de dibujito (más aguda y graciosa) o normal."""
-    pcm = jarvis.sintetizar_eleven(PRUEBA, jarvis.buscar_voz(nombre, clave), clave)
     print("   Así suena normal…")
-    tocar(pcm, 0)
+    tocar(jarvis.sintetizar_eleven(PRUEBA, voz_id, clave, velocidad=config.VOZ_VELOCIDAD), 0)
     print("   …y así de dibujito:")
-    tocar(pcm, 4)
+    tocar(jarvis.sintetizar_eleven(PRUEBA, voz_id, clave, velocidad=config.VOZ_VELOCIDAD / 2 ** (4 / 12)), 4)
     r = input("\n¿Cuál querés? Escribí n (normal) o d (dibujito) y Enter: ").strip().lower()
     guia.guardar_env(VOZ_TONO="0" if r.startswith("n") else "4")
 
 
+def tus_voces(clave):
+    """Tus voces de ElevenLabs (las que agregaste de la biblioteca primero) y las de serie al final."""
+    lista = []
+    try:
+        r = requests.get(f"{jarvis.ELEVEN_API}/voices", headers={"xi-api-key": clave}, timeout=15)
+        voces = r.json().get("voices", []) if r.ok else []
+    except requests.RequestException:
+        voces = []
+    for v in voces:
+        if v.get("category") == "premade":
+            continue
+        et = v.get("labels") or {}
+        como = ", ".join(x for x in (et.get("accent"), et.get("language"), et.get("gender"), et.get("description")) if x)
+        lista.append((v.get("name", "?"), v["voice_id"], como or "tuya"))
+    for nombre, como in OPCIONES:
+        lista.append((nombre, jarvis.VOCES_DE_SERIE[nombre.lower()], f"de serie, {como}, habla español con acento"))
+    return lista
+
+
 def elegir_voz(clave):
-    guia.paso(2, 3, "Ahora vas a escuchar 3 voces diciendo lo mismo, con voz de dibujito. Subí el volumen.")
-    guia.esperar_enter("Apretá Enter para escucharlas...")
-    for i, (nombre, como) in enumerate(OPCIONES, 1):
-        print(f"   Voz {i}: {nombre} ({como})")
-        try:
-            tocar(jarvis.sintetizar_eleven(PRUEBA, jarvis.buscar_voz(nombre, clave), clave))
-        except Exception as e:  # noqa: BLE001
-            print(f"      (no pude reproducirla: {e})")
-        time.sleep(0.4)
+    guia.paso(2, 3, f"""
+Elegí la voz. Se abre la biblioteca de voces de ElevenLabs ({BIBLIOTECA}).
+   1. Filtrá «Language: Spanish» (y si querés un acento: Latin American, Peruvian, Mexican, Spain…).
+   2. Escuchalas con ▶ y en las que te gusten tocá «Add to my voices» (el +). Podés agregar varias.
+Cuando termines (o si ya las agregaste), volvé acá.""")
+    webbrowser.open(BIBLIOTECA)
+    guia.esperar_enter("Apretá Enter para ver tus voces...")
     while True:
-        r = input("\n¿Cuál te gusta? Escribí 1, 2 o 3 (o «r» para escucharlas otra vez) y Enter: ").strip().lower()
-        if r == "r":
-            return elegir_voz(clave)
-        if r in ("1", "2", "3", ""):
-            nombre = OPCIONES[int(r or 1) - 1][0]
-            guia.guardar_env(ELEVEN_VOZ=nombre)
-            return nombre
-        if len(r) > 3:  # el nombre de otra voz de su cuenta
-            try:
-                jarvis.buscar_voz(r, clave)
-                guia.guardar_env(ELEVEN_VOZ=r)
-                return r
-            except Exception as e:  # noqa: BLE001
-                print(f"No encontré esa voz ({e}).")
+        voces = tus_voces(clave)
+        print()
+        for i, (nombre, _, como) in enumerate(voces, 1):
+            print(f"   {i}. {nombre}  ({como})")
+        r = input("\nEscribí el número de una voz para escucharla (o «a» para actualizar la lista) y Enter: ").strip().lower()
+        if r == "a" or not r.isdigit() or not 1 <= int(r) <= len(voces):
+            continue
+        nombre, voz_id, _ = voces[int(r) - 1]
+        try:
+            tocar(jarvis.sintetizar_eleven(PRUEBA, voz_id, clave, velocidad=config.VOZ_VELOCIDAD), 0)
+        except Exception as e:  # noqa: BLE001
+            print(f"   (no pude reproducirla: {e})")
+            continue
+        if input(f"¿Te quedás con «{nombre}»? Escribí s (sí) o n (seguir escuchando) y Enter: ").strip().lower().startswith("s"):
+            guia.guardar_env(ELEVEN_VOZ=voz_id)
+            return nombre, voz_id
 
 
 def main():
@@ -107,9 +161,9 @@ def main():
             clave = None
     if not clave:
         clave = pedir_clave()
-    nombre = elegir_voz(clave)
+    nombre, voz_id = elegir_voz(clave)
     try:
-        elegir_tono(nombre, clave)
+        elegir_tono(voz_id, clave)
     except Exception as e:  # noqa: BLE001
         print(f"(no pude reproducir la prueba: {e})")
     guia.paso(3, 3, f"""
@@ -118,8 +172,7 @@ Se escucha por tus parlantes o auriculares normales, así que tu stream también
 (si OBS captura el audio del escritorio).
 Cerrá y volvé a abrir El Cerebro para que use la voz nueva.""")
     try:
-        tocar(jarvis.sintetizar_eleven("¡El Cerebro en línea! Listo para pensar por los dos.",
-                                       jarvis.buscar_voz(nombre, clave), clave))
+        tocar(jarvis.sintetizar_eleven("¡El Cerebro en línea! Listo para pensar por los dos.", voz_id, clave))
     except Exception:  # noqa: BLE001
         pass
 

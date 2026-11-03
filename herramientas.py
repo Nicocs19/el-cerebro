@@ -109,12 +109,14 @@ def esquemas():
             "horas": {"type": "number", "description": "Duración en horas (1 día = 24)"},
             "ganadores": {"type": "integer", "description": "Cuántos ganan. 1 si no lo dijo"},
             "descripcion": {"type": "string", "description": "Texto extra; vacío si nada"},
+            "canal": {"type": "string", "description": "Solo si nombró un canal concreto; si no, vacío"},
         }, ["premio", "horas"]),
         _f("crear_encuesta", "Crea una encuesta con botones y resultados en vivo.", {
             "pregunta": {"type": "string"},
             "opciones": {"type": "array", "items": {"type": "string"}, "description": "Entre 2 y 5 opciones"},
             "horas": {"type": "integer", "description": "Duración en horas. 24 si no lo dijo"},
-            "mencionar": {"type": "string", "enum": menciones},
+            "mencionar": {"type": "string", "enum": menciones, "description": "A quién etiquetar. 'ninguno' si no lo pidió"},
+            "canal": {"type": "string", "description": "Solo si nombró un canal concreto; si no, vacío"},
         }, ["pregunta", "opciones"]),
         _f("mensaje_discord", "Manda un mensaje simple (sin formato de anuncio) a un canal del Discord. Solo si pide claramente mandarlo al Discord.", {
             "texto": {"type": "string"},
@@ -460,9 +462,11 @@ def construir(nombre, a):
         if not 0.05 <= horas <= 720:
             raise ErrorOrden("El sorteo tiene que durar entre 3 minutos y 30 días.")
         orden = {"accion": "sorteo", "premio": _txt(a, "premio", 200), "horas": horas,
-                 "ganadores": _ent(a, "ganadores", 1, 20, 1), "descripcion": _txt(a, "descripcion", 1000, False)}
+                 "ganadores": _ent(a, "ganadores", 1, 20, 1), "descripcion": _txt(a, "descripcion", 1000, False),
+                 "canal": _canal(a)}
         dura = f"{horas:g} horas" if horas < 48 else f"{horas / 24:g} días"
-        resumen = f"Sorteo de {orden['premio']}, {orden['ganadores']} ganador(es), dura {dura}"
+        donde = f"#{orden['canal']}" if orden["canal"] else "el canal de sorteos"
+        resumen = f"Sorteo de {orden['premio']} en {donde}, {orden['ganadores']} ganador(es), dura {dura}"
         return Accion("hogger", orden, resumen, publica)
 
     if nombre == "crear_encuesta":
@@ -470,8 +474,10 @@ def construir(nombre, a):
         if not 2 <= len(ops) <= 5:
             raise ErrorOrden("La encuesta necesita entre 2 y 5 opciones.")
         orden = {"accion": "encuesta", "pregunta": _txt(a, "pregunta", 240), "opciones": ops,
-                 "horas": _ent(a, "horas", 1, 720, 24), "mencionar": _mencion(a)}
-        resumen = f"Encuesta «{orden['pregunta']}»: {' / '.join(ops)} ({orden['horas']} h)"
+                 "horas": _ent(a, "horas", 1, 720, 24), "mencionar": _mencion(a), "canal": _canal(a)}
+        donde = f"#{orden['canal']}" if orden["canal"] else "el canal de encuestas"
+        resumen = (f"Encuesta en {donde}, {_mencion_txt(orden['mencionar'])}: «{orden['pregunta']}»: "
+                   f"{' / '.join(ops)} ({orden['horas']} h)")
         return Accion("hogger", orden, resumen, publica)
 
     if nombre == "mensaje_discord":
