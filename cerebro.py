@@ -194,8 +194,9 @@ class App:
 
     def _estado_orbe(self):
         """Qué muestra el orbe ahora: escuchando (sigue tu voz), pensando, hablando (sigue su voz) u oculto."""
-        if self.grab.activa:
-            return "escuchando", min(1.0, self.grab.nivel * 12)
+        grab = getattr(self, "grab", None)          # el cerebro arranca antes que el micrófono
+        if grab and grab.activa:
+            return "escuchando", min(1.0, grab.nivel * 12)
         if self.voz and self.voz.hablando:
             return "hablando", min(1.0, self.voz.nivel)
         if self.ocupado:
@@ -345,7 +346,7 @@ def main():
         v = jarvis.Voz()
         v.decir(a.decir)
         time.sleep(0.5)
-        while v.hablando or not v._cola.empty():
+        while v.ocupada or v.hablando or not v._cola.empty():
             time.sleep(0.2)
         return None
     if a.micros or a.calibrar:

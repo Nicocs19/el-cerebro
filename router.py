@@ -138,6 +138,9 @@ def interpretar(texto, pendiente=None):
         if fecha != args.get("fecha"):
             print(f"[router] la IA puso «{args.get('fecha')}», pero dijiste «{fecha}»: uso lo tuyo")
             args = {**args, "fecha": fecha}
+    if nombre in ("publicar_anuncio", "mensaje_discord"):
+        # Lo que dijo Nicolas manda: mismo día y sin instrucciones que no pidió
+        args = {**args, **{k: H.texto_fiel(texto, args[k]) for k in ("titulo", "texto") if args.get(k)}}
     print(f"[router] {origen}: {nombre} {json.dumps(args, ensure_ascii=False)}")
     return H.construir(nombre, args), origen
 

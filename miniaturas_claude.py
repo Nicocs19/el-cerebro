@@ -68,6 +68,7 @@ Reglas:
   @media (orientation: portrait).
 - Si la idea pide algo que no está en los archivos (por ejemplo un personaje sin foto), resolvelo con diseño
   (siluetas, formas, texto, efectos CSS) usando la captura; no inventes rutas de imágenes.
+- El logo y los textos nunca se tocan ni se superponen, tampoco en vertical: dejá aire entre ellos.
 - No agregues textos, fechas ni datos que no estén arriba.
 Respondé solo con el HTML."""
     archivo = carpeta / "diseno.html"

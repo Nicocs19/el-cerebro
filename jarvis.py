@@ -214,6 +214,7 @@ class Voz:
         self.piper = None
         self.nivel = 0.0          # volumen de lo que está diciendo ahora (para el orbe)
         self.hablando = False
+        self.ocupada = False      # generando o diciendo una frase
         self._cola = queue.Queue()
         self._eleven_ok = bool(config.ELEVEN_API_KEY)
         self._voz_id = None
@@ -315,6 +316,7 @@ class Voz:
                 print(f"[voz] No pude preparar la voz local ({e}).")
         while True:
             texto = self._cola.get()
+            self.ocupada = True
             try:
                 audio, sr = self._sintetizar(texto)
                 if not len(audio):
@@ -336,6 +338,7 @@ class Voz:
             finally:
                 self.hablando = False
                 self.nivel = 0.0
+                self.ocupada = not self._cola.empty()
 
 
 # ------------------------------------------------------------------ orbe

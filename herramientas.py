@@ -312,6 +312,31 @@ def corregir_dia(texto, fecha_ia, hoy=None):
     return fecha_ia if d_ia == d_dicho else dicho
 
 
+_ACCION_INVENTADA = re.compile(r"anot|inscrib|apunt|registr|https?://|#\w", re.I)
+
+
+def texto_fiel(dicho, texto):
+    """Arregla lo que el modelo agrega por su cuenta en textos públicos.
+
+    - Si dijiste «mañana» y el texto dice «hoy» / «esta noche» (o al revés), se corrige al día que dijiste.
+    - Quita las frases con instrucciones que no pediste («anótense», «inscríbanse», canales, links).
+    """
+    d = _norm(dicho)
+    t = str(texto or "")
+    dijo_manana, dijo_hoy = bool(_RE_MANANA.search(d)), bool(_RE_HOY.search(d))
+    if dijo_manana and not dijo_hoy:
+        t = re.sub(r"\b[Ee]sta noche\b", lambda m: "Mañana por la noche" if m.group(0)[0] == "E" else "mañana por la noche", t)
+        t = re.sub(r"\b[Hh]oy\b", lambda m: "Mañana" if m.group(0)[0] == "H" else "mañana", t)
+    elif dijo_hoy and not dijo_manana:
+        t = re.sub(r"(?<!de la )(?<!por la )\b[Mm]añana\b", lambda m: "Hoy" if m.group(0)[0] == "M" else "hoy", t)
+    if not _ACCION_INVENTADA.search(d):
+        frases = re.split(r"(?<=[.!?…])\s+", t)
+        limpias = [f for f in frases if not _ACCION_INVENTADA.search(f)]
+        if limpias:
+            t = " ".join(limpias)
+    return t.strip()
+
+
 def fecha_hora(fecha, hora, ahora=None):
     ahora = ahora or dt.datetime.now()
     d, por_nombre = resolver_dia(fecha, ahora.date())
