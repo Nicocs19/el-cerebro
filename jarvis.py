@@ -81,7 +81,7 @@ def frase(evento, accion=None, detalle=None):
     if evento == "trabajando":
         return "Lo diseño y te aviso." if tipo == "miniatura" else "Lo estoy diseñando. Dame un minuto."
     if evento == "error":
-        return "No pude hacerlo. Te dejo el detalle en pantalla."
+        return "Uy, no pude. Te dejo el detalle en pantalla."
     if evento == "confirmar":
         a = d.get("accion")
         if a == "raid":
@@ -152,6 +152,24 @@ VOCES_DE_SERIE = {"daniel": "onwK4e9ZLuTAKqWW03F9", "george": "JBFqnCBsd6RMkjVDR
                   "adam": "pNInz6obpgDQGcFmaJgB"}
 
 
+def _factor_tono(semitonos=None):
+    return 2 ** (float(config.VOZ_TONO if semitonos is None else semitonos or 0) / 12)
+
+
+def _velocidad_base():
+    """Se genera más lento en la medida en que después se sube el tono, así la voz de dibujito no queda apurada."""
+    return config.VOZ_VELOCIDAD / _factor_tono()
+
+
+def cambiar_tono(audio, semitonos):
+    """Sube (o baja) el tono: voz de dibujito. Acelera en la misma medida (por eso se genera más lento)."""
+    if not float(semitonos or 0) or not len(audio):
+        return audio
+    f = _factor_tono(semitonos)
+    indices = np.arange(0, len(audio) - 1, f)
+    return np.interp(indices, np.arange(len(audio)), audio).astype(np.float32)
+
+
 def buscar_voz(nombre, clave=None):
     """El voice_id de una voz por su nombre (de tu cuenta o de las de serie) o directamente su ID."""
     if re.fullmatch(r"[A-Za-z0-9]{20}", nombre):
@@ -177,7 +195,7 @@ def sintetizar_eleven(texto, voz_id, clave=None, velocidad=None):
         headers={"xi-api-key": clave or config.ELEVEN_API_KEY},
         json={"text": texto, "model_id": config.ELEVEN_MODELO, "language_code": "es",
               "voice_settings": {"stability": 0.45, "similarity_boost": 0.8,
-                                 "speed": max(0.7, min(1.2, velocidad or config.VOZ_VELOCIDAD))}},
+                                 "speed": max(0.7, min(1.2, velocidad or _velocidad_base()))}},
         timeout=20)
     if r.status_code in (401, 402, 403) or (r.status_code != 200 and "quota" in r.text.lower()):
         raise PermissionError(f"ElevenLabs dijo {r.status_code}: {r.text[:200]}")
@@ -215,11 +233,11 @@ class Voz:
 
     def _eleven(self, texto):
         import hashlib
-        clave = hashlib.sha1(f"{config.ELEVEN_VOZ}|{config.ELEVEN_MODELO}|{config.VOZ_VELOCIDAD}|{texto}".encode()).hexdigest()
+        clave = hashlib.sha1(f"{config.ELEVEN_VOZ}|{config.ELEVEN_MODELO}|{_velocidad_base():.3f}|{texto}".encode()).hexdigest()
         archivo = self.cache / f"{clave}.pcm"
         if not archivo.exists():
             try:
-                pcm = sintetizar_eleven(texto, self._eleven_voz())
+                pcm = sintetizar_eleven(texto, self._eleven_voz(), velocidad=_velocidad_base())
             except PermissionError as e:
                 self._eleven_ok = False
                 raise RuntimeError(f"{e} (¿clave o créditos?); sigo con la voz local") from e
@@ -256,7 +274,7 @@ class Voz:
                 self._descargar()
             self.piper = PiperVoice.load(str(self._ruta_modelo()))
             print(f"[voz] Voz local {config.VOZ_MODELO} lista.")
-        cfg = SynthesisConfig(length_scale=1.0 / max(0.5, config.VOZ_VELOCIDAD), volume=config.VOZ_VOLUMEN)
+        cfg = SynthesisConfig(length_scale=1.0 / max(0.4, _velocidad_base()), volume=config.VOZ_VOLUMEN)
         partes = [c.audio_float_array for c in self.piper.synthesize(texto, syn_config=cfg)]
         return (np.concatenate(partes) if partes else np.zeros(0, np.float32)), self.piper.config.sample_rate
 
@@ -301,6 +319,7 @@ class Voz:
                 audio, sr = self._sintetizar(texto)
                 if not len(audio):
                     continue
+                audio = cambiar_tono(audio, config.VOZ_TONO)
                 paso = max(1, sr // 30)               # envolvente cada 1/30 s para que el orbe siga la voz
                 env = [float(np.sqrt(np.mean(audio[i:i + paso] ** 2))) for i in range(0, len(audio), paso)]
                 t0 = time.time()

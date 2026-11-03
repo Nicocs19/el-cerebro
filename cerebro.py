@@ -149,7 +149,12 @@ class App:
             import jarvis
             self.voz = jarvis.Voz() if config.JARVIS_VOZ else None
             if config.JARVIS_ORBE:
-                self.orbe = jarvis.Orbe(self.root)
+                if config.ORBE_ESTILO == "orbe":
+                    self.orbe = jarvis.Orbe(self.root)
+                else:
+                    from cerebrito import Cerebrito
+                    self.orbe = Cerebrito(self.root)
+                    self.overlay.ancla = self.orbe.caja
                 self.orbe.fuente = self._estado_orbe
         self.cerebro = Cerebro(lambda t, tipo="info", s=6: self.ui.put((t, tipo, s)), simular, self._avisar, fondo=True)
         self.overlay.mostrar("Cargando Whisper…", "info", 0)
@@ -179,6 +184,13 @@ class App:
         if self.voz:
             import jarvis
             self.voz.decir(jarvis.frase(evento, accion, detalle))
+
+    def _estado_txt(self, texto):
+        """Estados de paso: con el cerebro en pantalla no hace falta el cartel (lo dice su cara)."""
+        if self.orbe:
+            self.overlay.ocultar()
+        else:
+            self.overlay.mostrar(texto, "info", 0)
 
     def _estado_orbe(self):
         """Qué muestra el orbe ahora: escuchando (sigue tu voz), pensando, hablando (sigue su voz) u oculto."""
@@ -241,6 +253,11 @@ class App:
         try:
             while True:
                 texto, tipo, segundos = self.ui.get_nowait()
+                if self.orbe and tipo == "info" and segundos == 0:
+                    # «Escuchando…», «Pensando…», «Ejecutando…»: ya lo muestra el cerebro con la cara
+                    print(f"[info] {texto}")
+                    self.overlay.ocultar()
+                    continue
                 self.overlay.mostrar(texto, tipo, segundos)
         except queue.Empty:
             pass
@@ -257,7 +274,7 @@ class App:
                             self.voz.callar()
                         self.grab.empezar()
                         pitido("inicio")
-                        self.overlay.mostrar("🎙 Escuchando…", "info", 0)
+                        self._estado_txt("🎙 Escuchando…")
                 elif ev in ("confirmar", "cancelar"):
                     self.tareas.put((ev, None))
         except queue.Empty:
@@ -272,7 +289,7 @@ class App:
             self.overlay.mostrar("No se oyó nada.", "info", 3)
             return
         self.ocupado = True
-        self.overlay.mostrar("Transcribiendo…", "info", 0)
+        self._estado_txt("Transcribiendo…")
         self.tareas.put(("audio", audio))
 
     def correr(self):

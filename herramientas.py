@@ -164,8 +164,8 @@ def esquemas():
             "posicion": {"type": "string", "enum": OVERLAY_POSICIONES, "description": "Dónde va. arriba-derecha si no lo dijo"},
             "tamano": {"type": "string", "enum": ["chico", "mediano", "grande"], "description": "mediano si no lo dijo"},
         }, ["accion", "nombre"]),
-        _f("responder", "Contesta en voz alta cuando Nicolas te habla a vos o charla (saludo, '¿me escuchás?', 'decime algo', una pregunta) sin pedir publicar ni cambiar nada. No publica nada.", {
-            "respuesta": {"type": "string", "description": "Lo que le contestás: una o dos frases cortas, con onda, en español"},
+        _f("responder", "Contesta en voz alta cuando Nicolas te habla a vos, charla, te pide un chiste o te hace una pregunta, sin pedir publicar ni cambiar nada. No publica nada.", {
+            "respuesta": {"type": "string", "description": "Lo que le contestás como El Cerebro: 1 a 3 frases cortas, graciosas y con onda, en español"},
         }, ["respuesta"]),
         _f("pedir_aclaracion", "Úsala SOLO si falta un dato imprescindible o la orden no tiene sentido.", {
             "pregunta": {"type": "string", "description": "Pregunta corta para Nicolas"},
@@ -531,7 +531,7 @@ def construir(nombre, a):
         return Accion("overlay", d, f"{verbo} el overlay «{d['nombre']}»", False)
 
     if nombre == "responder":
-        r = _txt(a, "respuesta", 300)
+        r = _txt(a, "respuesta", 600)
         return Accion("respuesta", {"respuesta": r}, r, False)
 
     if nombre == "pedir_aclaracion":

@@ -1,0 +1,253 @@
+"""El Cerebro en pantalla: un cerebro con ojos que reacciona a lo que pasa.
+
+- escuchando: abre bien los ojos, salta con tu voz y le salen ondas de sonido a los costados.
+- pensando: mira para arriba, frunce las cejas y le salen burbujitas.
+- hablando: mueve la boca con su voz.
+- ok: ojos felices y estrellitas.  error: ojos en cruz.
+- oculto: se desvanece (vuelve a aparecer cuando lo llamás).
+
+Se dibuja en una ventana transparente que no roba el foco ni los clics (no molesta al juego).
+"""
+import math
+import random
+import time
+
+import config
+
+CLAVE = "#010203"   # color que Windows vuelve transparente
+ROSA, ROSA_CLARO, ROSA_OSCURO, CONTORNO = "#F59AB4", "#FFC4D3", "#D9708F", "#7A2943"
+OJO, PUPILA, BOCA, LENGUA = "#FFFFFF", "#1B1B26", "#5B1024", "#FF6F8E"
+COLOR_ESTADO = {"escuchando": "#38E1FF", "pensando": "#E8C468", "hablando": "#F5D98B", "ok": "#4CE38A", "error": "#FF5A5A"}
+
+
+class Cerebrito:
+    TAM = 230
+
+    def __init__(self, root):
+        import tkinter as tk
+        self.win = tk.Toplevel(root)
+        self.win.overrideredirect(True)
+        self.win.attributes("-topmost", True)
+        self.win.configure(bg=CLAVE)
+        try:
+            self.win.attributes("-transparentcolor", CLAVE)
+        except tk.TclError:
+            pass
+        self.win.attributes("-alpha", 0.0)
+        self.c = tk.Canvas(self.win, width=self.TAM, height=self.TAM, bg=CLAVE, highlightthickness=0)
+        self.c.pack()
+        self.x, self.y = self._ubicar()
+        self.win.update_idletasks()
+        self._sin_foco_ni_clics()
+        self.fuente = None              # función -> (estado, nivel 0..1)
+        self.alpha = 0.0
+        self.n = 0.0
+        self.destello = None
+        self.t0 = time.time()
+        self.mirada = [0.0, 0.0]        # hacia dónde miran las pupilas (-1..1)
+        self.mirada_obj = [0.0, 0.0]
+        self.prox_mirada = 0.0
+        self.prox_parpadeo = time.time() + 2
+        root.after(33, self._paso)
+
+    # ------------------------------------------------------------ ventana
+    def _ubicar(self):
+        sw, sh, t = self.win.winfo_screenwidth(), self.win.winfo_screenheight(), self.TAM
+        pos = {"abajo-derecha": (sw - t - 20, sh - t - 70), "abajo-izquierda": (20, sh - t - 70),
+               "arriba-derecha": (sw - t - 20, 20), "arriba-izquierda": (20, 20),
+               "abajo-centro": ((sw - t) // 2, sh - t - 70)}
+        x, y = pos.get(config.ORBE_POSICION, pos["abajo-derecha"])
+        self.win.geometry(f"{t}x{t}+{x}+{y}")
+        return x, y
+
+    def caja(self):
+        """(x, y, ancho, alto) en pantalla, para poner el cartel al lado."""
+        return self.x, self.y, self.TAM, self.TAM
+
+    def _sin_foco_ni_clics(self):
+        try:
+            import ctypes
+            hwnd = ctypes.windll.user32.GetParent(self.win.winfo_id())
+            ex = ctypes.windll.user32.GetWindowLongW(hwnd, -20)
+            # NOACTIVATE | TOOLWINDOW | LAYERED | TRANSPARENT (los clics lo atraviesan)
+            ctypes.windll.user32.SetWindowLongW(hwnd, -20, ex | 0x08000000 | 0x00000080 | 0x00080000 | 0x00000020)
+        except Exception:  # noqa: BLE001
+            pass
+
+    def destellar(self, tipo):
+        self.destello = (tipo, time.time())
+
+    def _paso(self):
+        try:
+            self._dibujar()
+        except Exception as e:  # noqa: BLE001
+            print(f"[cerebro] {e}")
+        self.c.after(33, self._paso)
+
+    # ------------------------------------------------------------ dibujo
+    def _estado(self):
+        estado, nivel = self.fuente() if self.fuente else ("oculto", 0.0)
+        if self.destello and time.time() - self.destello[1] < 1.6:
+            estado, nivel = self.destello[0], 0.5
+        if config.CEREBRO_SIEMPRE and estado == "oculto":
+            estado = "quieto"
+        return estado, nivel
+
+    def _dibujar(self):
+        estado, nivel = self._estado()
+        ahora = time.time()
+        objetivo = 0.0 if estado == "oculto" else 0.97
+        self.alpha += (objetivo - self.alpha) * 0.2
+        if abs(self.alpha - objetivo) > 0.005:
+            self.win.attributes("-alpha", max(0.0, min(1.0, self.alpha)))
+        if self.alpha < 0.02 and estado == "oculto":
+            self.c.delete("all")
+            return
+        self.n += (min(1.0, nivel) - self.n) * 0.35
+        self.dibujar(estado, ahora - self.t0, self.n)
+
+    def _mover_mirada(self, estado, t):
+        ahora = time.time()
+        if estado == "pensando":
+            self.mirada_obj = [0.7 * math.cos(t * 3), -0.6 + 0.3 * math.sin(t * 3)]   # ojos que dan vueltas
+        elif estado == "hablando":
+            self.mirada_obj = [0.15 * math.sin(t * 1.3), 0.1]
+        elif estado == "escuchando":
+            self.mirada_obj = [0.55, -0.35]                                         # mira al cartel
+        elif ahora > self.prox_mirada:
+            self.mirada_obj = [random.uniform(-0.8, 0.8), random.uniform(-0.5, 0.5)]
+            self.prox_mirada = ahora + random.uniform(1.2, 3.0)
+        for i in (0, 1):
+            self.mirada[i] += (self.mirada_obj[i] - self.mirada[i]) * 0.25
+
+    def dibujar(self, estado, t, n):
+        c = self.c
+        c.delete("all")
+        m = self.TAM / 2
+        color = COLOR_ESTADO.get(estado, "#E8C468")
+        # rebote: respira quieto, salta con tu voz, se mece al hablar
+        salto = {"escuchando": 10 * n, "hablando": 4 * n}.get(estado, 0) + 3 * math.sin(t * 2.2)
+        cx, cy = m, m + 8 - salto
+        s = 1.0 + (0.06 * n if estado == "escuchando" else 0)
+
+        # aura del estado (quieto no tiene)
+        for i, a in enumerate((0.28, 0.18) if estado in COLOR_ESTADO else ()):
+            r = (88 + i * 10 + 6 * n) * s
+            c.create_oval(cx - r, cy - r * 0.8, cx + r, cy + r * 0.8, outline=_mezclar(color, a + 0.4 * n), width=3)
+
+        # cuerpo del cerebro: lóbulos superpuestos (primero el contorno, después el relleno)
+        lobulos = [(-50, -18, 40), (-20, -42, 42), (20, -42, 42), (50, -18, 40), (-48, 20, 34), (48, 20, 34),
+                   (0, 6, 62), (-22, 30, 34), (22, 30, 34)]
+        for dx, dy, r in lobulos:
+            r2 = (r + 5) * s
+            c.create_oval(cx + dx * s - r2, cy + dy * s - r2, cx + dx * s + r2, cy + dy * s + r2, fill=CONTORNO, outline="")
+        for dx, dy, r in lobulos:
+            r2 = r * s
+            c.create_oval(cx + dx * s - r2, cy + dy * s - r2, cx + dx * s + r2, cy + dy * s + r2, fill=ROSA, outline="")
+        # brillo y circunvoluciones
+        c.create_oval(cx - 62 * s, cy - 70 * s, cx - 30 * s, cy - 48 * s, fill=ROSA_CLARO, outline="")
+        c.create_line(cx, cy - 80 * s, cx - 4 * s, cy - 55 * s, cx + 3 * s, cy - 38 * s, smooth=True, fill=ROSA_OSCURO, width=4)
+        for x0, y0, x1, y1, ini, ext in ((-75, -55, -35, -20, 20, 140), (-58, -15, -18, 15, 200, 120),
+                                         (35, -55, 75, -20, 20, 140), (18, -15, 58, 15, 220, 120),
+                                         (-30, -75, 5, -45, 200, 140), (0, -75, 35, -45, 200, 140),
+                                         (-82, 0, -55, 35, 90, 160), (55, 0, 82, 35, 290, 160)):
+            c.create_arc(cx + x0 * s, cy + y0 * s, cx + x1 * s, cy + y1 * s, start=ini, extent=ext,
+                         style="arc", outline=ROSA_OSCURO, width=3)
+
+        # ojos
+        self._mover_mirada(estado, t)
+        ahora = time.time()
+        if ahora > self.prox_parpadeo + 0.13:                # parpadea cada 2,5 a 5,5 segundos
+            self.prox_parpadeo = ahora + random.uniform(2.5, 5.5)
+        cerrado = estado not in ("ok", "error", "escuchando") and ahora >= self.prox_parpadeo
+        abierto = 1.25 if estado == "escuchando" else 1.0
+        for lado in (-1, 1):
+            ox, oy = cx + lado * 30 * s, cy + 2 * s
+            rx, ry = 20 * s, 23 * s * abierto
+            if estado == "ok":                               # ojos felices ^ ^
+                c.create_arc(ox - rx, oy - ry * 0.4, ox + rx, oy + ry * 1.2, start=20, extent=140,
+                             style="arc", outline=CONTORNO, width=5)
+                continue
+            if estado == "error":                            # ojos en cruz
+                k = 12 * s
+                c.create_line(ox - k, oy - k, ox + k, oy + k, fill=CONTORNO, width=5)
+                c.create_line(ox - k, oy + k, ox + k, oy - k, fill=CONTORNO, width=5)
+                continue
+            if cerrado:
+                c.create_line(ox - rx, oy, ox + rx, oy, fill=CONTORNO, width=4)
+                continue
+            c.create_oval(ox - rx - 3, oy - ry - 3, ox + rx + 3, oy + ry + 3, fill=CONTORNO, outline="")
+            c.create_oval(ox - rx, oy - ry, ox + rx, oy + ry, fill=OJO, outline="")
+            px, py = ox + self.mirada[0] * rx * 0.5, oy + self.mirada[1] * ry * 0.5
+            rp = (9 if estado != "escuchando" else 11) * s
+            c.create_oval(px - rp, py - rp, px + rp, py + rp, fill=PUPILA, outline="")
+            c.create_oval(px - rp * 0.15 - 4, py - rp * 0.55 - 3, px - rp * 0.15 + 2, py - rp * 0.55 + 3, fill=OJO, outline="")
+
+        # cejas
+        for lado in (-1, 1):
+            ox, oy = cx + lado * 30 * s, cy - 28 * s * (1.1 if estado == "escuchando" else 1)
+            if estado == "pensando":         # fruncidas
+                c.create_line(ox - 14 * s * lado * -1, oy - 6, ox + 14 * s * lado * -1, oy + 4, fill=CONTORNO, width=5,
+                              capstyle="round")
+            elif estado == "error":
+                c.create_line(ox - 14 * s, oy + 3, ox + 14 * s, oy - 3 * lado, fill=CONTORNO, width=5, capstyle="round")
+            else:
+                alza = 8 if estado in ("escuchando", "ok") else 3
+                c.create_line(ox - 14 * s, oy, ox, oy - alza, ox + 14 * s, oy, smooth=True, fill=CONTORNO, width=5,
+                              capstyle="round")
+
+        # boca
+        bx, by = cx, cy + 38 * s
+        if estado == "hablando":
+            alto = (4 + 22 * n) * s
+            ancho = (16 + 6 * n) * s
+            c.create_oval(bx - ancho, by - alto / 2, bx + ancho, by + alto / 2, fill=BOCA, outline=CONTORNO, width=3)
+            if alto > 10:
+                c.create_oval(bx - ancho * 0.55, by, bx + ancho * 0.55, by + alto / 2 - 1, fill=LENGUA, outline="")
+        elif estado == "ok":
+            c.create_arc(bx - 22 * s, by - 18 * s, bx + 22 * s, by + 14 * s, start=200, extent=140, style="chord",
+                         fill=BOCA, outline=CONTORNO, width=3)
+        elif estado == "error":
+            c.create_line(bx - 16 * s, by + 4, bx - 6 * s, by - 3, bx + 6 * s, by + 4, bx + 16 * s, by - 3,
+                          fill=CONTORNO, width=4, smooth=True)
+        elif estado == "pensando":
+            c.create_line(bx - 8 * s, by + 2, bx + 12 * s, by - 3, fill=CONTORNO, width=4, capstyle="round")
+        else:
+            c.create_arc(bx - 14 * s, by - 12 * s, bx + 14 * s, by + 8 * s, start=210, extent=120, style="arc",
+                         outline=CONTORNO, width=4)
+
+        # extras de cada estado
+        if estado == "escuchando":                       # ondas de sonido que siguen tu voz
+            for lado in (-1, 1):
+                for i in range(3):
+                    r = (18 + i * 12) * (0.6 + n)
+                    x = cx + lado * 98 * s
+                    c.create_arc(x - r, cy - r, x + r, cy + r, start=-40 if lado > 0 else 140, extent=80,
+                                 style="arc", outline=_mezclar(color, 0.4 + 0.6 * n), width=3)
+        elif estado == "pensando":                       # burbujitas que suben
+            for i in range(3):
+                fase = (t * 0.9 + i / 3) % 1.0
+                r = 5 + 6 * fase
+                x, y = cx + 62 + 10 * i, cy - 70 - 40 * fase
+                c.create_oval(x - r, y - r, x + r, y + r, outline=color, width=2)
+        elif estado == "ok":                             # estrellitas
+            for i in range(5):
+                ang = t * 2 + i * 2 * math.pi / 5
+                x, y = cx + 95 * math.cos(ang), cy - 10 + 70 * math.sin(ang)
+                _estrella(c, x, y, 7, color)
+
+
+def _estrella(c, x, y, r, color):
+    pts = []
+    for i in range(10):
+        a = math.pi / 2 + i * math.pi / 5
+        rr = r if i % 2 == 0 else r * 0.45
+        pts += [x + rr * math.cos(a), y - rr * math.sin(a)]
+    c.create_polygon(pts, fill=color, outline="")
+
+
+def _mezclar(color, factor):
+    """Oscurece un color hacia negro (factor 0 = negro, 1 = el color)."""
+    factor = max(0.0, min(1.0, factor))
+    r, g, b = (int(color[i:i + 2], 16) for i in (1, 3, 5))
+    return "#%02x%02x%02x" % tuple(max(2, int(v * factor)) for v in (r, g, b))

@@ -52,6 +52,8 @@ FRASES_CHAT = {
     "avisa en el discord que en 10 minutos empiezo": lambda n, a: n in ("mensaje_discord", "publicar_anuncio"),
     "cerebro, dime algo": lambda n, a: n == "responder",
     "hola cerebro, me escuchas?": lambda n, a: n == "responder",
+    "cuéntame un chiste": lambda n, a: n == "responder",
+    "cuál es la capital de francia": lambda n, a: n == "responder" and "par" in str(a.get("respuesta")).lower(),
     "pon un cartel arriba a la derecha que diga raid de onyxia a las 10": lambda n, a: n == "overlay"
     and a.get("accion") == "crear" and a.get("posicion") == "arriba-derecha",
     "cambia el título a día 2 de wow forever y hazme la miniatura que diga día 2": lambda n, a:

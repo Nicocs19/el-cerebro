@@ -15,6 +15,7 @@ class Overlay:
         self.root = root
         self.activo = config.OVERLAY
         self._ocultar = None
+        self.ancla = None          # función -> (x, y, ancho, alto) del cerebro: el cartel va arriba de él
         if not self.activo:
             return
         w = self.win = tk.Toplevel(root)
@@ -58,8 +59,13 @@ class Overlay:
         self.win.update_idletasks()
         ancho = max(320, min(460, self.texto.winfo_reqwidth() + 28))
         alto = self.win.winfo_reqheight()
-        x = self.win.winfo_screenwidth() - ancho - 24
-        self.win.geometry(f"{ancho}x{alto}+{x}+24")
+        if self.ancla:              # como un globo de diálogo, justo arriba del cerebro
+            bx, by, bw, _ = self.ancla()
+            x = max(8, min(self.win.winfo_screenwidth() - ancho - 8, bx + bw - ancho))
+            y = max(8, by - alto - 4)
+        else:
+            x, y = self.win.winfo_screenwidth() - ancho - 24, 24
+        self.win.geometry(f"{ancho}x{alto}+{x}+{y}")
         self.win.deiconify()
         self.win.lift()
         if self._ocultar:

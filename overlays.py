@@ -61,16 +61,22 @@ rgba(255,240,190,.55) 50%,transparent 60%) 0 0/250% 100%;mix-blend-mode:screen;a
 
 
 def buscar_claude():
-    """El programa claude (Claude Code) de la PC, esté en el PATH o en sus carpetas de instalación habituales."""
+    """El programa claude (Claude Code): CLAUDE_EXE, el PATH, la instalación aparte o el de la app de escritorio."""
+    import glob
     import os
+    if config.CLAUDE_EXE and os.path.exists(config.CLAUDE_EXE):
+        return config.CLAUDE_EXE
     encontrado = shutil.which("claude") or shutil.which("claude.exe") or shutil.which("claude.cmd")
     if encontrado:
         return encontrado
-    for ruta in (os.path.expanduser(r"~\.local\bin\claude.exe"), os.path.expandvars(r"%APPDATA%\npm\claude.cmd"),
-                 os.path.expandvars(r"%LOCALAPPDATA%\Programs\claude\claude.exe")):
+    for ruta in (os.path.expanduser(r"~\.local\bin\claude.exe"), os.path.expandvars(r"%APPDATA%\npm\claude.cmd")):
         if os.path.exists(ruta):
             return ruta
-    return None
+    # La app de escritorio de Claude trae su propio claude.exe en una carpeta con la versión: se usa el más nuevo
+    base = os.path.expandvars(r"%LOCALAPPDATA%\Claude-Data")
+    candidatos = glob.glob(os.path.join(base, "*", "claude-code", "*", "*", "claude.exe")) + \
+        glob.glob(os.path.join(base, "*", "claude-code", "*", "claude.exe"))
+    return max(candidatos, key=os.path.getmtime) if candidatos else None
 
 
 def pedir_a_claude(pedido, carpeta_trabajo):
@@ -78,7 +84,9 @@ def pedir_a_claude(pedido, carpeta_trabajo):
     exe = buscar_claude()
     if not exe:
         raise RuntimeError("no está el programa claude en esta PC")
-    r = subprocess.run([exe, "-p"], input=pedido, capture_output=True, text=True, encoding="utf-8",
+    comando = [exe, "-p"] + (["--model", config.CLAUDE_MODELO] if config.CLAUDE_MODELO else [])
+    pedido += "\nRespondé directo, sin usar herramientas ni abrir archivos: acá tenés todo lo que necesitás."
+    r = subprocess.run(comando, input=pedido, capture_output=True, text=True, encoding="utf-8",
                        timeout=config.OVERLAY_ESPERA, cwd=str(carpeta_trabajo))
     m = re.search(r"<!doctype html.*?</html>|<html.*?</html>", r.stdout or "", re.S | re.I)
     if r.returncode != 0 or not m:

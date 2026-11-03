@@ -1,4 +1,4 @@
-"""Conecta la voz de Jarvis con tu cuenta de ElevenLabs y te deja elegir la voz. Se ejecuta UNA vez."""
+"""Conecta la voz de El Cerebro con tu cuenta de ElevenLabs y te deja elegir la voz. Se ejecuta UNA vez."""
 import sys
 import time
 import webbrowser
@@ -10,15 +10,16 @@ import guia
 import jarvis
 
 PAGINA = "https://elevenlabs.io/app/settings/api-keys"
-OPCIONES = [("Daniel", "británico, serio (el más parecido a Jarvis)"),
+OPCIONES = [("Daniel", "británico, serio"),
             ("George", "británico, cálido"),
             ("Brian", "americano, grave")]
-PRUEBA = "Raid de Onyxia, el viernes a las 9 de la noche, 20 cupos. ¿La publico?"
+PRUEBA = "¡Hola, Mister H! Raid de Onyxia, el viernes a las 9 de la noche. ¿La publico?"
 
 
-def tocar(pcm):
+def tocar(pcm, tono=None):
     import sounddevice as sd
     audio = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768.0 * config.VOZ_VOLUMEN
+    audio = jarvis.cambiar_tono(audio, config.VOZ_TONO if tono is None else tono)
     disp = config.VOZ_DISPOSITIVO
     sd.play(audio, jarvis.ELEVEN_SR, device=int(disp) if disp.isdigit() else (disp or None))
     sd.wait()
@@ -52,8 +53,19 @@ No hagas este paso con el stream en vivo: la clave es privada.""")
     sys.exit("No se guardó nada. Volvé a abrir conectar_voz.bat cuando quieras.")
 
 
+def elegir_tono(nombre, clave):
+    """Voz de dibujito (más aguda y graciosa) o normal."""
+    pcm = jarvis.sintetizar_eleven(PRUEBA, jarvis.buscar_voz(nombre, clave), clave)
+    print("   Así suena normal…")
+    tocar(pcm, 0)
+    print("   …y así de dibujito:")
+    tocar(pcm, 4)
+    r = input("\n¿Cuál querés? Escribí n (normal) o d (dibujito) y Enter: ").strip().lower()
+    guia.guardar_env(VOZ_TONO="0" if r.startswith("n") else "4")
+
+
 def elegir_voz(clave):
-    guia.paso(2, 3, "Ahora vas a escuchar 3 voces diciendo lo mismo. Subí el volumen.")
+    guia.paso(2, 3, "Ahora vas a escuchar 3 voces diciendo lo mismo, con voz de dibujito. Subí el volumen.")
     guia.esperar_enter("Apretá Enter para escucharlas...")
     for i, (nombre, como) in enumerate(OPCIONES, 1):
         print(f"   Voz {i}: {nombre} ({como})")
@@ -84,7 +96,7 @@ def main():
         sys.stdout.reconfigure(encoding="utf-8")
     except Exception:  # noqa: BLE001
         pass
-    print("Vamos a darle a Jarvis la voz de ElevenLabs (gasta muy pocos créditos: las frases repetidas no gastan).")
+    print("Vamos a darle a El Cerebro la voz de ElevenLabs (gasta muy pocos créditos: las frases repetidas no gastan).")
     clave = config.ELEVEN_API_KEY
     if clave:
         try:
@@ -96,13 +108,18 @@ def main():
     if not clave:
         clave = pedir_clave()
     nombre = elegir_voz(clave)
+    try:
+        elegir_tono(nombre, clave)
+    except Exception as e:  # noqa: BLE001
+        print(f"(no pude reproducir la prueba: {e})")
     guia.paso(3, 3, f"""
-Listo: Jarvis va a hablar con la voz {nombre}.
+Listo: El Cerebro va a hablar con la voz {nombre}.
 Se escucha por tus parlantes o auriculares normales, así que tu stream también la oye
 (si OBS captura el audio del escritorio).
 Cerrá y volvé a abrir El Cerebro para que use la voz nueva.""")
     try:
-        tocar(jarvis.sintetizar_eleven("Sistemas en línea. Listo para el stream.", jarvis.buscar_voz(nombre, clave), clave))
+        tocar(jarvis.sintetizar_eleven("¡El Cerebro en línea! Listo para pensar por los dos.",
+                                       jarvis.buscar_voz(nombre, clave), clave))
     except Exception:  # noqa: BLE001
         pass
 

@@ -6,3 +6,4 @@ salida/
 __pycache__/
 *.pyc
 enlaces.txt
+overlays/

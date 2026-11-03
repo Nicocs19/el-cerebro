@@ -36,13 +36,15 @@ Si Ollama no responde, usa patrones fijos para anuncios y títulos.
 
 Las miniaturas y los overlays los diseña Claude con el programa `claude` de tu PC (usa tu plan) y Edge los convierte en imagen. Para usar fotos tuyas (personajes, jefes), ponelas en `recursos/imagenes` con un nombre claro (`paladin.png`) y nombralas en tu idea. Si Claude no responde, sale la plantilla dorada de siempre. Mientras Claude diseña, podés seguir dándole órdenes.
 
-## Modo Jarvis
+## El Cerebro en pantalla y con voz
 
-Cuando hablás aparece un orbe animado abajo a la derecha: sigue tu voz mientras escucha, gira mientras piensa y late con la voz de Jarvis cuando responde. Jarvis te lee la confirmación («Raid de Onyxia, el viernes a las 9 de la noche, 20 cupos. ¿La publico?») y te avisa cuando está hecho. Suena por la salida de audio normal, así que el stream también lo oye.
+Cuando lo llamás aparece abajo a la derecha un cerebro con ojos: abre los ojos y salta con tu voz mientras escucha, mira para arriba y le salen burbujitas mientras piensa, mueve la boca cuando habla, pone ojos felices cuando sale bien y ojos en cruz si algo falla. El cartel con el texto aparece arriba de él, como un globo de diálogo, solo cuando hay algo para leer (la confirmación o el resultado).
 
-- Voz: ElevenLabs (`conectar_voz.bat` guarda la clave y te deja elegir entre 3 voces). Las frases repetidas quedan guardadas y no gastan créditos. Sin clave o sin créditos usa una voz local (Piper), gratis.
-- Ajustes en `.env`: `JARVIS_VOZ`, `JARVIS_ORBE`, `ELEVEN_VOZ`, `VOZ_DISPOSITIVO` (`python cerebro.py --salidas` lista las salidas), `ORBE_COLOR` (`jarvis` o `dorado`), `ORBE_POSICION`.
-- Probar la voz: `python cerebro.py --decir "Sistemas en línea"`.
+El Cerebro te lee la confirmación («Raid de Onyxia, el viernes a las 9 de la noche, 20 cupos. ¿La publico?») y te avisa cuando está hecho. Si le hablás, le preguntás algo o le pedís un chiste, te contesta con la IA local de tu PC (gratis y sin límite) y no publica nada. Suena por la salida de audio normal, así que el stream también lo oye.
+
+- Voz: ElevenLabs (`conectar_voz.bat` guarda la clave y te deja elegir voz, normal o de dibujito). Las frases repetidas quedan guardadas y no gastan créditos. Sin clave o sin créditos usa una voz local (Piper), gratis.
+- Ajustes en `.env`: `VOZ_TONO` (0 = normal, 3 a 5 = dibujito), `ORBE_ESTILO` (`cerebro` u `orbe`), `CEREBRO_SIEMPRE`, `ELEVEN_VOZ`, `VOZ_DISPOSITIVO` (`python cerebro.py --salidas` lista las salidas), `ORBE_POSICION`.
+- Probar la voz: `python cerebro.py --decir "El Cerebro en línea"`.
 
 ## Chat del stream
 
@@ -90,11 +92,11 @@ La IA copia el día tal como lo dijiste («viernes», «mañana», «el 15», «
 | `kick.py`, `youtube.py`, `tiktok.py` | Plataformas |
 | `miniaturas.py` | Miniaturas desde una captura de OBS |
 | `voz.py`, `overlay.py`, `avisos.py` | Whisper, cartel flotante y pitidos |
-| `jarvis.py`, `conectar_voz.py` | Voz y orbe del modo Jarvis |
+| `jarvis.py`, `cerebrito.py`, `conectar_voz.py` | Voz, cerebro animado y configuración de la voz |
 | `moderacion.py`, `chat_vivo.py`, `enlaces.py` | Moderación por voz, chat de Kick en vivo y enlaces |
 | `overlays.py`, `miniaturas_claude.py` | Overlays de OBS y miniaturas diseñados por Claude |
 | `diagnostico.py` | Revisión completa del sistema |
 | `conectar_claves.py`, `actualizar_hogger.py`, `servidor/desplegar_hogger.sh` | Lo que hace `conectar_todo.bat` |
 | `kick_auth.py`, `youtube_auth.py`, `guia.py` | Asistentes de `conectar_plataformas.bat` |
 
-Secretos y datos personales (`.env`, `client_secret.json`, `data/`, `enlaces.txt`) nunca se suben al repositorio.
+Secretos y datos personales (`.env`, `client_secret.json`, `data/`, `enlaces.txt`, `overlays/`) nunca se suben al repositorio.

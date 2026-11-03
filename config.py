@@ -98,7 +98,7 @@ TIKTOK_MODO = _s("TIKTOK_MODO", "portapapeles").lower()  # portapapeles | automa
 # --- Modo Jarvis: voz que te habla y orbe animado ---
 JARVIS_VOZ = _b("JARVIS_VOZ", True)
 JARVIS_ORBE = _b("JARVIS_ORBE", True)
-JARVIS_SALUDO = _s("JARVIS_SALUDO", "Sistemas en línea.")
+JARVIS_SALUDO = _s("JARVIS_SALUDO", "¡El Cerebro en línea! Listo para pensar por los dos.")
 ELEVEN_API_KEY = _s("ELEVEN_API_KEY")                     # ElevenLabs (voz principal); vacío = solo voz local
 ELEVEN_VOZ = _s("ELEVEN_VOZ", "Daniel")                    # nombre de la voz en tu cuenta o su ID
 ELEVEN_MODELO = _s("ELEVEN_MODELO", "eleven_flash_v2_5")   # rápido y gasta la mitad de créditos
@@ -106,7 +106,10 @@ VOZ_MODELO = _s("VOZ_MODELO", "es_MX-claude-high")      # voz local de respaldo 
 VOZ_DISPOSITIVO = _s("VOZ_DISPOSITIVO")                  # salida de audio (nombre o número); vacío = la predeterminada
 VOZ_VELOCIDAD = _f("VOZ_VELOCIDAD", 1.1)
 VOZ_VOLUMEN = _f("VOZ_VOLUMEN", 0.9)
-ORBE_COLOR = _s("ORBE_COLOR", "jarvis").lower()           # jarvis (celeste) o dorado
+ORBE_COLOR = _s("ORBE_COLOR", "jarvis").lower()           # solo para el estilo orbe: jarvis (celeste) o dorado
+ORBE_ESTILO = _s("ORBE_ESTILO", "cerebro").lower()         # cerebro (con ojos) u orbe (la bolita)
+CEREBRO_SIEMPRE = _b("CEREBRO_SIEMPRE", False)             # true = el cerebro queda siempre en pantalla
+VOZ_TONO = _f("VOZ_TONO", 4)                              # semitonos: 0 = voz normal, 3 a 5 = voz de dibujito
 ORBE_POSICION = _s("ORBE_POSICION", "abajo-derecha").lower()
 
 # --- OBS (para las capturas de las miniaturas) ---
@@ -117,7 +120,9 @@ OBS_PASSWORD = _s("OBS_PASSWORD")
 OBS_FUENTE = _s("OBS_FUENTE")
 MINIATURA_CLAUDE = _b("MINIATURA_CLAUDE", True)        # las miniaturas las diseña Claude (si falla, plantilla dorada)
 OVERLAY_CLAUDE = _b("OVERLAY_CLAUDE", True)            # los overlays los diseña Claude (programa claude de tu PC)
-OVERLAY_ESPERA = int(_f("OVERLAY_ESPERA", 150))         # segundos máximos esperando el diseño de Claude
+OVERLAY_ESPERA = int(_f("OVERLAY_ESPERA", 300))         # segundos máximos esperando el diseño de Claude
+CLAUDE_MODELO = _s("CLAUDE_MODELO", "sonnet")           # modelo de Claude para diseñar (sonnet es rápido y bueno)
+CLAUDE_EXE = _s("CLAUDE_EXE")                           # ruta a claude.exe si no se encuentra solo
 
 # --- Respuesta ---
 BEEPS = _b("BEEPS", True)
