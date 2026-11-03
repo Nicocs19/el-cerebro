@@ -288,6 +288,10 @@ def probar_rapido():
               ("saludo a Lucas: frase fija con su nombre", "Lucas" in (router._saludo_fijo(
                   "Eh, Cerebro, mándale un saludo a Lucas.") or ""), True),
               ("saludo al chat: va a la IA", router._saludo_fijo("mandá un saludo al chat"), None),
+              ("frase cortada: pregunta", bool(router._frase_cortada("Che, Cerebro, haceme...")), True),
+              ("frase cortada en «a…»: pregunta", bool(router._frase_cortada("Cambiá el título a...")), True),
+              ("frase completa con «…»: sigue normal", router._frase_cortada("Lo hiciste mal..."), None),
+              ("respuesta corta con «…»: sigue normal", router._frase_cortada("Tiene 20..."), None),
               ("contestó «Es Molten Core» a «¿Qué raid es?»", router._raid_en_el_texto(
                   "mandes un anuncio de raid para que se registren, cupo de 20. Es Molten Core, amigo, me olvidé decirte."),
                "Molten Core"),

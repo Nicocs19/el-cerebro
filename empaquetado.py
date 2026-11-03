@@ -28,9 +28,9 @@ LO QUE PIDIÓ (dictado por voz, puede traer errores): «{orden}»
 Armá: {partes}
 
 CÓMO SE ARMA UN EMPAQUETADO QUE GANA
-1. Una sola idea fuerte por directo. Miniatura y título cuentan la MISMA historia desde dos lados:
-   la miniatura da la emoción (2 a 4 palabras) y el título agrega el contexto y la curiosidad.
-   NUNCA repitan las mismas palabras.
+1. Una sola idea fuerte por directo, con el tono que pidió (si es relajado, el gancho es relajado). Miniatura y
+   título cuentan la MISMA historia desde dos lados: la miniatura da la emoción (2 a 4 palabras) y el título agrega
+   el contexto y la curiosidad. NUNCA repitan las mismas palabras.
 2. Título (máximo 70 caracteres, ideal 45 a 60): lo importante en las primeras 4 o 5 palabras (WoW Forever, la
    clase, la raid). Un gancho psicológico claro: curiosidad (una pregunta abierta), un reto o apuesta, un número
    concreto, un contraste, o la urgencia del en vivo. Lenguaje de la comunidad de WoW. Una o dos palabras en
@@ -39,6 +39,8 @@ CÓMO SE ARMA UN EMPAQUETADO QUE GANA
    resultados, invitados, horarios, cantidad de gente o noticias que no estén en lo que dijo Mr. H. Lo que no dijo
    no lo afirmes: convertilo en pregunta («¿cae Ragnaros?»). Lo que promete el título tiene que pasar en el
    directo; si no, la gente se va y el canal pierde.
+   La fecha de hoy y la del lanzamiento son solo para no equivocarte: no las escribas ni hables del lanzamiento
+   si Mr. H no lo nombró. Nada que caduque («a un día de…», «mañana sale», «antes del caos»).
 4. Texto de la miniatura: 2 a 4 palabras en MAYÚSCULAS, que se lean en el celular (168 px de ancho). Pueden llevar
    UNA palabra de acento. Subtítulo opcional de 1 a 3 palabras, solo si suma.
 5. Idea visual (el pedido para el diseñador, que trabaja en HTML con la captura del juego, fotos de Mr. H y arte de
@@ -74,7 +76,7 @@ def _lanzamiento(hoy):
     except ValueError:
         return ""
     if hoy < sale:
-        return f"Sale el {_fecha(sale)}: TODAVÍA NO SALIÓ (decí «sale», «se viene», nunca «salió»)."
+        return f"Sale el {_fecha(sale)}: todavía no salió (si lo nombra, decí «sale», nunca «salió»)."
     if hoy == sale:
         return "Sale HOY: es el día del lanzamiento."
     return f"Salió el {_fecha(sale)}."
