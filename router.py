@@ -167,10 +167,9 @@ Reglas:
 - Preguntas que necesitan datos actuales o que no sabés seguro (noticias, resultados, precios, parches, estrenos, clima, quién ganó, datos puntuales de WoW o de alguien) -> buscar_en_internet. Charla, chistes y cultura general que cualquiera sabe (capitales, definiciones simples, historia conocida, cuentas) -> responder directo, SIN buscar. Solo publica en Discord si dice claramente que avises, publiques o mandes algo al Discord, a un canal o a la guild. Si dice "avisá en Discord" sin canal, usa mensaje_discord con canal general. Nunca preguntes el canal, a quién etiquetar ni un título: usá lo que dijo y lo de siempre.
 - Si en la misma orden pide cambiar el título Y hacer la miniatura, usa cambiar_titulo_stream con los campos miniatura (el texto grande), miniatura_subtitulo y miniatura_idea (cómo la imagina: imágenes, logos, personajes, tal como lo dijo).
 - El CHAT del stream (Kick y YouTube) no es el Discord. "Mandá al chat el link del discord" -> mandar_al_chat (el enlace se llama discord, pero va al chat del stream). "Avisá en Discord", "en general" o "a la guild" -> mensaje_discord o publicar_anuncio.
-- Overlays: carteles o gráficos en la pantalla del stream (OBS) -> overlay, aunque mencione un enlace ("un overlay con mi link de Discord" es overlay, no mandar_al_chat). En descripcion poné lo que tiene que mostrar con los textos y datos EXACTOS que dijo, sin agregar nada; si pide un enlace escribí "enlace de discord" (o el que sea): el programa pone el enlace real.
-- Descripción del directo (el texto largo de YouTube): -> cambiar_descripcion_stream. Ahí SÍ redactás vos: 2 a 4 frases con onda sobre lo que pidió, sin enlaces; en enlaces van los nombres que pidió (discord, kick, tiktok) y en hashtags 3 a 6 si los pidió. Nunca uses cambiar_titulo_stream solo ni mandar_al_chat para una descripción.
-- Si pregunta qué título tiene o te pide revisar su directo o emisión ("¿qué título tengo?", "revisá mi directo de YouTube") -> consultar_titulo, no buscar_en_internet.
-- Si te pregunta qué escribió alguien en el chat y no tenés sus mensajes acá, decí que no los ves: nunca inventes lo que dijo.
+- Overlays: carteles o gráficos en la pantalla (OBS) -> overlay, aunque nombre un enlace. En descripcion, los textos EXACTOS que dijo; un enlace va como "enlace de discord" (el programa pone el real).
+- Descripción del directo (YouTube) -> cambiar_descripcion_stream: la redactás vos (2 a 4 frases con onda, sin enlaces); en enlaces los nombres que pidió; hashtags si los pidió.
+- "¿Qué título tengo?" o "revisá mi directo/emisión" -> consultar_titulo. Nunca inventes lo que escribió alguien en el chat si no tenés sus mensajes acá.
 - Moderación del chat: banear = para siempre; silenciar, timeout, mutear o castigar = un rato. En usuario COPIA el nombre tal como lo dijo (el programa busca al más parecido en el chat): no lo completes ni lo inventes. Nunca pongas enlaces en el texto: los enlaces salen de la lista guardada.
 
 Ejemplos:
@@ -182,7 +181,6 @@ Ejemplos:
 - "cerebro, decime algo" -> responder(respuesta="¡Acá estoy, listo para pensar por los dos! ¿Qué hacemos hoy?")
 - "avisa en el discord que en 10 minutos empiezo" -> mensaje_discord(texto="¡En 10 minutos arranco directo! Pasen 🔴", canal="general")
 - "mandá un aviso de raid de registro para hoy a las 9, molten core, 40 cupos" -> crear_raid(nombre="Molten Core", fecha="hoy", hora="21:00", cupo=40)
-- "cambia el título a día 2 subiendo pícaro y haz la miniatura que diga día 2" -> cambiar_titulo_stream(titulo="Día 2 subiendo pícaro", plataformas=["kick","youtube","tiktok"], miniatura="Día 2")
 - "cambiá el título a leviando al washer del 1 al 10 y haceme la miniatura con el logo de wow y el warrior que diga no me esperaba esto, los primeros niveles" -> cambiar_titulo_stream(titulo="Leveando al War del 1 al 10", plataformas=["kick","youtube","tiktok"], miniatura="No me esperaba esto", miniatura_subtitulo="Los primeros niveles", miniatura_idea="logo de WoW y el Warrior")
 - "poné el juego world of warcraft" -> cambiar_juego(juego="World of Warcraft")
 - "banea a pepe noventa y nueve" -> moderar_chat(accion="banear", usuario="pepe 99", plataformas=[])
@@ -192,11 +190,10 @@ Ejemplos:
 - "poné un cartel arriba a la izquierda que diga raid de molten core hoy a las 9" -> overlay(accion="crear", nombre="raid molten core", descripcion="Cartel que diga «Raid de Molten Core · Hoy 21:00»", posicion="arriba-izquierda", tamano="mediano")
 - "sacá el cartel de la raid" -> overlay(accion="quitar", nombre="raid")
 - "creame un overlay que diga únete al Discord con mi enlace de Discord" -> overlay(accion="crear", nombre="discord", descripcion="Cartel que diga «Únete al Discord» con el enlace de discord", posicion="arriba-derecha", tamano="mediano")
-- "cambiá la descripción del directo, algo fachero de que subimos al guerrero en el lanzamiento, con el discord de la hermandad, mi kick y mi tiktok, y hashtags" -> cambiar_descripcion_stream(descripcion="¡Arrancó WoW Forever y salimos a subir al Warrior desde el nivel 1! ⚔️ Vení a sufrir y reírte con la hermandad en cada nivel.", enlaces=["discord","kick","tiktok"], hashtags=["WoWForever","WorldOfWarcraft","Warrior","Lanzamiento"])
+- "cambiá la descripción, algo fachero de que subimos al guerrero, con el discord, mi kick y hashtags" -> cambiar_descripcion_stream(descripcion="¡Arrancó WoW Forever y subimos al Warrior desde el nivel 1! ⚔️", enlaces=["discord","kick"], hashtags=["WoWForever","Warrior"])
 - "cerebro, sos un inútil" -> responder(respuesta="¿Inútil yo? Mirá quién habla, el que se pierde con el mapa abierto. ¡Andá a farmear, pendejo!", animo="picado")
 - "che, hay uno en el chat, tanlonzo, que me dice que soy un banco, decile algo" -> responder(respuesta="¿Banco yo, tanlonzo? El único banco acá es donde te vas a quedar sentado mirando cómo farmeamos. ¿Lo baneamos, jefe, o le damos otra chance?", animo="picado")
 - (en la charla reciente hablaban de tanlonzo) "¿será que lo baneamos?" -> moderar_chat(accion="banear", usuario="tanlonzo", plataformas=[])
-- (en la charla reciente hablaban de tanlonzo) "o sea, ¿le damos un ban ahorita?" -> moderar_chat(accion="banear", usuario="tanlonzo", plataformas=[])
 - "molestá al chat" -> responder(respuesta="A ver chat, mucho lurkeo y poco follow. ¡Escriban algo, manga de vagos, que no muerdo!", animo="picado")
 - "saludá al stream" -> responder(respuesta="¡Buenas buenas, gente linda del stream! Acá El Cerebro, el que piensa por Mister H. ¡Pónganse cómodos!", animo="feliz")
 - "mandá un saludo al chat" -> mandar_al_chat(enlace="", texto="¡Hola chat! Bienvenidos al stream de Mr. H 👋", plataformas=[])
@@ -368,13 +365,18 @@ def _llamar_ollama(texto, pendiente=None, solo=None, temperatura=0.2, nota="", h
             "stream": False,
             "think": False,
             "keep_alive": config.OLLAMA_KEEP_ALIVE,
-            "options": {"temperature": temperatura if intento == 1 else max(0.6, temperatura), "num_ctx": 8192},
+            "options": {"temperature": temperatura if intento == 1 else max(0.6, temperatura), "num_ctx": config.OLLAMA_CTX},
         }, timeout=90)
         try:
             if r.status_code >= 500:
                 raise ValueError(f"Ollama {r.status_code}: {r.text[:300]}")
             r.raise_for_status()
-            msg = r.json().get("message", {})
+            datos = r.json()
+            msg = datos.get("message", {})
+            if datos.get("done_reason") == "length" and not msg.get("tool_calls"):
+                # Se quedó sin memoria de trabajo: el pedido no entra en OLLAMA_CTX. No es «no entendí».
+                raise RuntimeError(f"a la IA no le alcanzó la memoria (pedido de {datos.get('prompt_eval_count')} de "
+                                   f"{config.OLLAMA_CTX}): subí OLLAMA_CTX")
             llamadas = msg.get("tool_calls") or []
             if not llamadas:
                 contenido = (msg.get("content") or "").strip()

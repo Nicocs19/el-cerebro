@@ -57,6 +57,7 @@ USE_OLLAMA = _b("USE_OLLAMA", True)
 OLLAMA_URL = _s("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/").replace("//localhost", "//127.0.0.1")
 OLLAMA_MODEL = _s("OLLAMA_MODEL", "qwen3.5:9b")
 OLLAMA_KEEP_ALIVE = _s("OLLAMA_KEEP_ALIVE", "30m")
+OLLAMA_CTX = int(_f("OLLAMA_CTX", 12288))                # memoria de trabajo de la IA (instrucciones + orden + respuesta)
 OLLAMA_API_KEY = _s("OLLAMA_API_KEY")                     # cuenta gratis de ollama.com: búsqueda web (conectar_busqueda.bat)
 BUSCAR_INTERNET = _b("BUSCAR_INTERNET", True)             # buscar en internet cuando la pregunta lo necesita
 BUSCAR_CON_CLAUDE = _b("BUSCAR_CON_CLAUDE", True)         # la búsqueda la hace Claude (tu plan) sin acceso a tus archivos

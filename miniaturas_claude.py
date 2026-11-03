@@ -365,7 +365,7 @@ def revisar(carpeta, html):
     foto(html, carpeta / "_rev_youtube.png", 1280, 720)
     foto(html, carpeta / "_rev_tiktok.png", 1080, 1920)
     comando = [exe, "-p", "--max-turns", "6"] + SOLO_ESTO + (["--model", config.CLAUDE_MODELO] if config.CLAUDE_MODELO else [])
-    comando += ["--disallowedTools"] + [h for h in SIN_HERRAMIENTAS if h != "Read"] + ["--allowedTools", "Read"]
+    comando += ["--disallowedTools"] + [h for h in SIN_HERRAMIENTAS if h != "Read"] + ["--allowedTools", "Read(./**)"]
     try:
         r = subprocess.run(comando, input=REVISION.format(html=html.read_text(encoding="utf-8")), capture_output=True,
                            text=True, encoding="utf-8", timeout=360, cwd=str(carpeta))
