@@ -128,6 +128,7 @@ OBS_PASSWORD = _s("OBS_PASSWORD")
 OBS_FUENTE = _s("OBS_FUENTE")
 MINIATURA_AGENTE = _b("MINIATURA_AGENTE", True)        # si la idea pide imágenes que no tenés, Claude las busca y las baja
 MINIATURA_ESPERA = int(_f("MINIATURA_ESPERA", 600))      # segundos máximos para el agente de miniaturas
+MINIATURA_REVISAR = _b("MINIATURA_REVISAR", True)      # un Claude mira cómo quedó y corrige si algo se tapa o se corta
 MINIATURA_SUBIR_YOUTUBE = _b("MINIATURA_SUBIR_YOUTUBE", True)   # subir sola la miniatura al directo de YouTube
 MINIATURA_CLAUDE = _b("MINIATURA_CLAUDE", True)        # las miniaturas las diseña Claude (si falla, plantilla dorada)
 OVERLAY_CLAUDE = _b("OVERLAY_CLAUDE", True)            # los overlays los diseña Claude (programa claude de tu PC)

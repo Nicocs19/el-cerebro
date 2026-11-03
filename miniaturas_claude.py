@@ -76,6 +76,26 @@ def _sitio_ok(url):
     return u.scheme == "https" and any(host == d or host.endswith("." + d) for d in SITIOS_OK)
 
 
+def recortar(ruta):
+    """Saca el fondo de un personaje (necesita rembg: pip install rembg). Devuelve la ruta nueva o None."""
+    try:
+        from rembg import remove
+    except ImportError:
+        return None
+    try:
+        with Image.open(ruta) as im:
+            sin_fondo = remove(im.convert("RGBA"))
+        caja = sin_fondo.getbbox()
+        if not caja:
+            return None
+        nueva = ruta.with_name(ruta.stem + "_recorte.png")
+        sin_fondo.crop(caja).save(nueva)
+        return nueva
+    except Exception as e:  # noqa: BLE001
+        print(f"[miniatura] No pude recortar {ruta.name}: {e}")
+        return None
+
+
 def buscar_imagenes(idea, carpeta):
     """Claude busca en la web (sin acceso a archivos ni a la PC) y el programa baja y revisa las imágenes.
 
@@ -99,7 +119,8 @@ nada de fan art ni de otros sitios. En las wikis (warcraft.wiki.gg, wowpedia) la
 tienen el arte oficial: abrí la página con WebFetch y sacá la URL del archivo. Para un personaje o clase, preferí un
 render o arte con fondo transparente (PNG). Si piden el logo, buscá el logo completo de World of Warcraft (con letras),
 no solo el ícono. Máximo 4. Respondé SOLO con JSON, sin explicaciones:
-[{{"nombre": "logo_wow", "url": "https://…", "que": "logo oficial de World of Warcraft"}}]"""
+[{{"nombre": "logo_wow", "url": "https://…", "que": "logo oficial de World of Warcraft", "recortar": false}}]
+Poné "recortar": true si es un personaje o criatura que NO tiene fondo transparente (hay que recortarlo)."""
     from overlays import SIN_HERRAMIENTAS, SOLO_ESTO
     comando = [exe, "-p", "--max-turns", "20", "--model", config.CLAUDE_MODELO or "sonnet"] + SOLO_ESTO
     comando += ["--disallowedTools"] + [h for h in SIN_HERRAMIENTAS if h not in ("WebFetch", "WebSearch")]
@@ -133,8 +154,14 @@ no solo el ícono. Máximo 4. Respondé SOLO con JSON, sin explicaciones:
                 raise ValueError(f"muy chica ({img.width}x{img.height})")
             archivo = f"web_{nombre}.png"
             img.save(carpeta / archivo)
-            bajadas.append((archivo, f"{c.get('que') or nombre} (imagen oficial bajada de {url.split('/')[2]})"))
+            que = re.sub(r"[^\w áéíóúñÁÉÍÓÚÑ,.()-]", "", str(c.get("que") or nombre))[:80]   # solo una descripción corta
             log.append(f"bajada: {archivo} <- {url}")
+            if c.get("recortar") is True:
+                recorte = recortar(carpeta / archivo)
+                if recorte:
+                    archivo, que = recorte.name, que + ", recortado sin fondo"
+                    log.append(f"recortada: {archivo}")
+            bajadas.append((archivo, f"{que} (imagen oficial de {url.split('/')[2]})"))
         except Exception as e:  # noqa: BLE001
             log.append(f"no sirvió {url}: {e}")
         if len(bajadas) >= 4:
@@ -170,6 +197,11 @@ Reglas:
 - Si la idea pide algo que no está en los archivos (por ejemplo un personaje sin foto), resolvelo con diseño
   (siluetas, formas, texto, efectos CSS) usando la captura; no inventes rutas de imágenes.
 - El logo y los textos nunca se tocan ni se superponen, tampoco en vertical: dejá aire entre ellos.
+- Los logos y los textos NUNCA tapan la cara ni la cabeza de un personaje: ubicalos en otra zona.
+- Para el borde de las letras NO uses -webkit-text-stroke (con la fuente Cinzel dibuja rayas dentro de las letras):
+  usá text-shadow (varias sombras) o paint-order: stroke fill.
+- Si una imagen tiene otras figuras o restos en los bordes, recortala con object-fit/object-position, overflow:hidden
+  o una máscara (mask-image con degradé) para que se vea solo lo importante.
 - Ninguna letra puede quedar cortada ni salirse de la pantalla, sobre todo en vertical (1080 de ancho): ahí el título
   va en 2 o 3 líneas, con tamaño en vw (font-size: min(13vw, …)), white-space: normal y sin cortar palabras.
   Dejá al menos 5% de margen a los costados.
@@ -188,6 +220,7 @@ def foto(html, salida, w, h, escala=1.0):
     perfil.mkdir(parents=True, exist_ok=True)
     subprocess.run([navegador, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run",
                     "--mute-audio", f"--user-data-dir={perfil}", f"--window-size={w},{h}",
+                    "--host-resolver-rules=MAP * ~NOTFOUND",          # el diseño no sale a internet
                     f"--force-device-scale-factor={escala}", "--virtual-time-budget=5000",
                     f"--screenshot={salida}", html.as_uri()], capture_output=True, timeout=90)
     if not salida.exists():
@@ -199,8 +232,49 @@ def foto(html, salida, w, h, escala=1.0):
     return img
 
 
+REVISION = """Sos el revisor de una miniatura de YouTube y TikTok. Abrí con Read las dos imágenes de esta carpeta:
+_rev_youtube.png (1280x720) y _rev_tiktok.png (1080x1920). Son la foto de este HTML:
+
+{html}
+
+Revisá con ojo de diseñador: ¿algún logo o texto tapa la cara o la cabeza de un personaje? ¿hay letras cortadas o
+que se salen? ¿elementos pegados o superpuestos? ¿restos de otras figuras en los bordes? ¿letras con rayas raras?
+¿se lee bien en chico? Si está todo bien respondé solo: OK
+Si no, respondé SOLO el HTML completo corregido (mismos textos y mismas imágenes, solo arreglá los problemas)."""
+
+
+def revisar(carpeta, html):
+    """Un Claude mira cómo quedó (solo puede leer esta carpeta, sin internet) y corrige si algo se tapa o se corta."""
+    from overlays import SIN_HERRAMIENTAS, SOLO_ESTO, buscar_claude
+    exe = buscar_claude()
+    if not exe:
+        return False
+    foto(html, carpeta / "_rev_youtube.png", 1280, 720)
+    foto(html, carpeta / "_rev_tiktok.png", 1080, 1920)
+    comando = [exe, "-p", "--max-turns", "6"] + SOLO_ESTO + (["--model", config.CLAUDE_MODELO] if config.CLAUDE_MODELO else [])
+    comando += ["--disallowedTools"] + [h for h in SIN_HERRAMIENTAS if h != "Read"] + ["--allowedTools", "Read"]
+    try:
+        r = subprocess.run(comando, input=REVISION.format(html=html.read_text(encoding="utf-8")), capture_output=True,
+                           text=True, encoding="utf-8", timeout=240, cwd=str(carpeta))
+    finally:
+        for f in ("_rev_youtube.png", "_rev_tiktok.png"):
+            (carpeta / f).unlink(missing_ok=True)
+    m = re.search(r"<!doctype html.*?</html>|<html.*?</html>", r.stdout or "", re.S | re.I)
+    if not m:
+        print("[miniatura] Revisión: está bien.")
+        return False
+    html.write_text(m.group(0), encoding="utf-8")
+    print("[miniatura] Revisión: corregí el diseño.")
+    return True
+
+
 def crear(carpeta, titulo, subtitulo="", idea=""):
     html = disenar(carpeta, titulo, subtitulo, idea)
+    if config.MINIATURA_REVISAR:
+        try:
+            revisar(carpeta, html)
+        except Exception as e:  # noqa: BLE001
+            print(f"[miniatura] No pude revisarla ({e}); queda la primera versión.")
     rutas = {}
     for nombre, (w, h, ext) in FORMATOS.items():
         escala = 1.5 if (w, h) == (1920, 1080) else 1.0          # Kick: el diseño de 1280x720 en alta

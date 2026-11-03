@@ -14,3 +14,4 @@ google-api-python-client>=2.100
 google-auth-oauthlib>=1.2
 websocket-client>=1.7
 piper-tts==1.3.0
+# Opcional: recortar personajes para las miniaturas (saca el fondo). pip install "rembg[cpu]"
