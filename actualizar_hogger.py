@@ -110,7 +110,7 @@ def main():
 
     escribir("🔄 Actualizando Hogger (con copia de seguridad)...\n")
     codigo, salida = correr([gcloud, "compute", "ssh", VM, *comunes,
-                             "--command=bash /tmp/desplegar_hogger.sh /tmp/Hogger_bot.zip"])
+                             "--command=sudo bash /tmp/desplegar_hogger.sh /tmp/Hogger_bot.zip"])
     shutil.rmtree(tmp, ignore_errors=True)
     if "RESULTADO: OK" in salida:
         escribir("\n✅ Hogger actualizado y en línea.\n")

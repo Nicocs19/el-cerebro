@@ -5,6 +5,8 @@
 #   5. si algo falla, vuelve sola a la versión anterior.
 # Lo llama actualizar_hogger.py desde la PC:  bash desplegar_hogger.sh /tmp/Hogger_bot.zip
 set -u
+# La carpeta del bot está en el home de otro usuario (privado): todo el script corre como root.
+if [ "$(id -u)" != "0" ]; then exec sudo bash "$0" "$@"; fi
 ZIP="${1:-/tmp/Hogger_bot.zip}"
 fin() { echo "RESULTADO: $1"; rm -rf "${TMP:-/nonexistent}"; exit "${2:-0}"; }
 
