@@ -25,6 +25,26 @@ def esperar_enter(texto="Cuando termines, apretá Enter acá..."):
     input(f"👉 {texto}")
 
 
+def esperar_enter_oculto(texto="Apretá Enter acá..."):
+    """Espera Enter SIN mostrar lo que se escriba o pegue: si pegás una clave acá, no queda a la vista."""
+    print(f"👉 {texto}", end="", flush=True)
+    try:
+        import msvcrt
+    except ImportError:
+        import getpass
+        getpass.getpass("")
+        return
+    while True:
+        ch = msvcrt.getwch()
+        if ch in ("\r", "\n"):
+            print()
+            return
+        if ch == "\x03":
+            raise KeyboardInterrupt
+        if ch in ("\x00", "\xe0"):
+            msvcrt.getwch()
+
+
 def guardar_env(**valores):
     """Cambia o agrega CLAVE=valor en el .env sin tocar lo demás y actualiza config."""
     ruta = config.BASE / ".env"

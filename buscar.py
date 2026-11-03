@@ -2,7 +2,8 @@
 
 1. Con el programa claude de tu PC (tu plan, sin costo extra): Claude busca en la web y contesta. Es lo más completo
    (noticias, parches, WoW). Corre SIN acceso a tus archivos ni a la PC: solo puede buscar y leer páginas.
-2. Con OLLAMA_API_KEY (cuenta gratis de ollama.com, conectar_busqueda.bat): búsqueda web de Ollama + IA local.
+2. Con OLLAMA_API_KEY (ollama.com, conectar_busqueda.bat; a algunas cuentas les pide plan pago): búsqueda web de
+   Ollama + IA local.
 3. Si no hay nada de eso: Wikipedia (español y si no, inglés) + IA local.
 Tarda más que una charla normal (se avisa con «dejame buscar»), pero solo se usa cuando hace falta.
 """
@@ -23,6 +24,8 @@ def _ollama_web(pregunta, maximo):
                      headers={"Authorization": f"Bearer {config.OLLAMA_API_KEY}"}, timeout=15)
     if r.status_code in (401, 403):
         raise PermissionError("ollama.com no aceptó la clave de búsqueda (conectar_busqueda.bat)")
+    if r.status_code == 402:
+        raise PermissionError("ollama.com pide un plan pago para buscar con esta cuenta")
     r.raise_for_status()
     return [{"titulo": x.get("title") or "", "url": x.get("url") or "", "texto": x.get("content") or ""}
             for x in r.json().get("results") or []]
