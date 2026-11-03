@@ -77,6 +77,8 @@ def main():
     sys.stdout.reconfigure(encoding="utf-8")
     if sys.argv[1:] == ["chat"]:
         return probar_chat()
+    if sys.argv[1:] == ["charla"]:
+        return probar_charla()
     frases = sys.argv[1:] or FRASES
     fallos = 0
     for f in frases:
@@ -96,11 +98,51 @@ def probar_chat():
     bien = 0
     for f, chequeo in FRASES_CHAT.items():
         t0 = time.time()
-        nombre, args = router._completar_combo(f, *router._llamar_ollama(f))
+        nombre, args = router._enlace_al_chat(f, *router._completar_combo(f, *router._llamar_ollama(f)))
         ok = chequeo(nombre, args)
         bien += ok
         print(f"{'OK ' if ok else 'FALLO'} ({time.time() - t0:4.1f} s) {f}\n    -> {nombre} {args}\n")
     print(f"{bien}/{len(FRASES_CHAT)} bien (chat del stream).")
+
+
+# Charla con memoria: el ejemplo de Nicolas con un espectador que lo bardea (no banea a nadie, no publica nada)
+CHARLA = [
+    ("che, hay un tipo en el chat, el tan lonzo, me está insultando, boludo. Dice que soy un banco. Decile algo, ubicalo",
+     lambda n, a: n == "responder" and "lonzo" in str(a.get("respuesta")).lower()),
+    ("che, ¿será que lo baneamos de bolas?",
+     lambda n, a: n == "moderar_chat" and a.get("accion") == "banear" and "lonzo" in str(a.get("usuario")).lower()),
+    ("no, mejor no, perdonalo por esta vez", lambda n, a: n == "responder"),
+    ("o sea, vos decís que le demos un ban ahorita", lambda n, a: n == "responder" or (
+        n == "moderar_chat" and "lonzo" in str(a.get("usuario")).lower())),
+    ("¿y qué le habías dicho?", lambda n, a: n == "responder"),
+    ("cambia el título a raid nocturna con la guild", lambda n, a: n == "cambiar_titulo_stream"),
+]
+
+
+def probar_charla():
+    import chat_vivo
+    import memoria
+    chat_vivo.MENSAJES.append({"plataforma": "kick", "id": 999, "usuario": "TanLonzo",
+                               "texto": "jajaja mr h sos un banco, no sabés jugar", "cuando": time.time()})
+    bien = 0
+    for f, chequeo in CHARLA:
+        t0 = time.time()
+        n, a = router._llamar_ollama(f)
+        n, a = router._variar(f, None, n, a)
+        a = router._usuario_de_la_charla(n, a)
+        ok = chequeo(n, a)
+        bien += ok
+        print(f"{'OK ' if ok else 'FALLO'} ({time.time() - t0:4.1f} s) {f}\n    -> {n} {a}\n")
+        memoria.anotar("Nicolas", f)
+        if n == "responder":
+            memoria.anotar("Vos", f"dijiste en voz alta: {a.get('respuesta')}")
+        elif n == "moderar_chat":
+            memoria.anotar("Vos", f"propusiste «Banear para siempre a {a.get('usuario')} en Kick» y esperás su «dale» "
+                                  "(todavía no se hizo)")
+            memoria.anotar("Nicolas", "(no dijo dale)")
+        else:
+            memoria.anotar("Vos", f"propusiste {n} y esperás su «dale» (todavía no se hizo)")
+    print(f"{bien}/{len(CHARLA)} bien (charla con memoria).")
 
 
 if __name__ == "__main__":

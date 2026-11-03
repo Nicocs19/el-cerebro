@@ -110,6 +110,10 @@ ELEVEN_MODELO = _s("ELEVEN_MODELO", "eleven_flash_v2_5")   # rápido y gasta la 
 VOZ_MODELO = _s("VOZ_MODELO", "es_MX-claude-high")      # voz local de respaldo (Piper, rhasspy/piper-voices)
 VOZ_DISPOSITIVO = _s("VOZ_DISPOSITIVO")                  # salida de audio (nombre o número); vacío = la predeterminada
 VOZ_VELOCIDAD = _f("VOZ_VELOCIDAD", 1.1)
+# --- Memoria corta de la charla (solo en tu PC; se olvida sola y al cerrar El Cerebro) ---
+MEMORIA = _b("MEMORIA", True)
+MEMORIA_MINUTOS = _f("MEMORIA_MINUTOS", 10)           # cuánto se acuerda de lo que hablaron
+MEMORIA_FRASES = int(_f("MEMORIA_FRASES", 12))        # cuántas frases (tuyas y de él) como máximo
 VOZ_RELLENO = _b("VOZ_RELLENO", True)                     # dice «a ver…» si la IA tarda en contestar
 VOZ_RELLENO_SEGUNDOS = _f("VOZ_RELLENO_SEGUNDOS", 1.2)
 VOZ_VOLUMEN = _f("VOZ_VOLUMEN", 0.9)

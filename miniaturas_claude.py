@@ -174,7 +174,9 @@ del archivo.
 Para un personaje o clase lo mejor es un RENDER de UN SOLO personaje, de cuerpo entero o medio cuerpo, en PNG con
 fondo transparente (buscá cosas como "warrior render png", "transparent", arte de personaje recortado). Si no hay,
 uno solo sobre fondo liso. Evitá escenas con varios personajes, paisajes detrás o el personaje chiquito.
-Si piden el logo, buscá el logo completo de World of Warcraft (con letras), no solo el ícono.
+Si piden el logo de WoW, buscá el logo clásico y completo de "World of Warcraft" (las letras doradas con la W, SIN
+nombre de expansión como Midnight, The War Within, Dragonflight o Shadowlands), salvo que la idea nombre una
+expansión. Mirá la imagen antes de elegirla: que diga "World of Warcraft" y nada más. No solo el ícono.
 Máximo 4 (podés dar 2 opciones del personaje). Respondé SOLO con JSON, sin explicaciones:
 [{{"nombre": "logo_wow", "url": "https://…", "que": "logo de World of Warcraft", "recortar": false}}]
 Poné "recortar": true si es un personaje o criatura (el programa se fija solo si ya viene sin fondo)."""
@@ -263,6 +265,9 @@ Reglas:
 - El personaje principal es el protagonista: GRANDE, de 75% a 100% del alto en horizontal (puede salirse por abajo)
   y bien visible en vertical. Nada de personajes chiquitos.
 - Las armas, manos y bordes del personaje no tocan las cajas de texto ni el logo: dejá aire alrededor.
+- Al personaje se le pueden cortar las piernas por abajo, pero nunca la cabeza ni el arma principal.
+- En vertical (TikTok) va TODO lo de la horizontal: el logo también. Arriba logo, después el título, y el personaje
+  grande llenando el resto; sin huecos vacíos grandes en el medio.
 - Ninguna letra puede quedar cortada ni salirse de la pantalla, sobre todo en vertical (1080 de ancho): ahí el título
   va en 2 o 3 líneas, con tamaño en vw (font-size: min(13vw, …)), white-space: normal y sin cortar palabras.
   Dejá al menos 5% de margen a los costados.
@@ -306,6 +311,7 @@ Revisá con ojo de diseñador, sé exigente:
   imagen) o pedazos de otras figuras? Escondelos con mask-image (degradé), clip-path, object-position o achicando
   lo que se ve de esa imagen; si no hay forma, sacá esa imagen y resolvelo con diseño.
 - en la horizontal, ¿el personaje principal es grande (al menos 75% del alto)? si es chico, agrandalo.
+- ¿se le corta la cabeza o el arma principal? ¿en vertical falta el logo o queda un hueco vacío grande?
 - ¿se lee bien en chico?
 Si está todo bien respondé solo: OK
 Si no, respondé SOLO el HTML completo corregido (mismos textos y las mismas imágenes o menos, solo arreglá los

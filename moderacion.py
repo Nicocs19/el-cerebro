@@ -164,10 +164,17 @@ def _buscar(dicho, plataformas, accion):
     return objetivos, None
 
 
+# «Banealo», «ese tipo», «ninguno»: no es un nombre. Se usa la persona de la charla o se pregunta a quién.
+SIN_NOMBRE = {"", "el", "ese", "este", "aquel", "lo", "le", "tipo", "eltipo", "esetipo", "estetipo", "pibe", "esepibe",
+              "chabon", "esechabon", "man", "eseman", "loco", "eseloco", "huevon", "esehuevon", "boludo", "eseboludo",
+              "pendejo", "esependejo", "usuario", "esteusuario", "eseusuario", "elusuario", "ninguno", "nadie",
+              "alguien", "alguno", "todos", "nose", "desconocido", "x", "null", "none", "vacio"}
+
+
 def construir(a):
     accion = a.get("accion") if a.get("accion") in ACCIONES else "silenciar"
     dicho = str(a.get("usuario") or "").strip()
-    if not clave(dicho):
+    if clave(dicho) in SIN_NOMBRE:
         raise H.ErrorOrden("¿A quién? No entendí el nombre del usuario.")
     plataformas = [p for p in (a.get("plataformas") or []) if p in CHATS] or CHATS
     minutos = None

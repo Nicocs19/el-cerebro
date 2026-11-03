@@ -71,6 +71,12 @@ def _nombre_hablado(usuario):
 
 RELLENOS = ("A ver, a ver…", "Mmm…", "Ya, un toque…", "Ajá, dejame ver…")
 BUSCANDO = ("Dejame buscar…", "Ya te lo busco…", "Un toque, lo busco en internet…")
+BANEO_ANSIOSO = ("¡De una! Tengo el dedo en el botón. ¿Baneo a {quien}? Decime «dale» y lo saco volando.",
+                 "Uff, con gusto. ¿Le doy ban a {quien}? Decime «dale» y chau.",
+                 "¡Ya era hora! ¿Baneo a {quien}? Vos decime «dale» y lo baneo ahorita.")
+BANEADO = ("Listo, {quien} baneado. ¡Chau, chau, andá a llorar a otro stream!",
+           "Fuiste, {quien}. Baneado.",
+           "Listo, a {quien} lo saqué volando.")
 
 
 def frase(evento, accion=None, detalle=None):
@@ -106,6 +112,10 @@ def frase(evento, accion=None, detalle=None):
             return f"Encuesta: {d.get('pregunta')} ¿La publico?"
         if a == "mensaje":
             return f"Mensaje para {d.get('canal')}. ¿Lo mando?"
+        if tipo == "moderar" and d.get("accion") == "banear":
+            quienes = " y ".join(f"{_nombre_hablado(o['usuario'])} en {_PLAT.get(o['plataforma'], o['plataforma'])}"
+                                 for o in d.get("objetivos", []))
+            return random.choice(BANEO_ANSIOSO).format(quien=quienes)
         if tipo == "moderar":
             verbo = {"banear": "¿Baneo a", "silenciar": f"¿Silencio {d.get('minutos')} minutos a",
                      "desbanear": "¿Desbaneo a"}.get(d.get("accion"), "¿Moderar a")
@@ -146,6 +156,9 @@ def frase(evento, accion=None, detalle=None):
         if tipo == "moderar":
             if "Falló" in str(detalle or ""):
                 return "Hecho a medias. Te dejo el detalle en pantalla."
+            if d.get("accion") == "banear":
+                quien = " y ".join(dict.fromkeys(_nombre_hablado(o["usuario"]) for o in d.get("objetivos", [])))
+                return random.choice(BANEADO).format(quien=quien or "ese")
             return {"banear": "Listo, baneado.", "silenciar": "Listo, silenciado.",
                     "desbanear": "Listo, desbaneado."}.get(d.get("accion"), "Listo.")
         if tipo == "chat":

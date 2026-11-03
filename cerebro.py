@@ -18,6 +18,7 @@ import traceback
 
 import config
 import herramientas as H
+import memoria
 import router
 from acciones import Ejecutor, log
 from avisos import pitido
@@ -43,10 +44,14 @@ class Cerebro:
         if self.pendiente and time.time() > self.pendiente_hasta:
             self.pendiente = None
         r = router.es_confirmacion(texto)
-        if r == "confirmar":
+        if r == "confirmar" and (self.pendiente or not memoria.hay_charla(3)):
+            memoria.anotar("Nicolas", texto)
             return self.confirmar()
-        if r == "cancelar":
+        if r == "cancelar" and (self.pendiente or self.contexto or not memoria.hay_charla(3)):
+            memoria.anotar("Nicolas", texto)
             return self.cancelar()
+        # «dale, banealo» sin nada esperando, pero en medio de una charla: lo entiende la IA con la memoria
+        # (si es banear, igual vuelve a pedir «dale» con el nombre a la vista)
         consulta = f"{self.contexto}. {texto}" if self.contexto else texto
         self.mostrar(f"«{texto}»\nPensando…", "info", 0)
         relleno = threading.Timer(config.VOZ_RELLENO_SEGUNDOS, self.avisar, args=("relleno",))
@@ -68,9 +73,11 @@ class Cerebro:
             return self.mostrar(f"Error al interpretar: {e}", "error", 10)
         finally:
             relleno.cancel()
+            memoria.anotar("Nicolas", texto)
 
         if accion.tipo == "aclaracion":
             log(f"PREGUNTA: {accion.resumen}")
+            memoria.anotar("Vos", f"le preguntaste: {accion.resumen}")
             self.contexto = consulta
             pitido("pregunta")
             self.avisar("pregunta", accion)
@@ -79,6 +86,7 @@ class Cerebro:
         if accion.confirmar and not auto_confirmar:
             self.pendiente = accion
             self.pendiente_hasta = time.time() + config.CONFIRMAR_SEGUNDOS
+            memoria.anotar("Vos", f"propusiste «{accion.resumen.splitlines()[0]}» y esperás su «dale» (todavía no se hizo)")
             pitido("pregunta")
             self.avisar("confirmar", accion)
             pregunta = "¿Lo hago?" if accion.tipo in ("moderar", "overlay", "titulo", "juego") else "¿Publico?"
@@ -98,6 +106,7 @@ class Cerebro:
     def cancelar(self):
         if self.pendiente:
             log(f"CANCELADO: {self.pendiente.resumen.splitlines()[0]}")
+            memoria.anotar("Vos", f"cancelaste «{self.pendiente.resumen.splitlines()[0]}» (no se hizo)")
         self.pendiente = None
         self.contexto = None
         pitido("fin")
@@ -127,9 +136,14 @@ class Cerebro:
             resultado = (ejecutor or self.ejecutor).ejecutar(accion)
         except Exception as e:  # noqa: BLE001
             log(f"ERROR: {e}")
+            memoria.anotar("Vos", f"no pudiste hacer «{accion.resumen.splitlines()[0]}»: {e}")
             pitido("error")
             self.avisar("error", accion, str(e))
             return self.mostrar(f"No se pudo: {e}", "error", 12)
+        if accion.tipo in ("respuesta", "busqueda"):
+            memoria.anotar("Vos", f"dijiste en voz alta: {str(resultado).split(chr(10) + '(Fuente:')[0]}")
+        else:
+            memoria.anotar("Vos", f"hiciste: {str(resultado).splitlines()[0] if resultado else accion.resumen.splitlines()[0]}")
         pitido("ok")
         self.avisar("hecho", accion, resultado)
         self.mostrar(resultado, "ok", 8)
