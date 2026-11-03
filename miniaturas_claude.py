@@ -3,8 +3,8 @@
 Usa el programa `claude` de tu PC (tu plan, sin costo extra) y Microsoft Edge, que viene con Windows.
 Usa la captura del juego, el logo, la fuente Cinzel y las fotos que pongas en recursos/imagenes.
 Si tu idea pide imágenes que no están (logo de World of Warcraft, arte del Warrior, un jefe…), un Claude las busca
-en la web SIN acceso a tus archivos, el programa baja solo las de sitios oficiales (Blizzard, Wikimedia) y comprueba
-que sean imágenes, y otro Claude SIN internet arma el diseño. Así nada de lo que lea en internet puede tocar tus claves.
+en cualquier página de WoW SIN acceso a tus archivos, el programa las baja (nunca de tu red local) y comprueba que
+sean imágenes, y otro Claude SIN internet arma el diseño. Así nada de lo que lea en internet puede tocar tus claves.
 """
 import os
 import re
@@ -62,18 +62,30 @@ def necesita_agente(idea):
     return bool(config.MINIATURA_AGENTE and idea and PIDE_IMAGENES.search(idea))
 
 
-SITIOS_OK = ("blizzard.com", "worldofwarcraft.com", "blz-contentstack.com", "blz-contentstack-images.akamaized.net",
-             "bnetcmsus-a.akamaihd.net", "upload.wikimedia.org",
-             # wikis de WoW: guardan el arte oficial del juego (logos, arte de clases, renders)
-             "warcraft.wiki.gg", "static.wikia.nocookie.net", "wow.zamimg.com")
+# Sitios donde suele estar el mejor arte de WoW (se sugieren primero, pero sirve cualquier página pública)
+SITIOS_SUGERIDOS = ("warcraft.wiki.gg", "wowhead.com (wow.zamimg.com)", "blizzard.com", "worldofwarcraft.blizzard.com",
+                    "wowpedia (static.wikia.nocookie.net)", "upload.wikimedia.org", "wallpapers y artstation")
 MAX_BYTES = 8 * 1024 * 1024
 
 
 def _sitio_ok(url):
+    """Cualquier página pública por https. Nunca la red de tu casa ni tu PC (router, 192.168…, localhost)."""
+    import ipaddress
+    import socket
     from urllib.parse import urlparse
     u = urlparse(url or "")
     host = (u.hostname or "").lower()
-    return u.scheme == "https" and any(host == d or host.endswith("." + d) for d in SITIOS_OK)
+    if u.scheme != "https" or not host or host == "localhost" or host.endswith((".local", ".lan", ".home")):
+        return False
+    try:
+        direcciones = {i[4][0] for i in socket.getaddrinfo(host, 443)}
+    except OSError:
+        return False
+    for d in direcciones:
+        ip = ipaddress.ip_address(d.split("%")[0])
+        if not ip.is_global:
+            return False
+    return True
 
 
 def recortar(ruta):
@@ -100,7 +112,8 @@ def buscar_imagenes(idea, carpeta):
     """Claude busca en la web (sin acceso a archivos ni a la PC) y el programa baja y revisa las imágenes.
 
     Separado en dos para que nada de lo que lea en internet pueda tocar tus claves: el que busca no puede abrir
-    archivos ni ejecutar nada, y lo que baja Python solo viene de sitios oficiales y tiene que ser una imagen de verdad.
+    archivos ni ejecutar nada, y lo que baja Python viene de páginas públicas (nunca tu red local) y tiene que ser
+    una imagen de verdad.
     """
     import io
     import json
@@ -113,13 +126,14 @@ def buscar_imagenes(idea, carpeta):
     if not exe:
         raise RuntimeError("no está el programa claude en esta PC")
     pedido = f"""Buscá imágenes para la miniatura de un directo de World of Warcraft. Idea: {idea}
-Usá WebSearch y WebFetch para encontrar URLs DIRECTAS de archivos de imagen (png, jpg o webp), solo de estos sitios:
-{", ".join(SITIOS_OK)}. Tiene que ser arte OFICIAL de Blizzard (logos, arte de clases, renders, capturas oficiales):
-nada de fan art ni de otros sitios. En las wikis (warcraft.wiki.gg, wowpedia) las páginas de clases, razas y logos
-tienen el arte oficial: abrí la página con WebFetch y sacá la URL del archivo. Para un personaje o clase, preferí un
+Usá WebSearch y WebFetch para encontrar URLs DIRECTAS de archivos de imagen (png, jpg o webp) de cualquier página,
+mientras sea de World of Warcraft y encaje con lo que pide la idea (arte, renders, logos, capturas, wallpapers).
+Suele haber buen arte en: {", ".join(SITIOS_SUGERIDOS)}. Elegí imágenes grandes, nítidas y sin marca de agua.
+En las wikis las páginas de clases, razas, jefes y logos tienen el arte: abrí la página con WebFetch y sacá la URL
+del archivo. Para un personaje o clase, preferí un
 render o arte con fondo transparente (PNG). Si piden el logo, buscá el logo completo de World of Warcraft (con letras),
 no solo el ícono. Máximo 4. Respondé SOLO con JSON, sin explicaciones:
-[{{"nombre": "logo_wow", "url": "https://…", "que": "logo oficial de World of Warcraft", "recortar": false}}]
+[{{"nombre": "logo_wow", "url": "https://…", "que": "logo de World of Warcraft", "recortar": false}}]
 Poné "recortar": true si es un personaje o criatura que NO tiene fondo transparente (hay que recortarlo)."""
     from overlays import SIN_HERRAMIENTAS, SOLO_ESTO
     comando = [exe, "-p", "--max-turns", "20", "--model", config.CLAUDE_MODELO or "sonnet"] + SOLO_ESTO
@@ -137,13 +151,13 @@ Poné "recortar": true si es un personaje o criatura que NO tiene fondo transpar
     for c in candidatas[:6]:
         url, nombre = str(c.get("url") or ""), re.sub(r"[^a-z0-9_]+", "_", str(c.get("nombre") or "imagen").lower())[:30]
         if not _sitio_ok(url):
-            log.append(f"descarto (sitio no permitido): {url}")
+            log.append(f"descarto (no es una página pública por https): {url}")
             continue
         try:
             resp = requests.get(url, timeout=20, stream=True, headers={"User-Agent": "ElCerebro/1.0"})
             resp.raise_for_status()
             if not _sitio_ok(resp.url):                       # si redirigió a otro sitio, no sirve
-                raise ValueError(f"redirigió a un sitio no permitido: {resp.url}")
+                raise ValueError(f"redirigió a una dirección no permitida: {resp.url}")
             datos = resp.raw.read(MAX_BYTES + 1, decode_content=True)
             if len(datos) > MAX_BYTES:
                 raise ValueError("imagen demasiado grande")
@@ -161,13 +175,13 @@ Poné "recortar": true si es un personaje o criatura que NO tiene fondo transpar
                 if recorte:
                     archivo, que = recorte.name, que + ", recortado sin fondo"
                     log.append(f"recortada: {archivo}")
-            bajadas.append((archivo, f"{que} (imagen oficial de {url.split('/')[2]})"))
+            bajadas.append((archivo, f"{que} (imagen de {url.split('/')[2]})"))
         except Exception as e:  # noqa: BLE001
             log.append(f"no sirvió {url}: {e}")
         if len(bajadas) >= 4:
             break
     (carpeta / "agente.log").write_text("\n".join(log), encoding="utf-8")
-    print(f"[miniatura] Imágenes oficiales bajadas: {', '.join(a for a, _ in bajadas) or 'ninguna'}")
+    print(f"[miniatura] Imágenes bajadas: {', '.join(a for a, _ in bajadas) or 'ninguna'}")
     return bajadas
 
 
