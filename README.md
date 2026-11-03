@@ -31,7 +31,8 @@ Si Ollama no responde, usa patrones fijos para anuncios y títulos.
 1. Python 3.12, Git y Ollama instalados. Descarga el modelo: `ollama pull qwen3.5:9b`.
 2. `git clone https://github.com/Nicocs19/el-cerebro C:\ElCerebro` y doble clic en `instalar.bat`.
 3. Doble clic en `conectar_todo.bat`. Copia las claves de Hogger y de OBS al `.env` sin mostrarlas y actualiza Hogger en Google Cloud: hace copia de seguridad, reinicia y, si algo falla, vuelve solo a la versión anterior. El registro queda en `data/actualizar_hogger.log`.
-4. Lo que falta en `.env`:
+4. Doble clic en `conectar_plataformas.bat`: te guía paso a paso para conectar Kick y YouTube (crea la app de Kick, activa la API de YouTube, recoge el `client_secret.json` de Descargas y abre las autorizaciones). También están por separado `conectar_kick.bat` y `conectar_youtube.bat`.
+   Lo que queda en `.env`:
    - `HOGGER_TOKEN` y `HOGGER_GUILD_ID`: los mismos del `.env` de Hogger (los pone `conectar_todo.bat`).
    - `KICK_CLIENT_ID` y `KICK_CLIENT_SECRET`: de la app de kick.com/settings/developer (Redirect URL `http://localhost:8765/callback`, scopes `user:read channel:read channel:write`). Luego `conectar_kick.bat`.
    - YouTube: en Google Cloud, habilita "YouTube Data API v3", crea un ID de cliente OAuth de tipo "App de escritorio", descarga el JSON como `client_secret.json` en esta carpeta y ejecuta `conectar_youtube.bat`. Pon la pantalla de consentimiento en "En producción" para que la sesión no caduque cada 7 días.
@@ -64,5 +65,6 @@ La IA copia el día tal como lo dijiste («viernes», «mañana», «el 15», «
 | `voz.py`, `overlay.py`, `avisos.py` | Whisper, cartel flotante y pitidos |
 | `diagnostico.py` | Revisión completa del sistema |
 | `conectar_claves.py`, `actualizar_hogger.py`, `servidor/desplegar_hogger.sh` | Lo que hace `conectar_todo.bat` |
+| `kick_auth.py`, `youtube_auth.py`, `guia.py` | Asistentes de `conectar_plataformas.bat` |
 
 Secretos (`.env`, `client_secret.json`, `data/`) nunca se suben al repositorio.
