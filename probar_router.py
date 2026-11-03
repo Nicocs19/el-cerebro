@@ -311,6 +311,10 @@ def probar_corregir():
             return "mensaje_discord", {"texto": "¡En 20 minutos arranco directo!", "canal": "general"}
         if "10 minutos" in n:
             return "mensaje_discord", {"texto": "¡En 10 minutos arranco directo!", "canal": "general"}
+        if "titulo" in n and solo == ["cambiar_descripcion_stream"]:     # en el combo la IA no la redactaba
+            return "cambiar_descripcion_stream", {"descripcion": "", "enlaces": ["discord"]}
+        if "titulo" in n:
+            return "cambiar_titulo_stream", {"titulo": "subiendo al guerrero", "plataformas": ["kick", "youtube", "tiktok"]}
         if "descripcion" in n:
             return "cambiar_descripcion_stream", {"descripcion": "¡Subimos al Warrior en el lanzamiento! ⚔️", "enlaces": ["discord"]}
         return "responder", {"respuesta": "¡Perdón, jefe!"}
@@ -345,6 +349,13 @@ def probar_corregir():
         d = str(p and p.datos.get("descripcion"))
         casos.append(("descripción con Discord, Kick y TikTok reales",
                       all(x in d for x in ("discord.gg/prueba", "kick.com/", "tiktok.com/@prueba")), True))
+        c.cancelar()
+        c.manejar_texto("Cambiá el título a subiendo al guerrero y la descripción con mi Discord y hashtags")
+        p = c.pendiente
+        casos.append(("título + descripción juntos (no se pierde la descripción)",
+                      bool(p and p.tipo == "titulo" and "discord.gg/prueba" in str(p.datos.get("descripcion"))
+                           and "#" in str(p.datos.get("descripcion"))), True))
+        casos.append(("título con mayúscula", p and p.datos.get("titulo"), "Subiendo al guerrero"))
         c.cancelar()
     finally:
         router._llamar_ollama, enlaces.leer, acciones.log, cerebro.log, cerebro.pitido = viejos

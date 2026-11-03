@@ -144,6 +144,7 @@ MINIATURA_CLAUDE = _b("MINIATURA_CLAUDE", True)        # las miniaturas las dise
 OVERLAY_CLAUDE = _b("OVERLAY_CLAUDE", True)            # los overlays los diseña Claude (programa claude de tu PC)
 OVERLAY_ESPERA = int(_f("OVERLAY_ESPERA", 480))         # segundos máximos esperando el diseño de Claude (Opus tarda más)
 CLAUDE_MODELO = _s("CLAUDE_MODELO", "opus")             # modelo de Claude para diseñar miniaturas y overlays (el mejor)
+CLAUDE_MODELO_REVISION = _s("CLAUDE_MODELO_REVISION", "sonnet")   # el que revisa la miniatura (más rápido)
 # Tus miniaturas favoritas: aprender_estilo.bat las copia en chico a recursos/referencias y escribe la guía de estilo
 MINIATURAS_EJEMPLOS = _s("MINIATURAS_EJEMPLOS", r"E:\Biblioteca\Imagenes\Miniaturas YouTube")
 REFERENCIAS = RECURSOS / "referencias"

@@ -404,6 +404,32 @@ PIDE_TITULO = re.compile(r"(cambi|pon|actualiz)\w*\b.*\btitulo|\btitulo\b.*\b(a|
 PIDE_JUEGO = re.compile(r"(cambi|pon)\w*\b.*\b(juego|categoria)")
 
 
+def _descripcion_del_combo(texto, args):
+    """«Cambiá el título a X y la descripción con mi Discord»: la IA solo hizo el título; se le pide la descripción.
+
+    Si no la redacta (no la dictó), se arma una con el título: nunca se pierde lo que pidió.
+    """
+    extra = {}
+    for intento, nota in ((1, ""), (2, "\n(Ahora SOLO la descripción del directo: redactala vos, con onda, a partir de lo "
+                                       "que dijo y del título, aunque no la haya dictado.)")):
+        try:
+            otra, extra = _llamar_ollama(texto, solo=["cambiar_descripcion_stream"], nota=nota,
+                                         temperatura=0.2 if intento == 1 else 0.5)
+        except Exception as e:  # noqa: BLE001
+            _p(f"[router] no pude armar la descripción: {e}")
+            otra, extra = None, {}
+        if otra == "cambiar_descripcion_stream" and not H._vacio(extra.get("descripcion")):
+            break
+    descripcion = extra.get("descripcion")
+    if H._vacio(descripcion):
+        titulo = str(args.get("titulo") or "").strip().rstrip(".") or "WoW Forever"
+        descripcion = f"¡{titulo[0].upper() + titulo[1:]}! ⚔️ Vení al directo de Mr. H con la hermandad {config.NOMBRE_GUILD}."
+        _p("[router] combo: la IA no redactó la descripción; la armo con el título")
+    else:
+        _p("[router] combo: también la descripción")
+    return {**args, "descripcion": descripcion, "enlaces": extra.get("enlaces") or [], "hashtags": extra.get("hashtags") or []}
+
+
 def _completar_combo(texto, nombre, args):
     """«Cambiá el título y haceme la miniatura»: si la IA solo hizo una parte, le pide la otra por separado."""
     n = _norm(texto)
@@ -416,11 +442,7 @@ def _completar_combo(texto, nombre, args):
                             "miniatura_idea": extra.get("idea") or ""}
                     _p(f"[router] combo: también la miniatura {json.dumps(extra, ensure_ascii=False)}")
             if PIDE_DESCRIPCION.search(n) and H._vacio(args.get("descripcion")):
-                otra, extra = _llamar_ollama(texto, solo=["cambiar_descripcion_stream"])
-                if otra == "cambiar_descripcion_stream" and not H._vacio(extra.get("descripcion")):
-                    args = {**args, "descripcion": extra["descripcion"], "enlaces": extra.get("enlaces") or [],
-                            "hashtags": extra.get("hashtags") or []}
-                    _p("[router] combo: también la descripción")
+                args = _descripcion_del_combo(texto, args)
             if PIDE_JUEGO.search(n) and H._vacio(args.get("juego")):
                 otra, extra = _llamar_ollama(texto, solo=["cambiar_juego"])
                 if otra == "cambiar_juego" and not H._vacio(extra.get("juego")):

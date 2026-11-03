@@ -17,12 +17,12 @@ import config
 from miniaturas import FORMATOS
 
 ESTILO = """Estilo de la hermandad The H's (World of Warcraft Forever): dorado #E8C468 / #F5D98B sobre negros y marrones muy
-oscuros, tipografía Cinzel (archivo Cinzel.ttf de la carpeta) para el título, logo de la guild con brillo dorado,
-contraste alto, texto enorme y legible en chico (es una miniatura de YouTube), composición limpia y épica.
+oscuros, tipografía Cinzel (archivo Cinzel.ttf de la carpeta) para el título, contraste alto, texto enorme y legible en chico (es una miniatura de YouTube), composición limpia y épica.
 Lo que hace que sus miniaturas funcionen: UNA idea fuerte; personaje o cara expresiva GRANDE (60% o más de la imagen);
 título de 2 a 4 palabras, enorme, dorado biselado con borde oscuro y a veces UNA palabra de acento en otro color
 (rojo fuego, verde vil, azul arcano); color fuerte con luz de fuego, magia o contraluz; fondo de escena con
-desenfoque; logo chico en una esquina; chispas, brasas o rayos sutiles. Nada de marcos dobles ni cajas apagadas."""
+desenfoque; chispas, brasas o rayos sutiles. Nada de marcos dobles ni cajas apagadas. El logo de la hermandad NO va
+(sus miniaturas no lo llevan), salvo que la idea lo pida; el logo del juego sí, si está en los archivos."""
 
 
 def edge():
@@ -41,7 +41,7 @@ def _preparar(carpeta, extras=()):
             shutil.copy(origen, carpeta / nombre)
     imagenes = config.RECURSOS / "imagenes"
     archivos = [("captura.png", "captura del juego en OBS (o el fondo de la guild si el juego estaba cerrado)"),
-                ("logo.jpg", "logo de la guild (cuadrado, fondo oscuro: usalo recortado en círculo)")]
+                ("logo.jpg", "logo de la guild (cuadrado, fondo oscuro; solo si la idea lo pide, recortado en círculo)")]
     if imagenes.is_dir():
         for f in sorted(imagenes.iterdir()):
             if f.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp"):
@@ -268,8 +268,11 @@ def disenar(carpeta, titulo, subtitulo, idea):
             print(f"[miniatura] No pude buscar imágenes ({e}); la diseño con lo que hay.")
     guia = config.ESTILO_MINIATURAS.read_text(encoding="utf-8").strip() if config.ESTILO_MINIATURAS.exists() else ""
     estilo_propio = (f"Así son las miniaturas que más le gustan a Mr. H (sacado de sus ejemplos). Es la vara: la tuya "
-                     f"tiene que estar a ese nivel o mejor:\n{guia[:4000]}\n\n") if guia else ""
-    refs = _referencias(carpeta, titulo, idea)
+                     f"tiene que estar a ese nivel o mejor:\n{guia[:4000]}\n"
+                     "Si esa guía choca con las Reglas de abajo (por ejemplo -webkit-text-stroke o una letra que no está "
+                     "en los archivos), mandan las Reglas: la única letra es Cinzel.ttf (gruesa: font-weight 900 y "
+                     "sombras).\n\n") if guia else ""
+    refs = _referencias(carpeta, titulo, idea, maximo=3)
     ejemplos = ("\nEjemplos de Mr. H (miniaturas suyas que le encantan). ANTES de diseñar, abrí cada una con Read y "
                 "copiá su nivel: composición, tamaño del texto, colores, brillo y efectos. Son solo para mirar: NO las "
                 "pongas en el diseño ni copies sus textos.\n" + "\n".join(refs) + "\n") if refs else ""
@@ -364,7 +367,8 @@ def revisar(carpeta, html):
         return False
     foto(html, carpeta / "_rev_youtube.png", 1280, 720)
     foto(html, carpeta / "_rev_tiktok.png", 1080, 1920)
-    comando = [exe, "-p", "--max-turns", "6"] + SOLO_ESTO + (["--model", config.CLAUDE_MODELO] if config.CLAUDE_MODELO else [])
+    modelo = config.CLAUDE_MODELO_REVISION or config.CLAUDE_MODELO
+    comando = [exe, "-p", "--max-turns", "6"] + SOLO_ESTO + (["--model", modelo] if modelo else [])
     comando += ["--disallowedTools"] + [h for h in SIN_HERRAMIENTAS if h != "Read"] + ["--allowedTools", "Read(./**)"]
     try:
         r = subprocess.run(comando, input=REVISION.format(html=html.read_text(encoding="utf-8")), capture_output=True,

@@ -6,9 +6,11 @@
 Los overlays que crea El Cerebro llevan 🧠 delante del nombre: solo toca esos.
 """
 import html
+import json
 import re
 import shutil
 import subprocess
+import time
 import unicodedata
 
 import config
@@ -100,9 +102,19 @@ def pedir_a_claude(pedido, carpeta_trabajo, mirar=False):
     else:
         comando += ["--disallowedTools"] + SIN_HERRAMIENTAS      # el diseñador no toca internet ni archivos
         pedido += "\nRespondé directo, sin usar herramientas ni abrir archivos: acá tenés todo lo que necesitás."
+    comando += ["--output-format", "json"]                  # para saber cuánto tardó y si abrió los ejemplos
+    t0 = time.time()
     r = subprocess.run(comando, input=pedido, capture_output=True, text=True, encoding="utf-8",
                        timeout=config.OVERLAY_ESPERA, cwd=str(carpeta_trabajo))
-    m = re.search(r"<!doctype html.*?</html>|<html.*?</html>", r.stdout or "", re.S | re.I)
+    salida = r.stdout or ""
+    try:
+        datos = json.loads(salida)
+        salida = str(datos.get("result") or "")
+        print(f"[diseño] {config.CLAUDE_MODELO}: {time.time() - t0:.0f} s, {datos.get('num_turns')} turnos"
+              + (" (miró los ejemplos)" if mirar and (datos.get("num_turns") or 1) > 1 else ""))
+    except (ValueError, AttributeError):
+        pass
+    m = re.search(r"<!doctype html.*?</html>|<html.*?</html>", salida, re.S | re.I)
     if r.returncode != 0 or not m:
         raise RuntimeError(f"Claude no devolvió HTML ({r.returncode}): {(r.stderr or r.stdout or '')[:200]}")
     return m.group(0)

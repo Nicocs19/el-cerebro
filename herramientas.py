@@ -695,6 +695,7 @@ def construir(nombre, a):
 
     if nombre == "cambiar_titulo_stream":
         titulo = _txt(a, "titulo", 100).rstrip(" .")
+        titulo = titulo[0].upper() + titulo[1:]          # «subiendo al guerrero…» -> «Subiendo al guerrero…»
         plataformas = [p for p in (a.get("plataformas") or PLATAFORMAS) if p in PLATAFORMAS] or PLATAFORMAS
         mini = None
         if not _vacio(a.get("miniatura")):
