@@ -970,6 +970,7 @@ def probar_miniaturas():
 
     def buscar(idea, carpeta, dicho=""):
         bajadas.append(idea)
+        MC.DESCARTES.append("dragón de warcraft.wiki.gg (pesa más de 25 MB)")
         return []
     casos = []
     try:
@@ -989,17 +990,21 @@ def probar_miniaturas():
                    (True, True)),
                   ("le ofrece el logo oficial con su tamaño", f"{MC.LOGO_JUEGO}: logo OFICIAL" in pedidos[0]
                    and "600x260" in pedidos[0], True),
-                  ("con el logo guardado no salió a buscar", bajadas, []),
+                  ("con el logo guardado no salió a buscar", list(bajadas), []),
                   ("cambia SOLO el logo (lo demás igual)", nuevo, html.replace("web_logo_wow.png", MC.LOGO_JUEGO)),
                   ("la de antes no se toca", (vieja / "diseno.html").read_text(encoding="utf-8"), html),
                   ("carpeta nueva «…-editada» con antes y ahora", (r["carpeta"].name.endswith("_1-al-20-seguido-editada"),
                                                                     r["comparacion"].exists()), (True, True)),
                   ("la próxima edición sigue sobre esta", MC.ultima(), r["carpeta"])]
         try:
-            MC.editar("ponele un dragón", claude=lambda p, c: '{"cambios": [], "resumen": "No tengo ninguna imagen de dragón."}')
+            MC.editar("ponele un dragon", claude=lambda p, c: '{"cambios": [], "resumen": "No tengo ninguna imagen de dragón."}')
             casos.append(("si no se puede, lo dice (no inventa)", "pasó", "error"))
         except RuntimeError as e:
-            casos.append(("si no se puede, lo dice (no inventa)", "error" if "dragón" in str(e) else str(e), "error"))
+            casos += [("si no se puede, lo dice (no inventa)", "error" if "dragón" in str(e) else str(e), "error"),
+                      ("y dice por qué no sirvió lo que encontró", "pesa más de 25 MB" in str(e), True)]
+        casos += [("si falla, no deja carpetas a medias", sorted(d.name.endswith("-editada") for d in
+                                                                 (config.SALIDA / "miniaturas").glob("*editada*")), [True]),
+                  ("el logo oficial de la wiki (9,5 MB) ya entra", MC.MAX_BYTES > 9_964_036, True)]
         try:
             MC.editar("cambiá el logo", claude=lambda p, c: (
                 '{"resumen": "x", "cambios": [{"buscar": "logo_wow_forever.png", "poner": "no_existe.png"}]}'))

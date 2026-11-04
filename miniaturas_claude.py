@@ -90,7 +90,9 @@ def necesita_agente(idea):
 # Sitios donde suele estar el mejor arte de WoW (se sugieren primero, pero sirve cualquier página pública)
 SITIOS_SUGERIDOS = ("warcraft.wiki.gg", "wowhead.com (wow.zamimg.com)", "blizzard.com", "worldofwarcraft.blizzard.com",
                     "wowpedia (static.wikia.nocookie.net)", "upload.wikimedia.org", "wallpapers y artstation")
-MAX_BYTES = 8 * 1024 * 1024
+MAX_BYTES = 25 * 1024 * 1024        # el logo oficial de WoW Forever en la wiki pesa 9,5 MB (4 nov)
+MAX_LADO = 2400                     # lo que baja se achica a esto: una miniatura no necesita más
+DESCARTES = []                      # lo último que encontró pero no sirvió (para decirte por qué)
 
 
 def _sitio_ok(url):
@@ -229,6 +231,7 @@ Poné "recortar": true si es un personaje o criatura (el programa se fija solo s
     except ValueError:
         candidatas = []
     bajadas = []
+    DESCARTES.clear()
     for c in candidatas[:6]:
         url, nombre = str(c.get("url") or ""), re.sub(r"[^a-z0-9_]+", "_", str(c.get("nombre") or "imagen").lower())[:30]
         if not _sitio_ok(url):
@@ -241,12 +244,15 @@ Poné "recortar": true si es un personaje o criatura (el programa se fija solo s
                 raise ValueError(f"redirigió a una dirección no permitida: {resp.url}")
             datos = resp.raw.read(MAX_BYTES + 1, decode_content=True)
             if len(datos) > MAX_BYTES:
-                raise ValueError("imagen demasiado grande")
+                raise ValueError(f"pesa más de {MAX_BYTES // 2**20} MB")
             with Image.open(io.BytesIO(datos)) as im:
                 im.load()
                 img = im.convert("RGBA")
             if min(img.size) < 120:
                 raise ValueError(f"muy chica ({img.width}x{img.height})")
+            if max(img.size) > MAX_LADO:
+                img.thumbnail((MAX_LADO, MAX_LADO), Image.LANCZOS)
+                log.append(f"achicada a {img.width}x{img.height}: {url}")
             archivo = f"web_{nombre}.png"
             img.save(carpeta / archivo)
             que = re.sub(r"[^\w áéíóúñÁÉÍÓÚÑ,.()-]", "", str(c.get("que") or nombre))[:80]   # solo una descripción corta
@@ -260,6 +266,7 @@ Poné "recortar": true si es un personaje o criatura (el programa se fija solo s
             bajadas.append((archivo, f"{que} (imagen de {url.split('/')[2]})"))
         except Exception as e:  # noqa: BLE001
             log.append(f"no sirvió {url}: {e}")
+            DESCARTES.append(f"{c.get('que') or nombre} de {url.split('/')[2] if '//' in url else url} ({e})"[:200])
         if len(bajadas) >= 4:
             break
     (carpeta / "agente.log").write_text("\n".join(log), encoding="utf-8")
@@ -594,8 +601,6 @@ def editar(cambio, dicho="", vieja=None, claude=None):
     claude(pedido, carpeta) -> texto: para las pruebas (si no, el Claude de tu PC, que solo puede leer esa carpeta).
     """
     import datetime as dt
-    import json
-    from mis_overlays import Error as ErrorCambio, aplicar_cambios
     vieja = vieja or ultima()
     if not vieja:
         raise RuntimeError("No encuentro ninguna miniatura hecha para editar. Pedime una nueva con su título.")
@@ -608,14 +613,30 @@ def editar(cambio, dicho="", vieja=None, claude=None):
     while nueva.exists():
         nueva, i = config.SALIDA / "miniaturas" / f"{sello}_{raiz}-editada{i}", i + 1
     nueva.mkdir(parents=True)
-    for f in vieja.iterdir():
-        if f.is_file() and f.name not in NO_SE_COPIAN and not f.name.startswith(("_", "antes_", "referencia_")):
-            shutil.copy2(f, nueva / f.name)
-    for formato in ("youtube", "tiktok"):
-        if (vieja / f"{formato}.jpg").exists():
-            shutil.copy2(vieja / f"{formato}.jpg", nueva / f"antes_{formato}.jpg")
+    try:
+        for f in vieja.iterdir():
+            if f.is_file() and f.name not in NO_SE_COPIAN and not f.name.startswith(("_", "antes_", "referencia_")):
+                shutil.copy2(f, nueva / f.name)
+        for formato in ("youtube", "tiktok"):
+            if (vieja / f"{formato}.jpg").exists():
+                shutil.copy2(vieja / f"{formato}.jpg", nueva / f"antes_{formato}.jpg")
+        return _editar_en(nueva, vieja, cambio, dicho, claude)
+    except Exception:
+        try:                                    # la carpeta a medias se va; el registro de la búsqueda queda
+            if (nueva / "agente.log").exists():
+                shutil.copy2(nueva / "agente.log", config.DATA / "miniatura_fallida.log")
+            shutil.rmtree(nueva, ignore_errors=True)
+        except OSError:
+            pass
+        raise
+
+
+def _editar_en(nueva, vieja, cambio, dicho, claude):
+    import json
+    from mis_overlays import Error as ErrorCambio, aplicar_cambios
     html_viejo = (nueva / "diseno.html").read_text(encoding="utf-8")
     extras = []
+    DESCARTES.clear()
     if necesita_agente(cambio):
         try:
             extras = buscar_imagenes(cambio, nueva, dicho)
@@ -639,8 +660,11 @@ def editar(cambio, dicho="", vieja=None, claude=None):
     j = _json(respuesta)
     resumen = str(j.get("resumen") or cambio).strip()[:300]
     if not j.get("cambios"):
-        falta = (" Si tenés el logo en PNG, guardalo como recursos\\logo_wow_forever.png y pedímelo de nuevo."
-                 if re.search(r"logo", cambio, re.I) and not logo_fijo() else "")
+        falta = ""
+        if DESCARTES:
+            falta = f" Encontré imágenes, pero no sirvieron: {'; '.join(DESCARTES[:2])}."
+        if re.search(r"logo", cambio, re.I) and not logo_fijo():
+            falta += " Si tenés el logo en PNG, guardalo como recursos\\logo_wow_forever.png y pedímelo de nuevo."
         raise RuntimeError(f"No la pude cambiar: {resumen.rstrip('.')}.{falta}")
     try:
         html_nuevo = aplicar_cambios(html_viejo, j["cambios"])
