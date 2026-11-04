@@ -92,6 +92,22 @@ def pedir_a_claude(pedido, carpeta_trabajo, mirar=False):
     mirar=True: puede ABRIR (solo leer) las imágenes de su carpeta de trabajo, p. ej. tus miniaturas de ejemplo.
     Nunca tiene internet, ni escribe, ni corre programas.
     """
+    r, salida = _correr_claude(pedido, carpeta_trabajo, mirar)
+    m = re.search(r"<!doctype html.*?</html>|<html.*?</html>", salida, re.S | re.I)
+    if r.returncode != 0 or not m:
+        raise RuntimeError(f"Claude no devolvió HTML ({r.returncode}): {(r.stderr or r.stdout or '')[:200]}")
+    return m.group(0)
+
+
+def preguntar_a_claude(pedido, carpeta_trabajo):
+    """Como pedir_a_claude, sin herramientas, pero devuelve el texto tal cual (p. ej. un JSON)."""
+    r, salida = _correr_claude(pedido, carpeta_trabajo, False)
+    if r.returncode != 0 or not salida.strip():
+        raise RuntimeError(f"Claude no respondió ({r.returncode}): {(r.stderr or '')[:200]}")
+    return salida
+
+
+def _correr_claude(pedido, carpeta_trabajo, mirar=False):
     exe = buscar_claude()
     if not exe:
         raise RuntimeError("no está el programa claude en esta PC")
@@ -114,10 +130,7 @@ def pedir_a_claude(pedido, carpeta_trabajo, mirar=False):
               + (" (miró los ejemplos)" if mirar and (datos.get("num_turns") or 1) > 1 else ""))
     except (ValueError, AttributeError):
         pass
-    m = re.search(r"<!doctype html.*?</html>|<html.*?</html>", salida, re.S | re.I)
-    if r.returncode != 0 or not m:
-        raise RuntimeError(f"Claude no devolvió HTML ({r.returncode}): {(r.stderr or r.stdout or '')[:200]}")
-    return m.group(0)
+    return r, salida
 
 
 def disenar(descripcion, w, h):

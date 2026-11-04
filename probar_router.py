@@ -128,13 +128,21 @@ FRASES_CHAT = {
     "mandá un saludo solo al chat de youtube": lambda n, a: n == "mandar_al_chat" and a.get("plataformas") == ["youtube"],
     "un aviso para la guild que hoy hacemos raid, en el canal donde hacen los registros": lambda n, a: n == "crear_raid",
     "mandá un registro de raid de onyxia para el sábado a las 9 con 20 cupos": lambda n, a: n == "crear_raid",
+    "Hogger, en el overlay vertical sacá lo de beta": lambda n, a: n == "mis_overlays" and a.get("accion") == "cambiar",
+    "¿qué overlays tengo en OBS?": lambda n, a: n == "mis_overlays" and a.get("accion") == "ver",
+    "haceme un overlay nuevo del mismo tamaño que el de tiktok que diga temporada de raids": lambda n, a: (
+        n == "mis_overlays" and a.get("accion") == "nuevo_igual"),
+    "en mi overlay de just chatting cambiá el color del borde a rojo": lambda n, a: (
+        n == "mis_overlays" and a.get("accion") == "cambiar"),
+    "poné un cartel arriba a la derecha que diga raid hoy a las 9": lambda n, a: n == "overlay",
 }
 
 
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
     modos = {"chat": probar_chat, "charla": probar_charla, "flujo": probar_flujo, "rapido": probar_rapido,
-             "corregir": probar_corregir, "empaquetado": probar_empaquetado, "todo": probar_todo}
+             "corregir": probar_corregir, "empaquetado": probar_empaquetado, "overlays": probar_overlays,
+             "todo": probar_todo}
     if sys.argv[1:2] and sys.argv[1] in modos:
         bien, total = modos[sys.argv[1]]()
         return 0 if bien == total else 1
@@ -559,10 +567,243 @@ def probar_flujo():
     return bien, len(pasos)
 
 
+# ---------------------------------------------------------------- tus overlays de OBS (OBS y Claude de mentira)
+class _ObsFalso:
+    """Un OBS como el de Nicolas (4 nov): lienzo Main y Aitum Vertical, overlays de navegador locales y de internet."""
+
+    def __init__(self, carpeta):
+        import types
+        self.t = types.SimpleNamespace
+        self.llamadas = []
+        f = lambda n: str(carpeta / n)        # noqa: E731
+        cam = {"positionX": 116, "positionY": 1433, "scaleX": .848, "scaleY": .847, "cropLeft": 237, "cropRight": 43,
+               "cropTop": 66, "cropBottom": 71, "width": 0, "height": 0, "alignment": 5}
+        todo = {"positionX": 0, "positionY": 0, "scaleX": 1, "scaleY": 1, "width": 1080, "height": 1920, "alignment": 5,
+                "boundsType": "OBS_BOUNDS_SCALE_INNER", "boundsWidth": 1080, "boundsHeight": 1920}
+        self.escenas = {
+            "c-main": [("Scene", "s-scene", [
+                {"sceneItemId": 1, "sourceName": "Display Capture", "inputKind": "monitor_capture", "sceneItemEnabled": True,
+                 "sceneItemTransform": {"positionX": 0, "positionY": 0, "width": 1920, "height": 1080, "alignment": 5}},
+                {"sceneItemId": 2, "sourceName": "Camara", "isGroup": True, "sourceUuid": "g-cam", "sceneItemEnabled": True,
+                 "sceneItemTransform": {"positionX": 0, "positionY": 0, "scaleX": 1, "scaleY": 1, "alignment": 5}}]),
+                ("Solo chat", "s-chat", [
+                    {"sceneItemId": 3, "sourceName": "Chat", "inputKind": "browser_source", "sceneItemEnabled": True,
+                     "sceneItemTransform": {"positionX": 0, "positionY": 0, "width": 800, "height": 600, "alignment": 5}}])],
+            "c-vert": [("Escena vertical", "s-vert", [
+                {"sceneItemId": 10, "sourceName": "Cámara", "inputKind": "dshow_input", "sceneItemEnabled": True,
+                 "sceneItemTransform": cam},
+                {"sceneItemId": 11, "sourceName": "Overlay ttiktok", "inputKind": "browser_source", "sceneItemEnabled": True,
+                 "sceneItemTransform": todo},
+                {"sceneItemId": 12, "sourceName": "Navegador", "inputKind": "browser_source", "sceneItemEnabled": True,
+                 "sceneItemTransform": {"positionX": 643, "positionY": 1448, "width": 578, "height": 214, "alignment": 5}}]),
+                ("JUST CHATTING", "s-jc", [
+                    {"sceneItemId": 20, "sourceName": "Overlay chatting", "inputKind": "browser_source",
+                     "sceneItemEnabled": True, "sceneItemTransform": todo}])]}
+        self.grupos = {"g-cam": [
+            {"sceneItemId": 30, "sourceName": "Cámara", "inputKind": "dshow_input", "sceneItemEnabled": True,
+             "sceneItemTransform": {"positionX": 0, "positionY": 832, "scaleX": .44, "scaleY": .44, "cropLeft": 258,
+                                    "cropRight": 173, "cropTop": 99, "cropBottom": 57, "width": 0, "height": 0,
+                                    "alignment": 5}},
+            {"sceneItemId": 31, "sourceName": "Navegador 2", "inputKind": "browser_source", "sceneItemEnabled": True,
+             "sceneItemTransform": {"positionX": 1, "positionY": 0, "width": 1920, "height": 1080, "alignment": 5}}]}
+        self.ajustes = {
+            "Overlay ttiktok": {"is_local_file": True, "local_file": f("overlay-tiktok-misterache.html"), "width": 1080,
+                                "height": 1920},
+            "Overlay chatting": {"is_local_file": True, "local_file": f("overlay-just-chatting.html"), "width": 1080,
+                                 "height": 1920},
+            "Navegador 2": {"is_local_file": True, "local_file": f("overlay-horizontal.html"), "width": 1920, "height": 1080},
+            "Chat": {"url": "https://widgets.kickbot.com/chat?token=NOLOVEAS123", "width": 800, "height": 600},
+            "Navegador": {"url": "https://socialstream.ninja/dock.html?session=abc", "width": 1080, "height": 400},
+            "Cámara": {}}
+
+    def send(self, tipo, datos=None, raw=False):
+        d = datos or {}
+        self.llamadas.append((tipo, d))
+        if tipo == "GetCanvasList":
+            return {"canvases": [{"canvasName": "Main", "canvasUuid": "c-main"},
+                                 {"canvasName": "Aitum Vertical", "canvasUuid": "c-vert",
+                                  "canvasVideoSettings": {"baseWidth": 1080, "baseHeight": 1920}}]}
+        if tipo == "GetSceneList":
+            c = d.get("canvasUuid", "c-main")
+            return {"scenes": [{"sceneName": n, "sceneUuid": u} for n, u, _ in reversed(self.escenas[c])]}
+        if tipo == "GetSceneItemList":
+            for lista in self.escenas.values():
+                for n, u, items in lista:
+                    if d.get("sceneUuid") == u:
+                        return {"sceneItems": items}
+            raise RuntimeError("600 no está la escena")
+        if tipo == "GetGroupSceneItemList":
+            return {"sceneItems": self.grupos[d["sceneUuid"]]}
+        if tipo == "GetInputSettings":
+            return {"inputSettings": self.ajustes.get(d["inputName"], {})}
+        if tipo == "GetSourceScreenshot":
+            return {"imageData": "data:image/png;base64,iVBORw0KGgo="}
+        if tipo == "CreateInput":
+            return {"sceneItemId": 99}
+        return {}
+
+    def get_video_settings(self):
+        return self.t(base_width=1920, base_height=1080)
+
+    def get_stream_status(self):
+        return self.t(output_active=False)
+
+    def get_record_status(self):
+        return self.t(output_active=False)
+
+    def get_input_list(self):
+        return self.t(inputs=[{"inputName": n} for n in self.ajustes])
+
+
+def probar_overlays():
+    """Hogger con TUS overlays: ver, elegir el correcto, cambiar con copia y sin mostrar la contraseña, nuevo, volver."""
+    import shutil
+    import tempfile
+    from pathlib import Path
+
+    import config
+    import mis_overlays as M
+    tmp = Path(tempfile.mkdtemp(prefix="overlays_"))
+    viejo_data, viejo_pw, viejo_base = config.DATA, config.OBS_PASSWORD, config.BASE
+    config.DATA, config.OBS_PASSWORD, config.BASE = tmp / "data", "SECRETO123", tmp
+    config.DATA.mkdir()
+    original = ('<html><script>\r\nconst CONFIG = {\r\n  obsPassword: "SECRETO123",\r\n  level: 17,\r\n'
+                '  realm: "WoW Forever",\r\n  realmTag: "BETA",\r\n};\r\n</script>\r\n<p>Caf').encode() + \
+        b"\xe9" + "</p><small>NIVEL</small></html>\r\n".encode()
+    (tmp / "overlay-tiktok-misterache.html").write_bytes(original)
+    (tmp / "overlay-horizontal.html").write_text('const CONFIG = {name: "el achee", obsPassword: "SECRETO123", level: 17}',
+                                                 encoding="utf-8")
+    (tmp / "overlay-just-chatting.html").write_text("<div>Just Chatting</div>", encoding="utf-8")
+    cl = _ObsFalso(tmp)
+    vio = []
+
+    def claude(pedido):
+        vio.append(pedido)
+        return ('{"resumen": "Saco la etiqueta BETA y queda solo WoW Forever.", '
+                '"cambios": [{"buscar": "realmTag: \\"BETA\\"", "poner": "realmTag: \\"\\""}]}')
+
+    def claude_malo(pedido):
+        return '{"resumen": "x", "cambios": [{"buscar": "obsPassword: \\"__OCULTO_1__\\"", "poner": "obsPassword: \\"\\""}]}'
+
+    casos = []
+    try:
+        inv = M.inventario(cl)
+        vert = next(lz for lz in inv["lienzos"] if lz["tipo"] == "vertical")
+        casos += [("dos lienzos, el vertical de 1080x1920", (len(inv["lienzos"]), vert["ancho"], vert["alto"]), (2, 1080, 1920)),
+                  ("cámara del vertical (apagada: se calcula)", vert["escenas"][0]["camaras"], [[116, 1433, 848, 494]]),
+                  ("ve el overlay de adentro del grupo", "Navegador 2" in inv["overlays"], True),
+                  ("de internet: solo el dominio", inv["overlays"]["Chat"]["dominio"], "widgets.kickbot.com")]
+        corta, detalle = M.ver(cl)
+        casos += [("«¿qué overlays tengo?»: los nombra", "Overlay ttiktok" in corta and "Navegador 2" in corta, True),
+                  ("el detalle no muestra tokens de las URL", "NOLOVEAS123" in detalle or "session=" in detalle, False)]
+        elegido = lambda *a, **k: M.elegir(inv, *a, **k)["nombre"]           # noqa: E731
+        casos += [("«el vertical» + «beta» → Overlay ttiktok", elegido("el vertical", cambio="Sacar la palabra «BETA»"),
+                   "Overlay ttiktok"),
+                  ("«el de just chatting»", elegido("el de just chatting"), "Overlay chatting"),
+                  ("«el del nivel» en el horizontal", elegido("el del nivel", lienzo="horizontal"), "Navegador 2"),
+                  ("«el de tiktok»", elegido("el de tiktok"), "Overlay ttiktok")]
+        p = M.preparar_cambio("el vertical", "Sacar la palabra «BETA»", "vertical", cl=cl, claude=claude)
+        propuesta = Path(p["propuesta"]).read_bytes()
+        casos += [("a Claude no le llega la contraseña de OBS", any("SECRETO123" in v for v in vio), False),
+                  ("propuesta: sin BETA", b'realmTag: ""' in propuesta and b"BETA" not in propuesta, True),
+                  ("propuesta: la contraseña sigue igual en el archivo", b'obsPassword: "SECRETO123"' in propuesta, True),
+                  ("propuesta: bytes raros y saltos de línea intactos", (b"Caf\xe9" in propuesta, b"\r\n" in propuesta),
+                   (True, True)),
+                  ("antes del «dale», tu archivo no cambia", (tmp / "overlay-tiktok-misterache.html").read_bytes() == original,
+                   True)]
+        r = M.aplicar(p, cl=cl)
+        copias = list((tmp / "_copias").glob("overlay-tiktok-misterache_*.html"))
+        casos += [("con el «dale»: cambia el archivo", (tmp / "overlay-tiktok-misterache.html").read_bytes() == propuesta, True),
+                  ("guarda una copia idéntica del original", len(copias) == 1 and copias[0].read_bytes() == original, True),
+                  ("recarga solo esa fuente", ("PressInputPropertiesButton", {"inputName": "Overlay ttiktok",
+                                                                           "propertyName": "refreshnocache"}) in cl.llamadas, True),
+                  ("dice cómo volver", "volvé el overlay como estaba" in r, True)]
+        M.volver(cl=cl)
+        casos.append(("«volvé el overlay como estaba»: igual que antes",
+                      (tmp / "overlay-tiktok-misterache.html").read_bytes() == original, True))
+        try:
+            M.preparar_cambio("el vertical", "sacá la contraseña", "vertical", cl=cl, claude=claude_malo)
+            casos.append(("un cambio que toca la contraseña se rechaza", "pasó", "error"))
+        except M.Error:
+            casos.append(("un cambio que toca la contraseña se rechaza", "error", "error"))
+        try:
+            M.preparar_cambio("el chat", "ponelo rojo", "", cl=cl, claude=claude)
+            casos.append(("el chat de Kick (de internet) no se edita", "pasó", "error"))
+        except M.Error as e:
+            casos.append(("el chat de Kick (de internet) no se edita", "error" if "internet" in str(e) else str(e), "error"))
+        pedidos = []
+
+        def disenar(desc, w, h):
+            pedidos.append((desc, w, h))
+            return "<!doctype html><html><body></body></html>", "Claude"
+        n = M.preparar_nuevo("el de tiktok", "Que diga «Temporada de raids»", "vertical", True, cl=cl, disenar=disenar)
+        casos += [("nuevo: mismo tamaño y lugar que el tuyo", (n["caja"], pedidos[0][1:]), ([0, 0, 1080, 1920], (1080, 1920))),
+                  ("nuevo: la cámara queda transparente", "x116 y1433 de 848x487" in pedidos[0][0], True)]
+        cl.llamadas.clear()
+        M.aplicar(n, cl=cl)
+        tipos = [t for t, _ in cl.llamadas]
+        crear = next(d for t, d in cl.llamadas if t == "CreateInput")
+        casos += [("nuevo: se crea en la escena vertical", (crear.get("sceneUuid"), crear["inputName"]),
+                   ("s-vert", "🧠 Overlay ttiktok nuevo")),
+                  ("«en vez del mío»: el tuyo se oculta (no se borra)",
+                   ("SetSceneItemEnabled", {"sceneUuid": "s-vert", "sceneItemId": 11, "sceneItemEnabled": False}) in cl.llamadas
+                   and "RemoveInput" not in tipos, True)]
+        cl.llamadas.clear()
+        M.volver(cl=cl)
+        casos.append(("volver: saca el nuevo y muestra el tuyo",
+                      ("SetSceneItemEnabled", {"sceneUuid": "s-vert", "sceneItemId": 11, "sceneItemEnabled": True})
+                      in cl.llamadas, True))
+        t, ocultos = M.tapar('src="https://x.com/a?token=abcdef123456&b=1" apiKey: "zzzzzz"')
+        casos.append(("tapa tokens de URL y claves", ("abcdef123456" in t, "zzzzzz" in t, len(ocultos)), (False, False, 2)))
+        casos += [("«¿qué overlays tengo?» va directo", router._sus_overlays("¿Qué overlays tengo?", "responder", {}),
+                   ("mis_overlays", {"accion": "ver"})),
+                  ("«volvé el overlay como estaba»", router._sus_overlays("volvé el overlay como estaba", "overlay",
+                                                                          {"accion": "mostrar"})[0], "mis_overlays"),
+                  ("«volvé a mostrar el cartel de la raid» sigue siendo overlay",
+                   router._sus_overlays("volvé a mostrar el overlay de la raid", "overlay", {"accion": "mostrar"})[0], "overlay")]
+        import acciones
+        import cerebro
+        viejos = (acciones.log, cerebro.log, M.preparar_cambio, M.aplicar)
+        hechos = []
+        try:
+            acciones.log = cerebro.log = lambda t: None
+            M.preparar_cambio = lambda cual, cambio, lienzo="", dicho="": {
+                "tipo": "archivo", "fuente": "Overlay ttiktok", "resumen": "Saco la etiqueta BETA.", "lienzo": "vertical",
+                "escena": "Escena vertical", "en_vivo": False}
+            M.aplicar = lambda datos, cl=None: hechos.append(datos["fuente"]) or "Listo, cambié «Overlay ttiktok»."
+            vistos = []
+            c = cerebro.Cerebro(lambda t, tipo="info", seg=0: vistos.append(t), simular=False)
+            c._ejecutar(H.construir("mis_overlays", {"accion": "cambiar", "cual": "el vertical", "cambio": "sacá lo de beta"}))
+            casos.append(("flujo: prepara y queda esperando «dale»", (getattr(c.pendiente, "tipo", None), list(hechos)),
+                          ("overlay_aplicar", [])))
+            casos.append(("flujo: te dice qué va a cambiar", "Saco la etiqueta BETA." in vistos[-1], True))
+            c.confirmar()
+            casos.append(("flujo: con «dale» lo aplica", (list(hechos), c.pendiente), (["Overlay ttiktok"], None)))
+        finally:
+            acciones.log, cerebro.log, M.preparar_cambio, M.aplicar = viejos
+        try:
+            H.construir("mis_overlays", {"accion": "cambiar", "cual": "el vertical"})
+            casos.append(("cambiar sin decir qué: pregunta", "pasó", "pregunta"))
+        except H.ErrorOrden:
+            casos.append(("cambiar sin decir qué: pregunta", "pregunta", "pregunta"))
+    finally:
+        config.DATA, config.OBS_PASSWORD, config.BASE = viejo_data, viejo_pw, viejo_base
+        shutil.rmtree(tmp, ignore_errors=True)
+    bien = 0
+    for nombre, salio, esperado in casos:
+        ok = salio == esperado
+        bien += ok
+        if not ok:
+            print(f"FALLO {nombre}: salió {salio!r}, tenía que ser {esperado!r}")
+    print(f"{bien}/{len(casos)} bien (tus overlays de OBS, con OBS y Claude de mentira).")
+    return bien, len(casos)
+
+
 def probar_todo():
     import memoria
     resultados = []
-    for nombre, f in (("rápidas", probar_rapido), ("corregir", probar_corregir), ("Discord y títulos", probar_general),
+    for nombre, f in (("rápidas", probar_rapido), ("corregir", probar_corregir), ("overlays", probar_overlays),
+                      ("Discord y títulos", probar_general),
                       ("chat", probar_chat),
                       ("flujo", probar_flujo), ("charla", probar_charla)):
         print(f"\n========== {nombre} ==========")

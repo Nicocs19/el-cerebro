@@ -243,6 +243,44 @@ class Ejecutor:
         overlays.quitar(d["nombre"])
         return "Overlay quitado (el diseño queda guardado en la carpeta overlays)."
 
+    # ------------------------------------------------ los overlays que ya tenés en OBS
+    def _mis_overlays(self, accion):
+        import herramientas as H
+        import mis_overlays
+        d = accion.datos
+        if self.simular:
+            return f"[simulado] {accion.resumen}"
+        try:
+            if d["accion"] == "ver":
+                corta, detalle = mis_overlays.ver()
+                return f"{corta}\n{detalle}"
+            if d["accion"] == "volver":
+                return mis_overlays.volver()
+            if d["accion"] == "cambiar":
+                p = mis_overlays.preparar_cambio(d["cual"], d["cambio"], d["lienzo"], dicho=d.get("dicho", ""))
+                resumen = f"Cambio en tu overlay «{p['fuente']}» ({p['lienzo']}, {p['escena']}):\n{p['resumen']}"
+            else:
+                p = mis_overlays.preparar_nuevo(d["cual"], d["cambio"], d["lienzo"], d["reemplazar"],
+                                                dicho=d.get("dicho", ""))
+                resumen = f"{p['resumen']}, escena {p['escena']} del lienzo {p['lienzo']}.\n{d['cambio']}"
+        except mis_overlays.Error as e:
+            raise H.ErrorOrden(str(e))
+        resumen += "\n(Guardo una copia del original y no toco tu cámara.)"
+        if p.get("en_vivo"):
+            resumen += "\nOjo: estás en vivo, al cargarlo se ve un segundito."
+        accion.siguiente = H.Accion("overlay_aplicar", p, resumen, True)      # queda esperando tu «dale»
+        return "Listo, ya lo tengo preparado. Todavía no cambié nada en OBS."
+
+    def _overlay_aplicar(self, accion):
+        import herramientas as H
+        import mis_overlays
+        if self.simular:
+            return f"[simulado] {accion.resumen.splitlines()[0]}"
+        try:
+            return mis_overlays.aplicar(accion.datos)
+        except mis_overlays.Error as e:
+            raise H.ErrorOrden(str(e))
+
     def _respuesta(self, accion):
         return accion.datos["respuesta"]
 

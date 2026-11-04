@@ -125,17 +125,30 @@ class Cerebro:
             return None
         self.contexto = None
         if accion.confirmar and not auto_confirmar:
-            self.pendiente = accion
-            self.pendiente_hasta = time.time() + config.CONFIRMAR_SEGUNDOS
-            memoria.anotar("Vos", f"propusiste «{accion.resumen.splitlines()[0]}» y esperás su «dale» (todavía no se hizo)")
-            pitido("pregunta")
-            self.avisar("confirmar", accion)
-            pregunta = "¿Lo hago?" if accion.tipo in ("moderar", "overlay", "titulo", "juego", "descripcion") else "¿Publico?"
-            self.mostrar(f"{accion.resumen}\n\n{pregunta} Di «dale» o pulsa {config.CONFIRM_HOTKEY.upper()}. "
-                         "«Cancela» para descartar; también puedes corregir.", "pregunta", config.CONFIRMAR_SEGUNDOS)
-            self.escuchar()          # cuando termine de preguntar, te escucha solo (sin apretar la tecla)
-            return None
+            return self._proponer(accion)
         self._ejecutar(accion)
+
+    def _proponer(self, accion):
+        """Deja la acción esperando tu «dale» (o que la corrijas o canceles)."""
+        self.pendiente = accion
+        self.pendiente_hasta = time.time() + config.CONFIRMAR_SEGUNDOS
+        memoria.anotar("Vos", f"propusiste «{accion.resumen.splitlines()[0]}» y esperás su «dale» (todavía no se hizo)")
+        pitido("pregunta")
+        self.avisar("confirmar", accion)
+        pregunta = "¿Lo hago?" if accion.tipo in ("moderar", "overlay", "overlay_aplicar", "titulo", "juego",
+                                                  "descripcion") else "¿Publico?"
+        self.mostrar(f"{accion.resumen}\n\n{pregunta} Di «dale» o pulsa {config.CONFIRM_HOTKEY.upper()}. "
+                     "«Cancela» para descartar; también puedes corregir.", "pregunta", config.CONFIRMAR_SEGUNDOS)
+        self.escuchar()          # cuando termine de preguntar, te escucha solo (sin apretar la tecla)
+        return None
+
+    def _proponer_despues(self, accion, en_segundo_plano):
+        """Lo que se preparó en segundo plano (el cambio de un overlay): si estás contestando otra cosa, espera."""
+        if en_segundo_plano:
+            hasta = time.time() + 300
+            while self.pendiente and time.time() < self.pendiente_hasta and time.time() < hasta:
+                time.sleep(2)
+        self._proponer(accion)
 
     def _preparar_correccion(self, accion):
         """Rehacer lo de recién: siempre con «dale», y en Discord se borra la publicación vieja antes de la nueva."""
@@ -230,7 +243,8 @@ class Cerebro:
 
     @staticmethod
     def _tarda(accion):
-        return accion.tipo == "miniatura" or (accion.tipo == "overlay" and accion.datos.get("accion") == "crear")
+        return (accion.tipo == "miniatura" or (accion.tipo == "overlay" and accion.datos.get("accion") == "crear")
+                or (accion.tipo == "mis_overlays" and accion.datos.get("accion") in ("cambiar", "nuevo_igual")))
 
     def _ejecutar(self, accion, ejecutor=None):
         if self._tarda(accion):
@@ -271,6 +285,10 @@ class Cerebro:
                 and accion.datos.get("accion") not in ("quitar", "ocultar", "cerrar")):
             accion.cuando = time.time()
             self.hecha = accion             # por si después dice «lo hiciste mal» o «te faltó…»
+        siguiente = getattr(accion, "siguiente", None)
+        if siguiente is not None:                # preparó algo que espera tu «dale» (p. ej. el cambio de un overlay)
+            log(f"PREPARADO: {siguiente.resumen.splitlines()[0]}")
+            return self._proponer_despues(siguiente, ejecutor is not None)
         pitido("ok")
         self.avisar("hecho", accion, resultado)
         self.mostrar(resultado, "ok", 8)

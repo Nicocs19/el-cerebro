@@ -169,6 +169,7 @@ Reglas:
 - Si en la misma orden pide cambiar el título Y hacer la miniatura, usa cambiar_titulo_stream con los campos miniatura (el texto grande), miniatura_subtitulo y miniatura_idea (cómo la imagina: imágenes, logos, personajes, tal como lo dijo).
 - El CHAT del stream (Kick y YouTube) no es el Discord. "Mandá al chat el link del discord" -> mandar_al_chat (el enlace se llama discord, pero va al chat del stream). "Avisá en Discord", "en general" o "a la guild" -> mensaje_discord o publicar_anuncio.
 - Overlays: carteles o gráficos en la pantalla (OBS) -> overlay, aunque nombre un enlace. En descripcion, los textos EXACTOS que dijo; un enlace va como "enlace de discord" (el programa pone el real).
+- Los overlays que Nicolas YA TIENE (el vertical, el de TikTok, el de just chatting, el del nivel, «mi overlay», «mis overlays») -> mis_overlays: ver cuáles tiene, cambiarles algo, uno nuevo del mismo tamaño y lugar, o volver al de antes. overlay es solo para carteles nuevos.
 - Descripción del directo (YouTube) -> cambiar_descripcion_stream: la redactás vos (2 a 4 frases con onda, sin enlaces); en enlaces los nombres que pidió; hashtags si los pidió.
 - Empaquetado ("armá el empaquetado", "un título con gancho y la miniatura") -> cambiar_titulo_stream (con miniatura si la pide): el programa se lo pasa al agente de marketing.
 - "¿Qué título tengo?" o "revisá mi directo/emisión" -> consultar_titulo. Nunca inventes lo que escribió alguien en el chat si no tenés sus mensajes acá.
@@ -191,6 +192,10 @@ Ejemplos:
 - "guarda este enlace como instagram" -> guardar_enlace(nombre="instagram")
 - "poné un cartel arriba a la izquierda que diga raid de molten core hoy a las 9" -> overlay(accion="crear", nombre="raid molten core", descripcion="Cartel que diga «Raid de Molten Core · Hoy 21:00»", posicion="arriba-izquierda", tamano="mediano")
 - "sacá el cartel de la raid" -> overlay(accion="quitar", nombre="raid")
+- "en el overlay vertical sacá lo de beta" -> mis_overlays(accion="cambiar", cual="el vertical", lienzo="vertical", cambio="Sacar la palabra «BETA»")
+- "¿qué overlays tengo?" -> mis_overlays(accion="ver")
+- "haceme uno nuevo del mismo tamaño que el de tiktok que diga temporada de raids, en vez del mío" -> mis_overlays(accion="nuevo_igual", cual="el de tiktok", lienzo="vertical", cambio="Que diga «Temporada de raids»", reemplazar=true)
+- "volvé el overlay como estaba" -> mis_overlays(accion="volver")
 - "creame un overlay que diga únete al Discord con mi enlace de Discord" -> overlay(accion="crear", nombre="discord", descripcion="Cartel que diga «Únete al Discord» con el enlace de discord", posicion="arriba-derecha", tamano="mediano")
 - "cambiá la descripción, algo fachero de que subimos al guerrero, con el discord, mi kick y hashtags" -> cambiar_descripcion_stream(descripcion="¡Arrancó WoW Forever y subimos al Warrior desde el nivel 1! ⚔️", enlaces=["discord","kick"], hashtags=["WoWForever","Warrior"])
 - "hogger, sos un inútil" -> responder(respuesta="¿Inútil yo? Mirá quién habla, el que se pierde con el mapa abierto. ¡Andá a farmear, pendejo!", animo="picado")
@@ -859,6 +864,38 @@ def _overlay_si_lo_pidio(texto, nombre, args):
     return "overlay", extra
 
 
+PIDE_SUYOS = re.compile(r"\b(mis overlays?|mi overlay|overlays? que (ya )?tengo|que overlays|overlay (del lienzo |de la pantalla )?"
+                        r"(vertical|horizontal)|lienzo (vertical|horizontal)|overlay (de|del) (tiktok|just chatting|chatting|"
+                        r"nivel|celular)|(el|la) (vertical|horizontal) (del|de) obs|overlays? de obs)\b")
+VER_SUYOS = re.compile(r"\b(que|cuales|cuantos) overlays\b|\bmostrame (mis|los) overlays\b|\bmira (mis|los) overlays\b")
+VOLVER_OVERLAY = re.compile(r"\boverlay\b.*\b(como estaba|como era|como antes|al de antes|el de antes|al original)\b|"
+                            r"\b(deshace|deshacé|deshacelo) (el|ese) cambio (del|de mi|en el) overlay\b")
+
+
+def _sus_overlays(texto, nombre, args):
+    """«En el overlay vertical sacá lo de beta»: es un overlay SUYO (mis_overlays), no un cartel nuevo de Hogger."""
+    n = _norm(texto)
+    if nombre == "mis_overlays":
+        return nombre, args
+    if VER_SUYOS.search(n) and not re.search(r"\b(crea|crear|haceme|hace|pone|poneme|nuevo)\b", n):
+        return "mis_overlays", {"accion": "ver"}
+    if VOLVER_OVERLAY.search(n) and nombre in ("overlay", "responder", "pedir_aclaracion", "restaurar_titulo",
+                                                  "deshacer_ultima_publicacion"):
+        return "mis_overlays", {"accion": "volver"}
+    if not PIDE_SUYOS.search(n) or nombre not in ("overlay", "responder", "pedir_aclaracion", "mandar_al_chat",
+                                                   "mensaje_discord"):
+        return nombre, args
+    try:
+        otra, extra = _llamar_ollama(texto, solo=["mis_overlays"])
+    except Exception as e:  # noqa: BLE001
+        _p(f"[router] habló de sus overlays, pero no lo pude armar: {e}")
+        return nombre, args
+    if otra != "mis_overlays":
+        return nombre, args
+    _p(f"[router] habló de un overlay suyo (no {nombre}): mis_overlays {json.dumps(extra, ensure_ascii=False)}")
+    return "mis_overlays", extra
+
+
 def _no_quitar_sin_pedir(texto, nombre, args):
     """Un overlay se saca solo si lo pidió («sacalo», «borralo»). «Lo hiciste mal» es corregirlo, nunca quitarlo."""
     if nombre == "overlay" and args.get("accion") in ("quitar", "ocultar") and not PIDE_QUITAR.search(_norm(texto)):
@@ -980,6 +1017,9 @@ def _pulir(texto, pendiente, nombre, args):
     args = _usuario_de_la_charla(nombre, args)
     _no_en_tiktok(texto, nombre, args)
     nombre, args = _overlay_si_lo_pidio(texto, nombre, args)
+    nombre, args = _sus_overlays(texto, nombre, args)
+    if nombre == "mis_overlays":
+        args = {**args, "dicho": texto}            # lo que dijo tal cual, para el que edita el overlay
     nombre, args = _no_quitar_sin_pedir(texto, nombre, args)
     _moderar_en_discord(texto, nombre)
     nombre, args = _enlace_al_chat(texto, nombre, args)

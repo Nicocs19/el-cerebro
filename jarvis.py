@@ -127,6 +127,8 @@ def frase(evento, accion=None, detalle=None):
     if evento == "cancelado":
         return "Cancelado."
     if evento == "trabajando":
+        if tipo == "mis_overlays":
+            return "Dame un ratito, lo preparo y te digo qué cambia."
         return "Lo diseño y te aviso." if tipo == "miniatura" else "Lo estoy diseñando. Dame un minuto."
     if evento == "error":
         return "Uy, no pude. Te dejo el detalle en pantalla."
@@ -161,6 +163,10 @@ def frase(evento, accion=None, detalle=None):
             return f"¿Lo mando al chat de {_plataformas_habladas(d.get('plataformas'))}?"
         if tipo == "overlay":
             return f"Overlay {d.get('nombre')}, {str(d.get('posicion', '')).replace('-', ' ')}. ¿Lo diseño?"
+        if tipo == "overlay_aplicar":
+            if d.get("tipo") == "nuevo":
+                return "Ya diseñé el overlay nuevo, del mismo tamaño que el tuyo. ¿Lo pongo en OBS?"
+            return f"Ya tengo el cambio: {d.get('resumen', '')} ¿Lo pongo en OBS?"
         if tipo == "titulo":
             extra = (" Con el juego " + d["juego"] + "." if d.get("juego") else "") + (" Y te hago la miniatura." if d.get("miniatura") else "")
             extra += " Y la descripción de YouTube: leela en pantalla." if d.get("descripcion") else ""
@@ -211,6 +217,10 @@ def frase(evento, accion=None, detalle=None):
                     "mostrar": "Ahí está.", "quitar": "Quitado."}.get(a, "Listo.")
         if tipo == "guardar_enlace":
             return f"Enlace de {d.get('nombre')} guardado."
+        if tipo == "mis_overlays":
+            return str(detalle or "Listo.").splitlines()[0]
+        if tipo == "overlay_aplicar":
+            return "Listo, ya está en OBS. Si no te gusta, decime que lo vuelva como estaba."
         return "Listo."
     return ""
 

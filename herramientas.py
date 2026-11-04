@@ -129,7 +129,7 @@ class ErrorOrden(Exception):
 
 class Accion:
     def __init__(self, tipo, datos, resumen, confirmar):
-        self.tipo = tipo            # hogger, titulo, deshacer, consultar_titulo, restaurar_titulo, miniatura, moderar, chat, guardar_enlace, overlay, respuesta, busqueda, aclaracion
+        self.tipo = tipo            # hogger, titulo, deshacer, consultar_titulo, restaurar_titulo, miniatura, moderar, chat, guardar_enlace, overlay, mis_overlays, overlay_aplicar, respuesta, busqueda, aclaracion
         self.datos = datos
         self.resumen = resumen
         self.confirmar = confirmar
@@ -251,6 +251,13 @@ def esquemas():
             "posicion": {"type": "string", "enum": OVERLAY_POSICIONES, "description": "Dónde va. arriba-derecha si no lo dijo"},
             "tamano": {"type": "string", "enum": ["chico", "mediano", "grande"], "description": "mediano si no lo dijo"},
         }, ["accion", "nombre"]),
+        _f("mis_overlays", "Los overlays que Nicolas YA TIENE en OBS (los suyos, en el lienzo horizontal o el vertical: el vertical, el de TikTok, el de just chatting, el del nivel): decir cuáles tiene, cambiarles algo (un texto, un color, sacar una palabra), hacer uno nuevo del mismo tamaño y en el mismo lugar, o volver al de antes.", {
+            "accion": {"type": "string", "enum": ["ver", "cambiar", "nuevo_igual", "volver"]},
+            "cual": {"type": "string", "description": "Cuál de sus overlays, como lo dijo (p. ej. el vertical, el de tiktok, el de just chatting, el del nivel). Vacío si no dijo"},
+            "lienzo": {"type": "string", "enum": ["", "horizontal", "vertical"], "description": "vertical si dijo vertical, TikTok o celular; horizontal si dijo horizontal; si no, vacío"},
+            "cambio": {"type": "string", "description": "cambiar: qué le cambia, con los textos EXACTOS que dijo. nuevo_igual: qué tiene que mostrar el nuevo"},
+            "reemplazar": {"type": "boolean", "description": "nuevo_igual: true solo si dijo que el nuevo va EN VEZ del suyo"},
+        }, ["accion"]),
         _f("responder", "Contesta en voz alta (se escucha en el stream) cuando Nicolas te habla a vos, charla, te molesta, te pide un chiste, saludar al stream, bardear al chat o te hace una pregunta que sabés, sin pedir publicar ni cambiar nada. No publica nada.", {
             "respuesta": {"type": "string", "description": f"Lo que decís como {config.NOMBRE_ASISTENTE}: 1 o 2 frases cortas, graciosas y con onda, en español latino"},
             "animo": {"type": "string", "enum": ["normal", "picado", "feliz"],
@@ -815,6 +822,26 @@ def construir(nombre, a):
             return Accion("overlay", d, f"Mover el overlay «{d['nombre']}» a {lugar}", False)
         verbo = {"ocultar": "Ocultar", "mostrar": "Mostrar", "quitar": "Quitar"}[acc]
         return Accion("overlay", d, f"{verbo} el overlay «{d['nombre']}»", False)
+
+    if nombre == "mis_overlays":
+        acc = a.get("accion") if a.get("accion") in ("ver", "cambiar", "nuevo_igual", "volver") else (
+            "cambiar" if a.get("cambio") else "ver")
+        lienzo = a.get("lienzo") if a.get("lienzo") in ("horizontal", "vertical") else ""
+        d = {"accion": acc, "cual": _txt(a, "cual", 80, False), "lienzo": lienzo, "cambio": _txt(a, "cambio", 600, False),
+             "reemplazar": a.get("reemplazar") in (True, "true", "True", "si", "sí"), "dicho": _txt(a, "dicho", 400, False)}
+        cual = d["cual"] or (f"el {lienzo}" if lienzo else "")
+        if acc == "cambiar":
+            if not d["cambio"]:
+                raise ErrorOrden("¿Qué le cambio al overlay?")
+            return Accion("mis_overlays", d, f"Preparo el cambio en tu overlay {cual}: {d['cambio']}".replace("  ", " "), False)
+        if acc == "nuevo_igual":
+            if not d["cambio"]:
+                raise ErrorOrden("¿Qué tiene que mostrar el overlay nuevo?")
+            return Accion("mis_overlays", d, f"Diseño un overlay nuevo del mismo tamaño y lugar que {cual or 'el tuyo'}: "
+                                             f"{d['cambio']}", False)
+        if acc == "volver":
+            return Accion("mis_overlays", d, "Vuelvo tu overlay como estaba antes del último cambio", False)
+        return Accion("mis_overlays", d, "Miro los overlays que tenés en OBS", False)
 
     if nombre == "responder":
         r = re.sub(r"""\s*["']?\s*,\s*animo\s*[=:].*$""", "", _txt(a, "respuesta", 600), flags=re.I).strip() or "…"

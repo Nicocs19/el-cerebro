@@ -31,8 +31,14 @@ Si Ollama no responde, usa patrones fijos para anuncios y títulos.
 | «Mandá al chat el link del Discord» | Escribe el enlace guardado en el chat de Kick y YouTube |
 | «Guardá este enlace como tienda» (con el enlace copiado) | Lo agrega a `enlaces.txt` |
 | «Poné un cartel arriba a la derecha que diga raid de Onyxia a las 10» | Claude diseña el overlay y aparece en tu escena de OBS donde dijiste; «movelo abajo», «ocultalo», «sacalo» |
+| «¿Qué overlays tengo?» | Te dice tus overlays de OBS en el lienzo horizontal y en el vertical (escena, tamaño, de dónde salen y dónde está la cámara) |
+| «En el overlay vertical sacá lo de beta» | Claude prepara el cambio mínimo en el archivo de TU overlay; te dice qué cambia y, con tu «dale», guarda una copia del original en `_copias`, lo cambia y recarga solo esa fuente |
+| «Haceme uno nuevo del mismo tamaño que el de TikTok que diga Temporada de raids, en vez del mío» | Diseña uno nuevo (🧠) con la misma medida y en el mismo lugar, con la cámara libre; el tuyo se oculta, no se borra |
+| «Volvé el overlay como estaba» | Deshace el último cambio de tus overlays |
 | «Cambiá el título a Día 2 y hacé la miniatura que diga Día 2» | Título y, en segundo plano, miniatura diseñada por Claude |
 | «Cerebro, decime algo» | Te contesta en voz alta; nunca publica nada por una charla |
+
+Tus overlays (los que ya tenías en OBS, no los 🧠): Hogger los ve en los dos lienzos (OBS 32 con el lienzo vertical de Aitum) y solo edita los que son archivos HTML de tu PC; los que vienen de internet (el chat de Kick, Social Stream) no se tocan. La contraseña de OBS que tienen escrita tus overlays se tapa antes de mostrarle el archivo a Claude, y un cambio que la toque se rechaza. El registro de cambios queda en `data/overlays_cambios.json` y la foto de cómo quedó cada uno en `data/overlays_editados/`.
 
 Las miniaturas y los overlays los diseña Claude con el programa `claude` de tu PC (usa tu plan) y Edge los convierte en imagen. Para usar fotos tuyas (personajes, jefes), ponelas en `recursos/imagenes` con un nombre claro (`paladin.png`) y nombralas en tu idea. Si Claude no responde, sale la plantilla dorada de siempre. Mientras Claude diseña, podés seguir dándole órdenes.
 
@@ -96,7 +102,7 @@ La IA copia el día tal como lo dijiste («viernes», «mañana», «el 15», «
 
 ## Pruebas sin publicar
 
-- `python probar_router.py todo`: prueba todo de una (sin publicar nada) y muestra un resumen. Por partes: `rapido` (sí/no, canales, plataformas y dictado, sin la IA), `corregir` (corregir lo hecho, overlays con enlaces, descripción y cuándo entra el agente de empaquetado, con una IA de mentira), `flujo` (orden + «dale» o «no» como en vivo, simulado), `chat` y `charla`.
+- `python probar_router.py todo`: prueba todo de una (sin publicar nada) y muestra un resumen. Por partes: `rapido` (sí/no, canales, plataformas y dictado, sin la IA), `corregir` (corregir lo hecho, overlays con enlaces, descripción y cuándo entra el agente de empaquetado, con una IA de mentira), `flujo` (orden + «dale» o «no» como en vivo, simulado), `overlays` (tus overlays de OBS con un OBS y un Claude de mentira), `chat` y `charla`.
 - `python probar_router.py`: pasa las frases de Discord, raids y títulos por la IA local y muestra qué haría.
 - `python probar_router.py chat`: revisa que entienda las órdenes de moderación y enlaces (sin mandar nada).
 - `python chat_vivo.py`: muestra lo que llega al chat de Kick.
