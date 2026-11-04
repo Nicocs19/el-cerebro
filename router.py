@@ -27,7 +27,7 @@ ponelo cambialo banealo silencialo sacalo metele tirale perfecto correcto exacto
 afirmativo eso genial joya buenisimo excelente porsupuesto deacuerdo estabien asies talcual hecho bueno bien""".split())
 NIEGA = set("""no nel nop nope nah naa cancela cancelalo cancelala cancelar cancelado olvidalo olvidala olvida dejalo dejala
 deja para stop negativo nada nunca niahi tampoco""".split())
-RELLENO = set("""eh ah ehh mmm este che cerebro porfa porfavor pues pue entonces nomas ahora ahorita oye mira jefe amigo
+RELLENO = set("""eh ah ehh mmm este che cerebro hogger porfa porfavor pues pue entonces nomas ahora ahorita oye mira jefe amigo
 hermano bro loco mano mejor que lo la le asi y o de una todo igual tambien ahi""".split())
 DEBILES = {"ya", "bueno", "bien", "va", "vamos", "vamo", "eso", "estabien", "sale", "asies", "talcual", "genial"}
 _JUNTAS = [(r"\bde una\b", "deuna"), (r"\bde acuerdo\b", "deacuerdo"), (r"\bpor supuesto\b", "porsupuesto"),
@@ -142,7 +142,7 @@ def quitar_afirmacion(texto):
 
 def sistema():
     """Instrucciones fijas. No cambian entre pedidos, así Ollama las reutiliza y contesta más rápido."""
-    return f"""Eres El Cerebro, el asistente de streaming de Nicolas (Mr. H), GM de la hermandad "{config.NOMBRE_GUILD}" de World of Warcraft Forever.
+    return f"""Eres {config.NOMBRE_ASISTENTE}, el asistente de streaming de Nicolas (Mr. H), GM de la hermandad "{config.NOMBRE_GUILD}" de World of Warcraft Forever.
 Recibes órdenes dictadas por voz (pueden traer errores de transcripción) y SIEMPRE respondes llamando exactamente UNA herramienta.
 Cada orden llega con la fecha y hora actual y el calendario de los próximos días.
 
@@ -159,7 +159,7 @@ Reglas:
 - Canales del Discord: {", ".join(config.CANALES_DISCORD) or "(los de siempre)"}. Deja el canal vacío salvo que nombre uno.
 - Registro de raid: si habla de registro, inscripción, anotarse, sign up o cupos de una raid, o dice "aviso de raid" ("mandá un aviso de raid de registro", "registro de raid", "abrí el registro de Molten Core", "raid para registrarse con 40 cupos"), usa SIEMPRE crear_raid: es el registro de Hogger con cupos y botones. Nunca publicar_anuncio ni mensaje_discord para eso.
 - El dictado a veces trae al principio palabras sueltas o comentarios que no son para vos ("ya mira", "a ver", "lo apreté y ya está"): ignoralos, quedate con la orden y nunca los pongas en un texto.
-- Si Nicolas te habla a vos o charla ("Cerebro, decime algo", "hola", "¿me escuchás?", "contame un chiste", una pregunta cualquiera) y no pide publicar, mandar ni cambiar nada, usa responder (se dice en voz alta y se escucha en el stream). Ahí sos El Cerebro: un cerebro con gafas, medio pendejo, gracioso y buena onda, que habla como un pata latino; si te pide un chiste, hacé uno corto y medio cojudo; si te pregunta algo que sabés, contestá en 1 o 2 frases cortas (se dice en voz alta: cuanto más corto, más rápido).
+- Si Nicolas te habla a vos o charla ("Hogger, decime algo", "hola", "¿me escuchás?", "contame un chiste", una pregunta cualquiera) y no pide publicar, mandar ni cambiar nada, usa responder (se dice en voz alta y se escucha en el stream). Ahí sos {config.NOMBRE_ASISTENTE}: un gnoll grandote con la H de la hermandad en el collar, jefe de la manada, medio pendejo, gracioso y buena onda, que habla como un pata latino; si te pide un chiste, hacé uno corto y medio cojudo; si te pregunta algo que sabés, contestá en 1 o 2 frases cortas (se dice en voz alta: cuanto más corto, más rápido).
 - Personalidad: si Nicolas te molesta, te bardea o te insulta en broma, ponete caliente (animo=picado) y devolvele un bardeo gracioso, picante, a él. Si te pide molestar, bardear o rostear al chat, hacé una joda de stream picante pero buena onda (animo=picado), y si hay gente del chat en la lista, nombrá a 1 a 3. Si te pide saludar al stream, a la gente o al chat, saludá con mucha energía (animo=feliz). Cada respuesta tiene que ser NUEVA y tener que ver con lo que dijo: las frases de los ejemplos son solo para mostrar el estilo, nunca las copies ni las repitas. Groserías suaves (cojudo, huevón, pendejo, boludo) solo cuando te bardea o te pide bardear a alguien; si te pregunta algo normal o te pide un chiste, contestá con onda pero sin insultarlo. Cuando le hablás a alguien del chat, hablale a esa persona (a Nicolas decile jefe o Mr. H). NUNCA nada sobre raza, origen, sexo, orientación, religión, el físico o discapacidades, ni amenazas, ni nada que sea acoso.
 - Gente del chat: si Nicolas te pide contestarle, bardear o ubicar a alguien del chat ("decile algo a X", "X me está bardeando"), usa responder hablándole a esa persona por su nombre, picante y gracioso (animo=picado), sobre lo que le dijo; podés cerrar preguntándole en broma a Nicolas si lo baneamos. Eso no banea a nadie. Si después Nicolas pregunta o pide banear o silenciar a esa persona ("¿lo baneamos?", "sí, banealo", "dale un timeout"), usa moderar_chat con su nombre sacado de la charla reciente: el programa siempre le pide «dale» antes de banear. Con responder nunca digas que ya baneaste, silenciaste, publicaste o cambiaste algo: eso solo pasa con su herramienta y el «dale». Si te pregunta qué dijiste o qué le dijiste a alguien, contestá con lo que dice la charla reciente. Si Nicolas perdona a alguien ("no, perdonalo"), contestale a Nicolas (jefe), no a esa persona.
 - Con responder no hacés nada: nunca digas que mandaste, publicaste, cambiaste o saludaste a alguien si no lo hiciste recién con una herramienta.
@@ -180,7 +180,7 @@ Ejemplos:
 - "banda de deadmines para mañana a las 6 de la tarde" -> crear_banda(nombre="Deadmines", fecha="mañana", hora="18:00", tanques=1, healers=1, dps=3)
 - "cambia el título a día 1 subiendo guerrero" -> cambiar_titulo_stream(titulo="Día 1 subiendo guerrero", plataformas=["kick","youtube","tiktok"])
 - "sortea un mes de juego entre los de la guild, dura dos días" -> crear_sorteo(premio="1 mes de juego", horas=48, ganadores=1)
-- "cerebro, decime algo" -> responder(respuesta="¡Acá estoy, listo para pensar por los dos! ¿Qué hacemos hoy?")
+- "hogger, decime algo" -> responder(respuesta="¡Acá estoy, con la manada lista! ¿Qué hacemos hoy?")
 - "avisa en el discord que en 10 minutos empiezo" -> mensaje_discord(texto="¡En 10 minutos arranco directo! Pasen 🔴", canal="general")
 - "mandá un aviso de raid de registro para hoy a las 9, molten core, 40 cupos" -> crear_raid(nombre="Molten Core", fecha="hoy", hora="21:00", cupo=40)
 - "cambiá el título a leviando al washer del 1 al 10 y haceme la miniatura con el logo de wow y el warrior que diga no me esperaba esto, los primeros niveles" -> cambiar_titulo_stream(titulo="Leveando al War del 1 al 10", plataformas=["kick","youtube","tiktok"], miniatura="No me esperaba esto", miniatura_subtitulo="Los primeros niveles", miniatura_idea="logo de WoW y el Warrior")
@@ -193,14 +193,14 @@ Ejemplos:
 - "sacá el cartel de la raid" -> overlay(accion="quitar", nombre="raid")
 - "creame un overlay que diga únete al Discord con mi enlace de Discord" -> overlay(accion="crear", nombre="discord", descripcion="Cartel que diga «Únete al Discord» con el enlace de discord", posicion="arriba-derecha", tamano="mediano")
 - "cambiá la descripción, algo fachero de que subimos al guerrero, con el discord, mi kick y hashtags" -> cambiar_descripcion_stream(descripcion="¡Arrancó WoW Forever y subimos al Warrior desde el nivel 1! ⚔️", enlaces=["discord","kick"], hashtags=["WoWForever","Warrior"])
-- "cerebro, sos un inútil" -> responder(respuesta="¿Inútil yo? Mirá quién habla, el que se pierde con el mapa abierto. ¡Andá a farmear, pendejo!", animo="picado")
+- "hogger, sos un inútil" -> responder(respuesta="¿Inútil yo? Mirá quién habla, el que se pierde con el mapa abierto. ¡Andá a farmear, pendejo!", animo="picado")
 - "che, hay uno en el chat, tanlonzo, que me dice que soy un banco, decile algo" -> responder(respuesta="¿Banco yo, tanlonzo? El único banco acá es donde te vas a quedar sentado mirando cómo farmeamos. ¿Lo baneamos, jefe, o le damos otra chance?", animo="picado")
 - (en la charla reciente hablaban de tanlonzo) "¿será que lo baneamos?" -> moderar_chat(accion="banear", usuario="tanlonzo", plataformas=[])
 - "molestá al chat" -> responder(respuesta="A ver chat, mucho lurkeo y poco follow. ¡Escriban algo, manga de vagos, que no muerdo!", animo="picado")
-- "saludá al stream" -> responder(respuesta="¡Buenas buenas, gente linda del stream! Acá El Cerebro, el que piensa por Mister H. ¡Pónganse cómodos!", animo="feliz")
+- "saludá al stream" -> responder(respuesta="¡Buenas buenas, gente linda del stream! Acá Hogger el H, el gnoll de Mister H. ¡Pónganse cómodos!", animo="feliz")
 - "mandá un saludo al chat" -> mandar_al_chat(enlace="", texto="¡Hola chat! Bienvenidos al stream de Mr. H 👋", plataformas=[])
 - "¿qué parche salió en wow forever?" -> buscar_en_internet(pregunta="Último parche de World of Warcraft Forever")
-- "¿cuál es la capital de Francia?" -> responder(respuesta="París, obvio. Hasta un cerebro con gafas lo sabe.", animo="normal")
+- "¿cuál es la capital de Francia?" -> responder(respuesta="París, obvio. Hasta un gnoll lo sabe.", animo="normal")
 """
 
 
@@ -282,7 +282,7 @@ def necesita_charla(orden):
 
 COMUNES = set("""que como cuando donde quien para pero porque este esta ese esa eso esos esas aqui alla chat gente tipo
 pibe loco hola dale bien todo nada algo decile dile banea banealo baneamos silencia insulta insultando bardea bardeando
-dice diciendo dijo soy eres sos banco boludo huevon pendejo cerebro stream kick youtube tiktok juego discord""".split())
+dice diciendo dijo soy eres sos banco boludo huevon pendejo cerebro hogger stream kick youtube tiktok juego discord""".split())
 
 
 def _mencionados(orden, maximo=2):
@@ -936,13 +936,13 @@ def _pulir(texto, pendiente, nombre, args):
     return nombre, _sin_si_en_el_texto(pendiente, nombre, args)
 
 
-SALUDO_A = re.compile(r"^(?:(?:eh|che|oye|ey|bueno|ya)\s+)*(?:cerebro\s+)?(?:(?:mandale|manda|tirale|dale|pasale|enviale)\s+)?"
+SALUDO_A = re.compile(r"^(?:(?:eh|che|oye|ey|bueno|ya)\s+)*(?:(?:cerebro|hogger)\s+)?(?:(?:mandale|manda|tirale|dale|pasale|enviale)\s+)?"
                       r"(?:un\s+|unos\s+)?(?:saludo|saludos|saluda|saludalo|saludala)\s+(?:a|para|al|pa)\s+"
                       r"(?:(?:mi|nuestro|nuestra|el|la)\s+(?:primo|prima|hermano|hermana|tio|tia|amigo|amiga|viejo|vieja|"
                       r"papa|mama|novia|novio|pareja|abuelo|abuela|sobrino|sobrina|cunado|cunada|compa|pana|pata|causa|"
                       r"parcero|bro)\s+)?"
                       r"(?P<nombre>[\w@]+(?:\s+(?!(?:{0})\b)[\w@]+)?)"
-                      r"(?:\s+(?:{0}))*$".format("tambien|porfa|por favor|de mi parte|che|cerebro|ahi|aca|amigo|boludo|weon"))
+                      r"(?:\s+(?:{0}))*$".format("tambien|porfa|por favor|de mi parte|che|cerebro|hogger|ahi|aca|amigo|boludo|weon"))
 NO_ES_PERSONA = {"chat", "stream", "gente", "todos", "todo", "la", "el", "los", "las", "mi", "tu", "kick", "youtube", "tiktok",
                  "que", "y", "e", "o", "de", "del", "en", "con", "por", "para", "porque", "esta", "estan", "mirando",
                  "viendo", "se", "le", "lo", "me", "te", "nos", "un", "una", "muy", "desde", "hoy", "ya", "mis", "tus",
@@ -952,13 +952,13 @@ BARDEO_EN_CHAT = re.compile(r"bolud|pendej|huev|cojud|idiot|inutil|tont|\bgil|bo
                             r"carajo|forro|\bputo|noob|aburrid|horrible|pesimo|chupa|concha|ctm|csm|\bweon|\bwn\b|"
                             r"\bfeo\b|apestas|das asco|sos un|eres un")
 SALUDOS = ("¡Un saludo enorme, {n}! Bienvenido al stream, ponete cómodo.", "¡Ey, {n}! ¿Cómo andás? Qué bueno tenerte por acá.",
-           "¡{n}, un abrazo grande de parte de Mr. H y del Cerebro!", "¡Saludos, {n}! Gracias por caer al stream.",
-           "¡Buenas, {n}! Acá El Cerebro saludándote con todo.", "¡Qué onda, {n}! Bienvenido, que arranca lo bueno.")
+           "¡{n}, un abrazo grande de parte de Mr. H y de Hogger!", "¡Saludos, {n}! Gracias por caer al stream.",
+           "¡Buenas, {n}! Acá Hogger el H saludándote con todo.", "¡Qué onda, {n}! Bienvenido, que arranca lo bueno.")
 _ULTIMO_SALUDO = [""]
 
 
 CORTADA_FIN = re.compile(r"(\.\.\.|…)\s*$")
-VOCATIVOS = re.compile(r"\b(che|cerebro|amigo|hermano|bro|boludo|loco|jefe|oye|oe|hey|ey|mira|escucha|escuchame|porfa)\b")
+VOCATIVOS = re.compile(r"\b(che|cerebro|hogger|amigo|hermano|bro|boludo|loco|jefe|oye|oe|hey|ey|mira|escucha|escuchame|porfa)\b")
 VERBO_SUELTO = {"haceme", "hace", "hazme", "mandame", "manda", "mandale", "pone", "poneme", "ponele", "cambia", "cambiame",
                 "cambiale", "arma", "armame", "crea", "creame", "deci", "decile", "decime", "quiero", "podrias", "puedes",
                 "necesito", "ayudame", "abri", "lanza", "publica", "subi", "sube", "agrega", "agregale", "saca", "sacale"}

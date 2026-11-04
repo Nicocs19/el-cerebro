@@ -44,6 +44,8 @@ def para_voz(texto):
                if 1 <= int(m.group(2)) <= 12 else m.group(0), t)
     t = re.sub(r"\b(\d{1,2}):(\d{2})\b", lambda m: hora_hablada(m.group(1), m.group(2)), t)
     t = t.replace("-", " ")
+    t = re.sub(r"\bHogger el H\b", "Jóguer el Ache", t)          # cómo se dice (con H muda sonaría «Oguer»)
+    t = re.sub(r"\bHogger\b", "Jóguer", t)
     return re.sub(r"\s+", " ", t).strip()
 
 

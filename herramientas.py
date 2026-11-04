@@ -252,7 +252,7 @@ def esquemas():
             "tamano": {"type": "string", "enum": ["chico", "mediano", "grande"], "description": "mediano si no lo dijo"},
         }, ["accion", "nombre"]),
         _f("responder", "Contesta en voz alta (se escucha en el stream) cuando Nicolas te habla a vos, charla, te molesta, te pide un chiste, saludar al stream, bardear al chat o te hace una pregunta que sabés, sin pedir publicar ni cambiar nada. No publica nada.", {
-            "respuesta": {"type": "string", "description": "Lo que decís como El Cerebro: 1 a 3 frases cortas, graciosas y con onda, en español latino"},
+            "respuesta": {"type": "string", "description": f"Lo que decís como {config.NOMBRE_ASISTENTE}: 1 o 2 frases cortas, graciosas y con onda, en español latino"},
             "animo": {"type": "string", "enum": ["normal", "picado", "feliz"],
                       "description": "picado si te molestan, te bardean o te piden bardear; feliz si te felicitan o saludás; si no, normal"},
         }, ["respuesta"]),

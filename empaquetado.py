@@ -20,7 +20,7 @@ EL CANAL
 - Mr. H (Nicolas), streamer de World of Warcraft en español latino. GM de la hermandad {guild}.
 - Juega WoW Forever. {lanzamiento} En vivo en Kick (principal), YouTube y TikTok.
 - Contenido: subir personajes (Warrior y otros), raids (Molten Core, Onyxia…), pesca relajada, novedades del juego,
-  humor con la comunidad. El Cerebro es su asistente (un cerebro con gafas).
+  humor con la comunidad. Su asistente es Hogger el H (un gnoll de dibujito con la H de la hermandad).
 
 HOY ES {hoy}.
 LO QUE PIDIÓ (dictado por voz, puede traer errores): «{orden}»

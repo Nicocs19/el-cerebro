@@ -290,6 +290,10 @@ def probar_rapido():
                   "Eh, Cerebro, mándale un saludo a Lucas.") or ""), True),
               ("saludo al chat: va a la IA", router._saludo_fijo("mandá un saludo al chat"), None),
               ("frase cortada: pregunta", bool(router._frase_cortada("Che, Cerebro, haceme...")), True),
+              ("«Hogger, haceme...»: también pregunta", bool(router._frase_cortada("Hogger, haceme...")), True),
+              ("«Hogger, mandale un saludo a Lucas»: frase fija", "Lucas" in (router._saludo_fijo(
+                  "Hogger, mandale un saludo a Lucas") or ""), True),
+              ("Whisper «Jóguer» = Hogger", dictado.corregir("Jóguer, decime algo"), "Hogger, decime algo"),
               ("saludo a «mi primo X»: frase fija con su nombre", "Mauricio Ramos" in (router._saludo_fijo(
                   "Che, Cerebro, mandale un saludo a mi primo Mauricio Ramos") or ""), True),
               ("«hoy a las 12 de la noche» = la medianoche que viene",

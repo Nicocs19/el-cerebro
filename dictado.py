@@ -12,6 +12,8 @@ CORRECCIONES = [
     (r"\b(levi|libi|lebi|leb)(ando|ar|o|eo)\b", r"leve\2"),
     (r"\b(washer|guasher|guacher|wacher|guar|guor|wor)\b", "War"),
     (r"\bwarrior\b", "Warrior"),
+    # el nombre del asistente: «Hoger», «Jóger», «Jogger», «Joguer», «Hoguer» (no «ogro»: es palabra de WoW)
+    (r"\b(hoger|hogguer|hoguer|j[oó]ger|j[oó]gger|j[oó]guer|oguer|hógger)\b", "Hogger"),
     (r"\bwow forever\b|\bguau forever\b|\bbow forever\b", "WoW Forever"),
     (r"\b(previces|previs|previ ?bis|pre ?bis|pribis|prebís)\b", "pre-BiS"),
     # «tienen que estar previstos» en una raid = pre-BiS (solo pegado a estar/venir/ir: «previsto» también es palabra normal)

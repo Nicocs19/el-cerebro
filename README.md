@@ -36,9 +36,11 @@ Si Ollama no responde, usa patrones fijos para anuncios y títulos.
 
 Las miniaturas y los overlays los diseña Claude con el programa `claude` de tu PC (usa tu plan) y Edge los convierte en imagen. Para usar fotos tuyas (personajes, jefes), ponelas en `recursos/imagenes` con un nombre claro (`paladin.png`) y nombralas en tu idea. Si Claude no responde, sale la plantilla dorada de siempre. Mientras Claude diseña, podés seguir dándole órdenes.
 
-## El Cerebro en pantalla y con voz
+## Hogger el H en pantalla y con voz
 
-Cuando lo llamás aparece abajo a la derecha un cerebro con ojos: abre los ojos y salta con tu voz mientras escucha, mira para arriba y le salen burbujitas mientras piensa, mueve la boca cuando habla, pone ojos felices cuando sale bien y ojos en cruz si algo falla. El cartel con el texto aparece arriba de él, como un globo de diálogo, solo cuando hay algo para leer (la confirmación o el resultado).
+Desde el 4 nov 2026 el asistente se llama **Hogger el H** (`NOMBRE_ASISTENTE`) y en pantalla es un gnoll de dibujito: hiena con manchas, cresta a rayas, orejas que se paran cuando te escucha, colmillos, collar con pinchos y la medalla de la H. Se lo llama «Hogger, …» (también sigue andando «Cerebro, …»). Es un diseño propio, no el modelo del juego. Para volver al cerebro: `CEREBRO_DISENO=gafas` (o `clasico`) en el `.env`. En voz se dice «Jóguer el Ache».
+
+Cuando lo llamás aparece arriba a la derecha: abre los ojos y salta con tu voz mientras escucha, mira para arriba y le salen burbujitas mientras piensa, mueve la boca cuando habla, pone ojos felices cuando sale bien y ojos en cruz si algo falla. El cartel con el texto aparece arriba de él, como un globo de diálogo, solo cuando hay algo para leer (la confirmación o el resultado).
 
 El Cerebro te lee la confirmación («Raid de Onyxia, el viernes a las 9 de la noche, 20 cupos. ¿La publico?») y te avisa cuando está hecho. Si le hablás, le preguntás algo o le pedís un chiste, te contesta con la IA local de tu PC (gratis y sin límite) y no publica nada. Suena por la salida de audio normal, así que el stream también lo oye.
 

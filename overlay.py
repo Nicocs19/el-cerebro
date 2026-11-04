@@ -28,7 +28,7 @@ class Overlay:
         w.configure(bg="#14110C")
         marco = tk.Frame(w, bg="#14110C", highlightbackground="#C9A227", highlightthickness=2)
         marco.pack(fill="both", expand=True)
-        self.titulo = tk.Label(marco, text="EL CEREBRO", bg="#14110C", fg="#E8C468",
+        self.titulo = tk.Label(marco, text=config.NOMBRE_ASISTENTE.upper(), bg="#14110C", fg="#E8C468",
                                font=("Segoe UI", 10, "bold"), anchor="w")
         self.titulo.pack(fill="x", padx=12, pady=(8, 0))
         self.texto = tk.Label(marco, text="", bg="#14110C", fg="#F2EAD8", font=("Segoe UI", 11),
@@ -50,11 +50,11 @@ class Overlay:
         except Exception:  # noqa: BLE001  (no es Windows o falla: no pasa nada)
             pass
 
-    def mostrar(self, texto, tipo="info", segundos=6, titulo="EL CEREBRO"):
+    def mostrar(self, texto, tipo="info", segundos=6, titulo=None):
         print(f"[{tipo}] {texto}")
         if not self.activo:
             return
-        self.titulo.config(text=titulo, fg=COLORES.get(tipo, "#E8C468"))
+        self.titulo.config(text=titulo or config.NOMBRE_ASISTENTE.upper(), fg=COLORES.get(tipo, "#E8C468"))
         self.texto.config(text=texto)
         self.win.update_idletasks()
         ancho = max(320, min(460, self.texto.winfo_reqwidth() + 28))

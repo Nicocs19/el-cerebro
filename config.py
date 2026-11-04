@@ -107,7 +107,8 @@ TIKTOK_MODO = _s("TIKTOK_MODO", "portapapeles").lower()  # portapapeles | automa
 # --- Modo Jarvis: voz que te habla y orbe animado ---
 JARVIS_VOZ = _b("JARVIS_VOZ", True)
 JARVIS_ORBE = _b("JARVIS_ORBE", True)
-JARVIS_SALUDO = _s("JARVIS_SALUDO", "¡El Cerebro en línea! Listo para pensar por los dos.")
+NOMBRE_ASISTENTE = _s("NOMBRE_ASISTENTE", "Hogger el H")    # cómo se llama el asistente (en pantalla y en la charla)
+JARVIS_SALUDO = _s("JARVIS_SALUDO", "¡Hogger el H en línea! La manada de The H's está lista.")
 ELEVEN_API_KEY = _s("ELEVEN_API_KEY")                     # ElevenLabs (voz principal); vacío = solo voz local
 ELEVEN_VOZ = _s("ELEVEN_VOZ", "Daniel")                    # nombre de la voz en tu cuenta o su ID
 ELEVEN_MODELO = _s("ELEVEN_MODELO", "eleven_flash_v2_5")   # rápido y gasta la mitad de créditos
@@ -128,7 +129,7 @@ VOZ_VOLUMEN = _f("VOZ_VOLUMEN", 0.9)
 ORBE_COLOR = _s("ORBE_COLOR", "jarvis").lower()           # solo para el estilo orbe: jarvis (celeste) o dorado
 ORBE_ESTILO = _s("ORBE_ESTILO", "cerebro").lower()         # cerebro (con ojos) u orbe (la bolita)
 CEREBRO_SIEMPRE = _b("CEREBRO_SIEMPRE", False)             # true = el cerebro queda siempre en pantalla
-CEREBRO_DISENO = _s("CEREBRO_DISENO", "gafas").lower()     # gafas (relajado, con gafas y colores) o clasico
+CEREBRO_DISENO = _s("CEREBRO_DISENO", "hogger").lower()    # hogger (el gnoll), gafas (el cerebro con gafas) o clasico
 VOZ_TONO = _f("VOZ_TONO", 4)                              # semitonos: 0 = voz normal, 3 a 5 = voz de dibujito
 ORBE_POSICION = _s("ORBE_POSICION", "arriba-derecha").lower()
 
