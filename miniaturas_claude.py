@@ -547,8 +547,10 @@ def ultima():
 
 
 def _imagenes_del_html(html):
-    refs = re.findall(r"""(?:src|href)\s*=\s*["']([^"'#]+)["']|url\(\s*["']?([^"')]+)["']?\s*\)""", html)
-    return {a or b for a, b in refs if (a or b) and not re.match(r"(data|https?|about|blob):", a or b, re.I)}
+    """Los archivos que usa el diseño. No cuentan url(#fuego) ni href="#x" (filtros y degradados SVG del mismo HTML)."""
+    refs = re.findall(r"""(?:src|href)\s*=\s*["']([^"']+)["']|url\(\s*["']?([^"')]+)["']?\s*\)""", html)
+    return {r.strip() for r in (a or b for a, b in refs)
+            if r.strip() and not r.strip().startswith("#") and not re.match(r"(data|https?|about|blob|javascript):", r.strip(), re.I)}
 
 
 def _lista_archivos(carpeta, html, extras):

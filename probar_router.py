@@ -942,8 +942,10 @@ def probar_miniaturas():
         c.mkdir(parents=True)
     vieja = config.SALIDA / "miniaturas" / "2026-11-03_2002_1-al-20-seguido"
     vieja.mkdir(parents=True)
-    html = ('<!doctype html><html><head><style>.logo{width:30vw}</style></head><body>'
-            '<img class="logo" src="web_logo_wow.png"><h1>1 al 20 seguido</h1></body></html>')
+    html = ('<!doctype html><html><head><style>.logo{width:30vw}h1{filter:url(#fFire)}</style></head><body>'
+            '<svg width="0" height="0"><filter id="fFire"/><linearGradient id="gBlade"/></svg>'
+            '<img class="logo" src="web_logo_wow.png"><h1 style="fill:url( #gBlade )">1 al 20 seguido</h1>'
+            '<svg><use href="#em"/></svg></body></html>')
     (vieja / "diseno.html").write_text(html, encoding="utf-8")
     for nombre, tam in (("web_logo_wow.png", (400, 200)), ("captura.png", (320, 180)), ("youtube.jpg", (1280, 720)),
                         ("tiktok.jpg", (1080, 1920))):
