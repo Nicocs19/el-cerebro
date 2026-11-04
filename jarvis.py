@@ -129,6 +129,8 @@ def frase(evento, accion=None, detalle=None):
     if evento == "trabajando":
         if tipo == "mis_overlays":
             return "Dame un ratito, lo preparo y te digo qué cambia."
+        if tipo == "editar_miniatura":
+            return "Dale, le cambio solo eso y te la muestro antes de subirla."
         return "Lo diseño y te aviso." if tipo == "miniatura" else "Lo estoy diseñando. Dame un minuto."
     if evento == "error":
         return "Uy, no pude. Te dejo el detalle en pantalla."
@@ -166,7 +168,13 @@ def frase(evento, accion=None, detalle=None):
         if tipo == "overlay_aplicar":
             if d.get("tipo") == "nuevo":
                 return "Ya diseñé el overlay nuevo, del mismo tamaño que el tuyo. ¿Lo pongo en OBS?"
+            if d.get("tipo") == "varios":
+                return (f"Ya tengo el cambio en tus {len(d.get('partes') or [])} overlays, en el lienzo "
+                        f"{d.get('lienzo', '')}. {d.get('resumen', '')} ¿Los pongo en OBS?")
             return f"Ya tengo el cambio: {d.get('resumen', '')} ¿Lo pongo en OBS?"
+        if tipo == "miniatura_subir":
+            mirala = " Te la dejé abierta para que la mires." if d.get("abierta") else ""
+            return f"Ya cambié la miniatura: {str(d.get('resumen', '')).rstrip('. ')}.{mirala} ¿La subo a YouTube?"
         if tipo == "titulo":
             extra = (" Con el juego " + d["juego"] + "." if d.get("juego") else "") + (" Y te hago la miniatura." if d.get("miniatura") else "")
             extra += " Y la descripción de YouTube: leela en pantalla." if d.get("descripcion") else ""
@@ -221,6 +229,10 @@ def frase(evento, accion=None, detalle=None):
             return str(detalle or "Listo.").splitlines()[0]
         if tipo == "overlay_aplicar":
             return "Listo, ya está en OBS. Si no te gusta, decime que lo vuelva como estaba."
+        if tipo == "editar_miniatura":
+            return str(detalle or "Listo.").splitlines()[0]
+        if tipo == "miniatura_subir":
+            return "Listo, la miniatura nueva ya está en YouTube."
         return "Listo."
     return ""
 

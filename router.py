@@ -23,12 +23,14 @@ import memoria
 # «Sí» y «no» dichos de mil formas (y como los escribe Whisper: «Daleh», «Dalee», «Simandalo», «De una»)
 AFIRMA = set("""dale dali dalle dele bale vale si sip sipi simon claro claroque obvio obviamente deuna sale ok okey oki okay
 listo va vamos vamo ya hacelo hazlo hacele hagale hagalo mandalo mandale manda mandala publicalo publicala publica subilo
+ponelo ponela ponlo ponla ponedlo ponedla aplicalo aplicala aplicadlo subila subilo subela subelo subidla subidlo
+hacedlo mandadlo cambiadlo cambiala
 ponelo cambialo banealo silencialo sacalo metele tirale perfecto correcto exacto confirmo confirma confirmado adelante
 afirmativo eso genial joya buenisimo excelente porsupuesto deacuerdo estabien asies talcual hecho bueno bien""".split())
 NIEGA = set("""no nel nop nope nah naa cancela cancelalo cancelala cancelar cancelado olvidalo olvidala olvida dejalo dejala
 deja para stop negativo nada nunca niahi tampoco""".split())
 RELLENO = set("""eh ah ehh mmm este che cerebro hogger porfa porfavor pues pue entonces nomas ahora ahorita oye mira jefe amigo
-hermano bro loco mano mejor que lo la le asi y o de una todo igual tambien ahi""".split())
+hermano bro loco mano mejor que lo la le asi y o de una todo igual tambien ahi amigos amiga hermanos chicos en obs""".split())
 DEBILES = {"ya", "bueno", "bien", "va", "vamos", "vamo", "eso", "estabien", "sale", "asies", "talcual", "genial"}
 _JUNTAS = [(r"\bde una\b", "deuna"), (r"\bde acuerdo\b", "deacuerdo"), (r"\bpor supuesto\b", "porsupuesto"),
            (r"\bpor favor\b", "porfavor"), (r"\bni ahi\b", "niahi"), (r"\besta bien\b", "estabien"),
@@ -100,13 +102,20 @@ def _palabras(texto):
     return [x for p in n.split() for x in _palabra(p)]
 
 
-def es_confirmacion(texto, estricto=False):
+# Lo que puede nombrar al decir «sí» según lo que está esperando: «sí, subila a YouTube», «sí, ponelo en el overlay»
+RELLENO_SEGUN = {"miniatura_subir": {"a", "al", "youtube", "yutub", "miniatura", "nueva"},
+                 "overlay_aplicar": {"al", "overlay", "overlays", "los", "dos", "ambos"}}
+
+
+def es_confirmacion(texto, estricto=False, pendiente=None):
     """«confirmar», «cancelar» o None (si dice algo más, como «no, a las 10», es una corrección para la IA).
 
     Solo cuenta si TODO lo que dijo es sí/no y relleno («eh, sí, dale, mandalo»). Si dice las dos cosas,
     manda la última («no… dale» = dale). estricto=True (para banear): «ya» o «bueno» solos no alcanzan.
+    pendiente: lo que espera el «dale» (así «sí, subila a YouTube» también es un sí).
     """
-    palabras = _palabras(texto)
+    extra = RELLENO_SEGUN.get(getattr(pendiente, "tipo", None), set())
+    palabras = [("relleno", w) if c == "otra" and w in extra else (c, w) for c, w in _palabras(texto)]
     if not palabras or len(palabras) > 8 or any(c == "otra" for c, _ in palabras):
         return None
     claras = [(c, w) for c, w in palabras if c in ("afirma", "niega")]
@@ -169,7 +178,8 @@ Reglas:
 - Si en la misma orden pide cambiar el título Y hacer la miniatura, usa cambiar_titulo_stream con los campos miniatura (el texto grande), miniatura_subtitulo y miniatura_idea (cómo la imagina: imágenes, logos, personajes, tal como lo dijo).
 - El CHAT del stream (Kick y YouTube) no es el Discord. "Mandá al chat el link del discord" -> mandar_al_chat (el enlace se llama discord, pero va al chat del stream). "Avisá en Discord", "en general" o "a la guild" -> mensaje_discord o publicar_anuncio.
 - Overlays: carteles o gráficos en la pantalla (OBS) -> overlay, aunque nombre un enlace. En descripcion, los textos EXACTOS que dijo; un enlace va como "enlace de discord" (el programa pone el real).
-- Los overlays que Nicolas YA TIENE (el vertical, el de TikTok, el de just chatting, el del nivel, «mi overlay», «mis overlays») -> mis_overlays: ver cuáles tiene, cambiarles algo, uno nuevo del mismo tamaño y lugar, o volver al de antes. overlay es solo para carteles nuevos.
+- Los overlays que Nicolas YA TIENE (el vertical, el de TikTok, el de just chatting, el del nivel, «mi overlay», «mis overlays») -> mis_overlays: ver cuáles tiene, cambiarles algo, uno nuevo del mismo tamaño y lugar, o volver al de antes. overlay es solo para carteles nuevos. Si pide el cambio en los dos lienzos (el vertical y el horizontal), lienzo="ambos".
+- Miniatura: si quiere cambiarle algo a la que YA ESTÁ (la actual, la de YouTube, "la de ahora está buena pero…", "a la miniatura ponele/cambiale/sacale…") -> editar_miniatura con el cambio tal como lo dijo: deja todo lo demás igual y no hace falta título. crear_miniatura es solo para una NUEVA, con su texto grande.
 - Descripción del directo (YouTube) -> cambiar_descripcion_stream: la redactás vos (2 a 4 frases con onda, sin enlaces); en enlaces los nombres que pidió; hashtags si los pidió.
 - Empaquetado ("armá el empaquetado", "un título con gancho y la miniatura") -> cambiar_titulo_stream (con miniatura si la pide): el programa se lo pasa al agente de marketing.
 - "¿Qué título tengo?" o "revisá mi directo/emisión" -> consultar_titulo. Nunca inventes lo que escribió alguien en el chat si no tenés sus mensajes acá.
@@ -196,6 +206,8 @@ Ejemplos:
 - "¿qué overlays tengo?" -> mis_overlays(accion="ver")
 - "haceme uno nuevo del mismo tamaño que el de tiktok que diga temporada de raids, en vez del mío" -> mis_overlays(accion="nuevo_igual", cual="el de tiktok", lienzo="vertical", cambio="Que diga «Temporada de raids»", reemplazar=true)
 - "volvé el overlay como estaba" -> mis_overlays(accion="volver")
+- "en los dos lienzos, el vertical y el horizontal, cambiá rogue por warrior" -> mis_overlays(accion="cambiar", cual="", lienzo="ambos", cambio="Cambiar «Rogue» por «Warrior»")
+- "la miniatura que está ahora está buena, pero cambiale el logo por el oficial de wow forever" -> editar_miniatura(cambio="Poner el logo oficial de WoW Forever en vez del logo de WoW que tiene", subir_youtube=true)
 - "creame un overlay que diga únete al Discord con mi enlace de Discord" -> overlay(accion="crear", nombre="discord", descripcion="Cartel que diga «Únete al Discord» con el enlace de discord", posicion="arriba-derecha", tamano="mediano")
 - "cambiá la descripción, algo fachero de que subimos al guerrero, con el discord, mi kick y hashtags" -> cambiar_descripcion_stream(descripcion="¡Arrancó WoW Forever y subimos al Warrior desde el nivel 1! ⚔️", enlaces=["discord","kick"], hashtags=["WoWForever","Warrior"])
 - "hogger, sos un inútil" -> responder(respuesta="¿Inútil yo? Mirá quién habla, el que se pierde con el mapa abierto. ¡Andá a farmear, pendejo!", animo="picado")
@@ -872,10 +884,27 @@ VOLVER_OVERLAY = re.compile(r"\boverlay\b.*\b(como estaba|como era|como antes|al
                             r"\b(deshace|deshacé|deshacelo) (el|ese) cambio (del|de mi|en el) overlay\b")
 
 
+LOS_DOS_LIENZOS = re.compile(r"\b(los dos|las dos|ambos) (lienzos|overlays|lados|pantallas)\b|\bambos\b.{0,20}\b(lienzos?|overlays?)\b|"
+                             r"\ben (los dos|ambos)\b|\btodos (mis|los) overlays\b")
+SOLO_UN_LIENZO = re.compile(r"\b(solo|solamente|nada mas|menos|excepto|no) (en |a )?(el |la |del )?(lienzo |overlay )?"
+                            r"(vertical|horizontal)\b")
+
+
+def pide_los_dos_lienzos(texto):
+    """«Tanto en el lienzo vertical y horizontal», «en los dos dice Rogue», «en el horizontal… igualmente en el vertical»."""
+    n = _norm(texto)
+    if LOS_DOS_LIENZOS.search(n):
+        return True
+    return bool(re.search(r"\bvertical", n) and re.search(r"\bhorizontal", n) and not SOLO_UN_LIENZO.search(n))
+
+
 def _sus_overlays(texto, nombre, args):
     """«En el overlay vertical sacá lo de beta»: es un overlay SUYO (mis_overlays), no un cartel nuevo de Hogger."""
     n = _norm(texto)
     if nombre == "mis_overlays":
+        if args.get("accion") in ("cambiar", None, "") and args.get("lienzo") != "ambos" and pide_los_dos_lienzos(texto):
+            _p("[router] pidió los dos lienzos: preparo el cambio en los dos")
+            args = {**args, "lienzo": "ambos"}
         return nombre, args
     if VER_SUYOS.search(n) and not re.search(r"\b(crea|crear|haceme|hace|pone|poneme|nuevo)\b", n):
         return "mis_overlays", {"accion": "ver"}
@@ -1007,8 +1036,44 @@ def _enlaces_de_la_descripcion(texto, nombre, args, corrige=None):
     return nuevo
 
 
+EDITA_MINIATURA = re.compile(
+    r"\b(la|esa|esta|mi) (miniatura|portada)\b.{0,30}\b(que (ya )?(esta|tengo|tenemos|subiste|pusiste|hiciste|hay)|actual|"
+    r"de ahora|de ahorita)\b|\b(miniatura|portada) (actual|de ahora|de ahorita)\b|"
+    r"\b(la que esta|la que tengo|la de ahora|la actual)\b.{0,30}\b(buena|bien|linda|chida|bacan)|"
+    r"\b(edita|editala|editame|editar|edites|modifica|modificala|modifiques|retoca|retocala)\w*\b.{0,25}\b(miniatura|portada)\b|"
+    r"\b(miniatura|portada)\b.{0,60}\b(solo|nada mas|solamente) (le )?(cambi|pon|agreg|sac|camb)|"
+    r"\b(a|en) (la|esa) (miniatura|portada)\b.{0,15}\b(cambiale|ponele|agregale|sacale|cambia|pon|ponle|agrega|saca)\b|"
+    r"\b(cambiale|ponele|ponle|agregale|sacale) (a|en) (la|esa) (miniatura|portada)\b")
+CAMBIA_MINIATURA = re.compile(r"\bcambi\w* (la|de la|esa) (miniatura|portada)\b|\b(miniatura|portada)\b.{0,40}\b(logo|imagen|color)")
+NUEVA_MINIATURA = re.compile(r"\b(otra|nueva|una) (miniatura|portada)\b|\b(miniatura|portada) (nueva|de cero)\b|\bde cero\b")
+
+
+def _miniatura_de_ahora(texto, nombre, args):
+    """«La miniatura de ahora está buena, solo poné el logo de WoW Forever»: es editar la que está, no una nueva.
+
+    El 4 nov la IA eligió crear_miniatura sin título y Hogger contestó «Falta título».
+    """
+    if nombre != "crear_miniatura":
+        return nombre, args
+    n = _norm(texto)
+    sin_titulo = H._vacio(args.get("titulo"))
+    if not (EDITA_MINIATURA.search(n) or (sin_titulo and CAMBIA_MINIATURA.search(n) and not NUEVA_MINIATURA.search(n))):
+        return nombre, args
+    cambio = str(args.get("idea") or "").strip()
+    try:
+        otra, extra = _llamar_ollama(texto, solo=["editar_miniatura"])
+        if otra == "editar_miniatura" and not H._vacio(extra.get("cambio")):
+            cambio = str(extra["cambio"]).strip()
+    except Exception as e:  # noqa: BLE001
+        _p(f"[router] no pude armar el cambio de la miniatura con la IA ({e}); uso lo que dijo")
+    nuevo = {"cambio": cambio or texto, "subir_youtube": bool(args.get("subir_youtube")) or "youtube" in n}
+    _p(f"[router] es la miniatura de ahora (no una nueva): editar_miniatura {json.dumps(nuevo, ensure_ascii=False)}")
+    return "editar_miniatura", nuevo
+
+
 def _pulir(texto, pendiente, nombre, args):
     """Lo que el programa corrige después de la IA (combos, texto limpio, bans, variedad, enlaces, plataformas, canal)."""
+    nombre, args = _miniatura_de_ahora(texto, nombre, args)
     nombre, args = _descripcion_si_la_pidio(texto, nombre, args)
     nombre, args = _completar_combo(texto, nombre, args)
     nombre, args = _ban_de_la_charla(texto, nombre, _sin_groserias(texto, nombre, _limpiar_respuesta(nombre, args)))
@@ -1018,8 +1083,8 @@ def _pulir(texto, pendiente, nombre, args):
     _no_en_tiktok(texto, nombre, args)
     nombre, args = _overlay_si_lo_pidio(texto, nombre, args)
     nombre, args = _sus_overlays(texto, nombre, args)
-    if nombre == "mis_overlays":
-        args = {**args, "dicho": texto}            # lo que dijo tal cual, para el que edita el overlay
+    if nombre in ("mis_overlays", "crear_miniatura", "editar_miniatura"):
+        args = {**args, "dicho": texto}            # lo que dijo tal cual, para el que edita o diseña
     nombre, args = _no_quitar_sin_pedir(texto, nombre, args)
     _moderar_en_discord(texto, nombre)
     nombre, args = _enlace_al_chat(texto, nombre, args)

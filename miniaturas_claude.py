@@ -33,15 +33,27 @@ def edge():
     return shutil.which("msedge") or shutil.which("chromium") or shutil.which("google-chrome")
 
 
+LOGO_JUEGO = "logo_wow_forever.png"     # en recursos/: el logo OFICIAL de World of Warcraft: Forever (el juego de Mr. H)
+
+
+def logo_fijo():
+    """El logo oficial de WoW Forever guardado en recursos (lo pone Nicolas o queda el que aprobó con «dale»)."""
+    ruta = config.RECURSOS / LOGO_JUEGO
+    return ruta if ruta.exists() else None
+
+
 def _preparar(carpeta, extras=()):
     """Copia a la carpeta lo que Claude puede usar y devuelve la lista para el pedido."""
     lista = []
-    for origen, nombre in ((config.RECURSOS / "logo.jpg", "logo.jpg"), (config.RECURSOS / "Cinzel.ttf", "Cinzel.ttf")):
+    for origen, nombre in ((config.RECURSOS / "logo.jpg", "logo.jpg"), (config.RECURSOS / "Cinzel.ttf", "Cinzel.ttf"),
+                           (config.RECURSOS / LOGO_JUEGO, LOGO_JUEGO)):
         if origen.exists():
             shutil.copy(origen, carpeta / nombre)
     imagenes = config.RECURSOS / "imagenes"
     archivos = [("captura.png", "captura del juego en OBS (o el fondo de la guild si el juego estaba cerrado)"),
-                ("logo.jpg", "logo de la guild (cuadrado, fondo oscuro; solo si la idea lo pide, recortado en círculo)")]
+                ("logo.jpg", "logo de la guild (cuadrado, fondo oscuro; solo si la idea lo pide, recortado en círculo)"),
+                (LOGO_JUEGO, "logo OFICIAL de World of Warcraft: Forever, el juego de Mr. H. Si la idea pide el logo de "
+                             "WoW o del juego, es ESTE (no otro)")]
     if imagenes.is_dir():
         for f in sorted(imagenes.iterdir()):
             if f.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp"):
@@ -62,8 +74,17 @@ PIDE_IMAGENES = re.compile(r"logo|recorte|imagen|imagenes|foto|personaje|arte|of
                            r"chaman|shaman|jefe|boss|ragnaros|onyxia|zona|montura|dragon", re.I)
 
 
+LOGO_DEL_JUEGO = re.compile(r"\b(el |un |los )?logos?\b(\s+(oficial|nuevo|original))?(\s+(del?|de la)\s+)?"
+                            r"(\s*(juego|wow|world of warcraft|warcraft))?(\s*:?\s*forever)?(\s*,?\s*(el |la )?(oficial|original))?",
+                            re.I)
+
+
 def necesita_agente(idea):
-    return bool(config.MINIATURA_AGENTE and idea and PIDE_IMAGENES.search(idea))
+    if not (config.MINIATURA_AGENTE and idea):
+        return False
+    if logo_fijo():                       # el logo del juego ya está: solo se busca si pide otras imágenes
+        idea = LOGO_DEL_JUEGO.sub(" ", idea)
+    return bool(PIDE_IMAGENES.search(idea))
 
 
 # Sitios donde suele estar el mejor arte de WoW (se sugieren primero, pero sirve cualquier página pública)
@@ -152,7 +173,17 @@ def recortar(ruta):
         return None
 
 
-def buscar_imagenes(idea, carpeta):
+LOGO_A_BUSCAR = """Si piden el logo de WoW o del juego, el que va es el logo OFICIAL de "World of Warcraft: Forever" (el juego que
+juega Mr. H; Blizzard lo anunció en la BlizzCon 2026): las letras de World of Warcraft con la palabra FOREVER.
+Buscalo en warcraft.wiki.gg, worldofwarcraft.blizzard.com, blizzard.com o en las noticias del anuncio, y antes de
+elegirlo fijate que sea ese (el nombre del archivo, el texto de la página): que diga "Forever". Preferí un PNG grande
+con fondo transparente. No sirven: el logo clásico sin Forever, el de otra expansión (Midnight, The War Within,
+Dragonflight…), solo el ícono de la W ni uno hecho por fans. Solo si la idea pide el logo clásico o el de una
+expansión, buscá ese. Si no encontrás el oficial de Forever, no pongas ningún logo. A ese logo ponele
+"nombre": "logo_wow_forever"."""
+
+
+def buscar_imagenes(idea, carpeta, dicho=""):
     """Claude busca en la web (sin acceso a archivos ni a la PC) y el programa baja y revisa las imágenes.
 
     Separado en dos para que nada de lo que lea en internet pueda tocar tus claves: el que busca no puede abrir
@@ -169,7 +200,10 @@ def buscar_imagenes(idea, carpeta):
     exe = buscar_claude()
     if not exe:
         raise RuntimeError("no está el programa claude en esta PC")
-    pedido = f"""Buscá imágenes para la miniatura de un directo de World of Warcraft. Idea: {idea}
+    logo = ("El logo del juego (World of Warcraft: Forever) ya lo tengo: NO busques logos de WoW." if logo_fijo()
+            else LOGO_A_BUSCAR)
+    dijo = f"\nLo que dijo Mr. H, palabra por palabra (dictado por voz, puede tener errores): «{dicho[:600]}»" if dicho else ""
+    pedido = f"""Buscá imágenes para la miniatura de un directo de World of Warcraft: Forever. Idea: {idea}{dijo}
 Usá WebSearch y WebFetch para encontrar URLs DIRECTAS de archivos de imagen (png, jpg o webp) de cualquier página,
 mientras sea de World of Warcraft y encaje con lo que pide la idea (arte, renders, logos, capturas, wallpapers).
 Suele haber buen arte en: {", ".join(SITIOS_SUGERIDOS)}. Elegí imágenes grandes, nítidas y sin marca de agua.
@@ -178,11 +212,9 @@ del archivo.
 Para un personaje o clase lo mejor es un RENDER de UN SOLO personaje, de cuerpo entero o medio cuerpo, en PNG con
 fondo transparente (buscá cosas como "warrior render png", "transparent", arte de personaje recortado). Si no hay,
 uno solo sobre fondo liso. Evitá escenas con varios personajes, paisajes detrás o el personaje chiquito.
-Si piden el logo de WoW, buscá el logo clásico y completo de "World of Warcraft" (las letras doradas con la W, SIN
-nombre de expansión como Midnight, The War Within, Dragonflight o Shadowlands), salvo que la idea nombre una
-expansión. Mirá la imagen antes de elegirla: que diga "World of Warcraft" y nada más. No solo el ícono.
+{logo}
 Máximo 4 (podés dar 2 opciones del personaje). Respondé SOLO con JSON, sin explicaciones:
-[{{"nombre": "logo_wow", "url": "https://…", "que": "logo de World of Warcraft", "recortar": false}}]
+[{{"nombre": "logo_wow_forever", "url": "https://…", "que": "logo oficial de World of Warcraft: Forever", "recortar": false}}]
 Poné "recortar": true si es un personaje o criatura (el programa se fija solo si ya viene sin fondo)."""
     from overlays import SIN_HERRAMIENTAS, SOLO_ESTO
     comando = [exe, "-p", "--max-turns", "20", "--model", config.CLAUDE_MODELO_REVISION or "sonnet"] + SOLO_ESTO
@@ -258,12 +290,12 @@ def _referencias(carpeta, titulo, idea, maximo=4):
     return elegidas
 
 
-def disenar(carpeta, titulo, subtitulo, idea):
+def disenar(carpeta, titulo, subtitulo, idea, dicho=""):
     from overlays import pedir_a_claude
     extras = []
     if necesita_agente(idea):
         try:
-            extras = buscar_imagenes(idea, carpeta)
+            extras = buscar_imagenes(idea, carpeta, dicho)
         except Exception as e:  # noqa: BLE001
             print(f"[miniatura] No pude buscar imágenes ({e}); la diseño con lo que hay.")
     guia = config.ESTILO_MINIATURAS.read_text(encoding="utf-8").strip() if config.ESTILO_MINIATURAS.exists() else ""
@@ -280,6 +312,7 @@ def disenar(carpeta, titulo, subtitulo, idea):
 Título (texto grande, EXACTO): {titulo}
 Subtítulo (texto chico, EXACTO; si está vacío no pongas nada): {subtitulo}
 Idea de Mr. H: {idea or "ninguna en especial: elegí la composición que mejor venda el título"}
+{f"Lo que dijo Mr. H, palabra por palabra (dictado por voz, puede tener errores; los textos de arriba mandan): «{dicho[:1200]}»" if dicho else ""}
 
 {ESTILO}
 
@@ -365,9 +398,12 @@ Revisá con ojo de diseñador, sé exigente:
 Si está todo bien respondé solo: OK
 Si no, respondé SOLO el HTML completo corregido (mismos textos y las mismas imágenes o menos, solo arreglá los
 problemas)."""
+MANTENER = """
+OJO: Mr. H pidió este cambio y le gusta todo lo demás: «{cambio}». Ese cambio se queda (no saques ni cambies esa imagen
+o ese texto) y lo demás no se toca: arreglá solo lo que se tape, se corte o se superponga."""
 
 
-def revisar(carpeta, html):
+def revisar(carpeta, html, mantener=""):
     """Un Claude mira cómo quedó (solo puede leer esta carpeta, sin internet) y corrige si algo se tapa o se corta."""
     from overlays import SIN_HERRAMIENTAS, SOLO_ESTO, buscar_claude
     exe = buscar_claude()
@@ -379,7 +415,8 @@ def revisar(carpeta, html):
     comando = [exe, "-p", "--max-turns", "6"] + SOLO_ESTO + (["--model", modelo] if modelo else [])
     comando += ["--disallowedTools"] + [h for h in SIN_HERRAMIENTAS if h != "Read"] + ["--allowedTools", "Read(./**)"]
     try:
-        r = subprocess.run(comando, input=REVISION.format(html=html.read_text(encoding="utf-8")), capture_output=True,
+        pedido = REVISION.format(html=html.read_text(encoding="utf-8")) + (MANTENER.format(cambio=mantener) if mantener else "")
+        r = subprocess.run(comando, input=pedido, capture_output=True,
                            text=True, encoding="utf-8", timeout=360, cwd=str(carpeta))
     finally:
         for f in ("_rev_youtube.png", "_rev_tiktok.png"):
@@ -393,13 +430,18 @@ def revisar(carpeta, html):
     return True
 
 
-def crear(carpeta, titulo, subtitulo="", idea=""):
-    html = disenar(carpeta, titulo, subtitulo, idea)
+def crear(carpeta, titulo, subtitulo="", idea="", dicho=""):
+    html = disenar(carpeta, titulo, subtitulo, idea, dicho)
     if config.MINIATURA_REVISAR:
         try:
             revisar(carpeta, html)
         except Exception as e:  # noqa: BLE001
             print(f"[miniatura] No pude revisarla ({e}); queda la primera versión.")
+    return fotos(carpeta, html)
+
+
+def fotos(carpeta, html):
+    """Los tres formatos (YouTube, Kick y TikTok) a partir del diseño."""
     rutas = {}
     for nombre, (w, h, ext) in FORMATOS.items():
         escala = 1.5 if (w, h) == (1920, 1080) else 1.0          # Kick: el diseño de 1280x720 en alta
@@ -413,3 +455,236 @@ def crear(carpeta, titulo, subtitulo="", idea=""):
         (carpeta / f"_{nombre}.png").unlink(missing_ok=True)
         rutas[nombre] = ruta
     return rutas
+
+
+# ----------------------------------------------------------------- editar la que ya está
+# El 4 nov pidió «la miniatura que está ahorita está buena, solo poné el logo oficial de WoW Forever» y Hogger
+# contestó «Falta título»: solo sabía hacer miniaturas nuevas. Esto toma el diseño de la última y cambia solo eso.
+REGISTRO = "miniaturas.json"
+NO_SE_COPIAN = {"youtube.jpg", "kick.png", "tiktok.jpg", "comparacion.jpg", "agente.log", "cambio.json"}
+EDITAR = """Sos el diseñador de las miniaturas de Mr. H (streamer de World of Warcraft: Forever, hermandad The H's). Esta
+miniatura de YouTube y TikTok YA ESTÁ HECHA y le gusta. Es este HTML (diseno.html); antes_youtube.jpg (1280x720) y
+antes_tiktok.jpg (1080x1920) son la foto de cómo se ve hoy:
+
+<<<
+{html}
+>>>
+
+Mr. H pidió este cambio: {cambio}
+{dicho}
+Hacé SOLO ese cambio. Todo lo demás queda IGUAL: textos, letras, colores, posiciones, tamaños, imágenes y efectos.
+- Si cambia una imagen por otra (por ejemplo un logo), la nueva va en el MISMO lugar y con un tamaño parecido. Ajustá
+  ancho y alto a la proporción de la imagen nueva (con object-fit: contain) para que no se deforme, y que no tape
+  textos, caras ni la cabeza de un personaje, tampoco en vertical (@media (orientation: portrait)).
+- Si la imagen vieja ya no se usa, sacá su <img> o su url(): que no quede de las dos.
+- Usá solo estos archivos (están en la misma carpeta, con rutas relativas). antes_*.jpg son solo para mirar: no van
+  en el diseño.
+{archivos}
+- Si el cambio pide algo que no está en los archivos (por ejemplo un logo que no se pudo bajar), no lo inventes:
+  devolvé "cambios" vacío y explicá por qué en "resumen".
+- Antes de responder, abrí con Read antes_youtube.jpg{mirar} para ver cómo está y dónde va el cambio.
+- Sin JavaScript que cargue cosas, sin nada de internet.
+Respondé SOLO con JSON, sin explicaciones:
+{{"cambios": [{{"buscar": "un pedazo EXACTO del HTML, que esté una sola vez (copialo al pie de la letra)",
+"poner": "cómo queda ese pedazo"}}], "resumen": "qué cambiaste, en una frase corta en español (se dice en voz alta)"}}"""
+
+
+def _registro():
+    import json
+    try:
+        return json.loads((config.DATA / REGISTRO).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def anotar(que, carpeta):
+    """que = "subida" (la que está en YouTube) o "editada" (la última que cambié, esperando tu «dale»)."""
+    import json
+    import time
+    r = _registro()
+    r[que] = {"nombre": carpeta.name, "cuando": time.time()}
+    config.DATA.mkdir(parents=True, exist_ok=True)
+    (config.DATA / REGISTRO).write_text(json.dumps(r, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def _subida_segun_historial():
+    """«Miniaturas listas (…) en C:\\…\\miniaturas\\2026-11-03_2002_x y subida a YouTube.»: las de antes del registro."""
+    try:
+        lineas = (config.DATA / "historial.log").read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return ""
+    for linea in reversed(lineas):
+        m = re.search(r"Miniaturas listas .*? en (\S+?) y subida a YouTube", linea)
+        if m:
+            return re.split(r"[\\/]", m.group(1))[-1]
+    return ""
+
+
+def ultima():
+    """La carpeta de la miniatura «de ahora»: la última que cambié (si todavía no la subiste y es de las últimas 3
+    horas, para seguir retocándola), si no la que está en YouTube, y si no hay registro la más nueva."""
+    import time
+    base = config.SALIDA / "miniaturas"
+    r = _registro()
+    sub, edi = r.get("subida") or {}, r.get("editada") or {}
+    nombre_sub = sub.get("nombre") or _subida_segun_historial()
+    if edi.get("nombre") and edi.get("cuando", 0) > sub.get("cuando", 0) and time.time() - edi["cuando"] < 3 * 3600 \
+            and (base / edi["nombre"] / "diseno.html").exists():
+        return base / edi["nombre"]
+    if nombre_sub and (base / nombre_sub).is_dir():
+        return base / nombre_sub
+    if not base.is_dir():
+        return None
+    hechas = sorted(d for d in base.iterdir() if (d / "diseno.html").exists() and re.match(r"\d{4}-\d{2}-\d{2}_", d.name))
+    return hechas[-1] if hechas else None
+
+
+def _imagenes_del_html(html):
+    refs = re.findall(r"""(?:src|href)\s*=\s*["']([^"'#]+)["']|url\(\s*["']?([^"')]+)["']?\s*\)""", html)
+    return {a or b for a, b in refs if (a or b) and not re.match(r"(data|https?|about|blob):", a or b, re.I)}
+
+
+def _lista_archivos(carpeta, html, extras):
+    """Los archivos que puede usar: los de siempre, los que bajó el agente y los que ya usa el diseño."""
+    lista = _preparar(carpeta, extras)
+    usados = _imagenes_del_html(html)
+    for f in sorted(carpeta.iterdir()):
+        if f.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp") and f.name not in lista and \
+                not f.name.startswith("antes_") and f.name in usados:
+            try:
+                with Image.open(f) as im:
+                    lista += f"\n- {f.name}: imagen que ya usa el diseño, {im.width}x{im.height}"
+            except Exception:  # noqa: BLE001
+                pass
+    return lista
+
+
+def _json(texto):
+    import json
+    m = re.search(r"\{.*\}", texto or "", re.S)
+    if not m:
+        raise RuntimeError("el diseñador no devolvió los cambios")
+    try:
+        return json.loads(m.group(0))
+    except ValueError as e:
+        raise RuntimeError(f"el diseñador devolvió algo que no entiendo ({e})")
+
+
+def comparar(antes, despues, salida):
+    """Una sola imagen con la de antes y la nueva, una al lado de la otra, para mirarla antes del «dale»."""
+    from PIL import ImageDraw
+    from miniaturas import _fuente
+    w, h = 960, 540
+    lienzo = Image.new("RGB", (w * 2 + 30, h + 70), (16, 12, 8))
+    d = ImageDraw.Draw(lienzo)
+    for i, (ruta, rotulo) in enumerate(((antes, "ANTES"), (despues, "AHORA"))):
+        x = 10 + i * (w + 10)
+        if ruta and ruta.exists():
+            with Image.open(ruta) as im:
+                lienzo.paste(im.convert("RGB").resize((w, h), Image.LANCZOS), (x, 60))
+        d.text((x, 12), rotulo, font=_fuente(36), fill=(232, 196, 104))
+    lienzo.save(salida, "JPEG", quality=90)
+    return salida
+
+
+def editar(cambio, dicho="", vieja=None, claude=None):
+    """Copia la miniatura de ahora a una carpeta nueva y cambia SOLO lo que pidió. Nada se sube todavía.
+
+    Devuelve {"youtube", "kick", "tiktok", "comparacion", "carpeta", "de", "resumen"}.
+    claude(pedido, carpeta) -> texto: para las pruebas (si no, el Claude de tu PC, que solo puede leer esa carpeta).
+    """
+    import datetime as dt
+    import json
+    from mis_overlays import Error as ErrorCambio, aplicar_cambios
+    vieja = vieja or ultima()
+    if not vieja:
+        raise RuntimeError("No encuentro ninguna miniatura hecha para editar. Pedime una nueva con su título.")
+    if not (vieja / "diseno.html").exists():
+        raise RuntimeError(f"La miniatura de ahora ({vieja.name}) la hice con la plantilla, no tiene diseño para "
+                           "editar. Pedime una nueva con su título y la idea.")
+    raiz = re.sub(r"(-editada\d*)+$", "", re.sub(r"^\d{4}-\d{2}-\d{2}_\d{4,6}_", "", vieja.name))[:40] or "miniatura"
+    sello = f"{dt.datetime.now():%Y-%m-%d_%H%M%S}"
+    nueva, i = config.SALIDA / "miniaturas" / f"{sello}_{raiz}-editada", 2
+    while nueva.exists():
+        nueva, i = config.SALIDA / "miniaturas" / f"{sello}_{raiz}-editada{i}", i + 1
+    nueva.mkdir(parents=True)
+    for f in vieja.iterdir():
+        if f.is_file() and f.name not in NO_SE_COPIAN and not f.name.startswith(("_", "antes_", "referencia_")):
+            shutil.copy2(f, nueva / f.name)
+    for formato in ("youtube", "tiktok"):
+        if (vieja / f"{formato}.jpg").exists():
+            shutil.copy2(vieja / f"{formato}.jpg", nueva / f"antes_{formato}.jpg")
+    html_viejo = (nueva / "diseno.html").read_text(encoding="utf-8")
+    extras = []
+    if necesita_agente(cambio):
+        try:
+            extras = buscar_imagenes(cambio, nueva, dicho)
+        except Exception as e:  # noqa: BLE001
+            print(f"[miniatura] No pude buscar imágenes ({e}); la edito con lo que hay.")
+    archivos = _lista_archivos(nueva, html_viejo, extras)
+    nuevas = [a for a, _ in extras] + ([LOGO_JUEGO] if (nueva / LOGO_JUEGO).exists() and LOGO_JUEGO not in html_viejo
+                                       and re.search(r"logo", cambio, re.I) else [])
+    pedido = EDITAR.format(
+        html=html_viejo, cambio=cambio, archivos=archivos,
+        dicho=(f"Lo que dijo, palabra por palabra (dictado por voz, puede tener errores; manda el cambio de arriba): "
+               f"«{dicho[:1200]}»\n") if dicho and dicho != cambio else "",
+        mirar="".join(f" y {a}" for a in nuevas[:2]))
+    if claude:
+        respuesta = claude(pedido, nueva)
+    else:
+        from overlays import _correr_claude
+        r, respuesta = _correr_claude(pedido, nueva, mirar=True)
+        if r.returncode != 0:
+            raise RuntimeError(f"Claude no pudo editarla ({r.returncode}): {(r.stderr or respuesta or '')[:200]}")
+    j = _json(respuesta)
+    resumen = str(j.get("resumen") or cambio).strip()[:300]
+    if not j.get("cambios"):
+        falta = (" Si tenés el logo en PNG, guardalo como recursos\\logo_wow_forever.png y pedímelo de nuevo."
+                 if re.search(r"logo", cambio, re.I) and not logo_fijo() else "")
+        raise RuntimeError(f"No la pude cambiar: {resumen.rstrip('.')}.{falta}")
+    try:
+        html_nuevo = aplicar_cambios(html_viejo, j["cambios"])
+    except ErrorCambio as e:
+        raise RuntimeError(f"No pude aplicar el cambio en el diseño: {e}")
+    faltan = [a for a in _imagenes_del_html(html_nuevo) if not (nueva / a).exists()]
+    if faltan:
+        raise RuntimeError(f"El diseño nuevo usa archivos que no están ({', '.join(faltan[:3])}): no lo hago.")
+    html = nueva / "diseno.html"
+    html.write_text(html_nuevo, encoding="utf-8")
+    if config.MINIATURA_REVISAR and not claude:
+        try:
+            revisar(nueva, html, mantener=cambio)
+        except Exception as e:  # noqa: BLE001
+            print(f"[miniatura] No pude revisarla ({e}); queda como la cambié.")
+    rutas = fotos(nueva, html)
+    rutas["comparacion"] = comparar(nueva / "antes_youtube.jpg", rutas["youtube"], nueva / "comparacion.jpg")
+    (nueva / "cambio.json").write_text(json.dumps({"de": vieja.name, "cambio": cambio, "dicho": dicho,
+                                                   "resumen": resumen}, indent=2, ensure_ascii=False), encoding="utf-8")
+    anotar("editada", nueva)
+    rutas.update(carpeta=nueva, de=vieja.name, resumen=resumen)
+    return rutas
+
+
+def aprender_logo(carpeta):
+    """Si la miniatura que aprobaste («dale») usa el logo de Forever que bajó el agente, queda como logo fijo."""
+    if logo_fijo():
+        return ""
+    html = (carpeta / "diseno.html").read_text(encoding="utf-8") if (carpeta / "diseno.html").exists() else ""
+    for f in sorted(carpeta.glob("web_logo_wow_forever*.png"), key=lambda x: "_recorte" not in x.name):
+        if f.name in _imagenes_del_html(html):
+            config.RECURSOS.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(f, config.RECURSOS / LOGO_JUEGO)
+            return "Guardé ese logo de WoW Forever para las próximas miniaturas."
+    return ""
+
+
+def mostrar(ruta):
+    """Te abre la imagen (en Windows, con el visor de fotos) para que la mires antes del «dale»."""
+    if not config.MINIATURA_MOSTRAR or os.name != "nt":
+        return False
+    try:
+        os.startfile(str(ruta))          # noqa: S606 (es tu propia imagen, en tu PC)
+        return True
+    except OSError as e:
+        print(f"[miniatura] No pude abrir {ruta}: {e}")
+        return False

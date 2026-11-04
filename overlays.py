@@ -239,7 +239,7 @@ def _buscar(cl, nombre):
     import difflib
     nuestros = [i["inputName"] for i in cl.get_input_list().inputs if i["inputName"].startswith(PREFIJO)]
     if not nuestros:
-        raise OverlayError("No hay overlays creados por El Cerebro.")
+        raise OverlayError("No hay carteles que haya puesto yo. Si hablás de los tuyos, decime «mi overlay vertical» o «mi overlay horizontal».")
     claves = {_slug(n[len(PREFIJO):]): n for n in nuestros}
     k = _slug(nombre)
     if k in claves:

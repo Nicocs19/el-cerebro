@@ -142,7 +142,7 @@ def main():
     sys.stdout.reconfigure(encoding="utf-8")
     modos = {"chat": probar_chat, "charla": probar_charla, "flujo": probar_flujo, "rapido": probar_rapido,
              "corregir": probar_corregir, "empaquetado": probar_empaquetado, "overlays": probar_overlays,
-             "todo": probar_todo}
+             "miniaturas": probar_miniaturas, "todo": probar_todo}
     if sys.argv[1:2] and sys.argv[1] in modos:
         bien, total = modos[sys.argv[1]]()
         return 0 if bien == total else 1
@@ -347,6 +347,7 @@ def probar_rapido():
                   "respuesta": "¡Buenas noches!"})["respuesta"], "¡Buenas noches!"),
               ("otra charla: no agrega el nombre", router._con_su_nombre("contame un chiste", "responder", {
                   "respuesta": "¿Qué hace un gnoll?"})["respuesta"], "¿Qué hace un gnoll?")]
+    casos += _casos_4nov_miniatura()
     bien = 0
     for nombre, salio, esperado in casos:
         ok = salio == esperado
@@ -355,6 +356,78 @@ def probar_rapido():
             print(f"FALLO {nombre}: salió {salio!r}, tenía que ser {esperado!r}")
     print(f"{bien}/{len(casos)} bien (rápidas, sin IA).")
     return bien, len(casos)
+
+
+# Lo que dijo el 4 nov (sacado de su historial.log)
+DIJO_MINIATURA = ("Hogger el H, necesito que ahora cambies la miniatura de YouTube. La que está ahorita está buena, "
+                  "pero me gustaría que pongas el logo oficial de WoW Forever.")
+DIJO_DOS_LIENZOS = ("Che, Hogger, escúchame, necesito que hagas un cambio, tanto en el lienzo vertical y horizontal de mi "
+                    "OBS, en los overlays, hay un, en los dos dice Rogue, ubicas, Rogue, necesito que diga War, porque voy "
+                    "a jugar War.")
+DIJO_IGUALMENTE = ("Amigo, necesito que cambies el overlay, tanto del lienzo vertical y del lienzo horizontal. Por ejemplo, "
+                   "en el lienzo horizontal necesito que no diga Rogue, necesito que diga War. Igualmente, en el lienzo "
+                   "vertical necesito que diga War y que además, este... No, solo eso.")
+
+
+def _casos_4nov_miniatura():
+    """«Falta título» al pedir cambiar el logo de la miniatura, los dos lienzos y «Sí, amigos, sí, ponedlo en OBS»."""
+    viejo = router._llamar_ollama
+
+    def ia(texto, solo=None, **k):
+        if solo == ["editar_miniatura"]:
+            return "editar_miniatura", {"cambio": "Poner el logo oficial de WoW Forever en vez del de WoW", "subir_youtube": True}
+        raise RuntimeError("sin IA en las pruebas rápidas")
+    router._llamar_ollama = ia
+    try:
+        edita = router._miniatura_de_ahora(DIJO_MINIATURA, "crear_miniatura",
+                                           {"subir_youtube": True, "idea": "logo oficial de WoW Forever"})
+        sin_titulo = router._miniatura_de_ahora("cambiá la miniatura, ponele el logo de wow forever", "crear_miniatura", {})
+        nueva = router._miniatura_de_ahora("haceme una miniatura que diga llegó el día", "crear_miniatura",
+                                           {"titulo": "Llegó el día"})
+        nueva_sin = router._miniatura_de_ahora("haceme una miniatura nueva con el logo de wow", "crear_miniatura", {})
+        router._llamar_ollama = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("sin IA"))
+        sin_ia = router._miniatura_de_ahora("a la miniatura ponele el logo de forever", "crear_miniatura",
+                                            {"idea": "logo de WoW Forever"})
+    finally:
+        router._llamar_ollama = viejo
+    try:
+        H.construir("crear_miniatura", {"subir_youtube": True, "idea": "logo"})
+        sin_titulo_msj = "pasó"
+    except H.ErrorOrden as e:
+        sin_titulo_msj = "pregunta" if "cambiale" in str(e) and "Falta" not in str(e) else str(e)
+    editar = H.construir("editar_miniatura", {"cambio": "Poner el logo de WoW Forever", "dicho": DIJO_MINIATURA})
+    mis = router._sus_overlays(DIJO_DOS_LIENZOS, "mis_overlays", {"accion": "cambiar", "cual": "el vertical",
+                                                                  "lienzo": "vertical", "cambio": "Cambiar «Rogue» por «War»"})
+    subir = H.Accion("miniatura_subir", {}, "Subir", True)
+    titulo = H.Accion("titulo", {}, "Título", True)
+    return [
+        ("4 nov: «la que está ahorita está buena, poné el logo» → editar", (edita[0], edita[1]["cambio"]),
+         ("editar_miniatura", "Poner el logo oficial de WoW Forever en vez del de WoW")),
+        ("«cambiá la miniatura, ponele el logo» sin título → editar", sin_titulo[0], "editar_miniatura"),
+        ("«haceme una miniatura que diga…» sigue siendo nueva", nueva[0], "crear_miniatura"),
+        ("«una miniatura nueva con el logo» sin título: nueva", nueva_sin[0], "crear_miniatura"),
+        ("sin la IA, el cambio sale de la idea", (sin_ia[0], sin_ia[1]["cambio"]), ("editar_miniatura", "logo de WoW Forever")),
+        ("miniatura nueva sin título: pregunta bien (no «Falta título»)", sin_titulo_msj, "pregunta"),
+        ("editar: no pide título y espera «dale» para subir", (editar.tipo, editar.confirmar, editar.datos["subir_youtube"]),
+         ("editar_miniatura", False, True)),
+        ("4 nov: «tanto en el lienzo vertical y horizontal» → los dos", mis[1]["lienzo"], "ambos"),
+        ("«…horizontal… Igualmente, en el lienzo vertical» → los dos", router.pide_los_dos_lienzos(DIJO_IGUALMENTE), True),
+        ("«en el overlay vertical sacá lo de beta»: uno solo", router.pide_los_dos_lienzos(
+            "en el overlay vertical sacá lo de beta"), False),
+        ("«solo en el vertical, no en el horizontal»: uno solo", router.pide_los_dos_lienzos(
+            "cambialo solo en el vertical, no en el horizontal"), False),
+        ("«en los dos overlays poné Warrior» → los dos", router.pide_los_dos_lienzos("en los dos overlays poné Warrior"), True),
+        ("4 nov: «Sí, amigos, sí, ponedlo en OBS.» es un sí", router.es_confirmacion("Sí, amigos, sí, ponedlo en OBS."),
+         "confirmar"),
+        ("«Sí, subila a YouTube» (esperando subir la miniatura)", router.es_confirmacion("Sí, subila a YouTube",
+                                                                                     pendiente=subir), "confirmar"),
+        ("«sí, en youtube» con un título esperando: no es un sí entero", router.es_confirmacion("sí, en youtube",
+                                                                                            pendiente=titulo), None),
+        ("Whisper «Joder, Lacher» = «Hogger el H»", dictado.corregir("Joder, Lacher, necesito que…"),
+         "Hogger el H, necesito que…"),
+        ("«joder» en medio de una frase no se toca", dictado.corregir("joder, qué lag"), "joder, qué lag"),
+        ("Whisper «Washior» = Warrior", dictado.corregir("Cambiá Rogue por Washior"), "Cambiá Rogue por Warrior"),
+    ]
 
 
 # ---------------------------------------------------------------- corregir lo hecho (IA de mentira: no hace falta Ollama)
@@ -796,6 +869,7 @@ def probar_overlays():
             casos.append(("cambiar sin decir qué: pregunta", "pasó", "pregunta"))
         except H.ErrorOrden:
             casos.append(("cambiar sin decir qué: pregunta", "pregunta", "pregunta"))
+        casos += _overlays_en_los_dos(tmp, cl, M)
     finally:
         config.DATA, config.OBS_PASSWORD, config.BASE = viejo_data, viejo_pw, viejo_base
         shutil.rmtree(tmp, ignore_errors=True)
@@ -809,10 +883,172 @@ def probar_overlays():
     return bien, len(casos)
 
 
+def _overlays_en_los_dos(tmp, cl, M):
+    """4 nov: «en los dos lienzos dice Rogue, que diga War» y Hogger cambió solo uno."""
+    horizontal = 'const CONFIG = {name: "Mr. H", clase: "Rogue", obsPassword: "SECRETO123", level: 8}'
+    vertical = '<div class="clase">Rogue</div><script>const CONFIG = {obsPassword: "SECRETO123", level: 8}</script>'
+    (tmp / "overlay-horizontal.html").write_text(horizontal, encoding="utf-8")
+    (tmp / "overlay-tiktok-misterache.html").write_text(vertical, encoding="utf-8")
+    inv = M.inventario(cl)
+    pedidos = []
+
+    def claude(pedido):
+        pedidos.append(pedido)
+        return '{"resumen": "Cambio «Rogue» por «Warrior».", "cambios": [{"buscar": "Rogue", "poner": "Warrior"}]}'
+    nombres = lambda lista: sorted(o["nombre"] for o in lista)          # noqa: E731
+    casos = [("«Rogue» sin decir lienzo y está en los dos → los dos",
+              nombres(M.elegir_varios(inv, "el del nivel", "", "Cambiar \"Rogue\" por \"Warrior\"")[0]),
+              ["Navegador 2", "Overlay ttiktok"]),
+             ("si nombró el horizontal, solo ese", M.elegir_varios(inv, "", "horizontal", "Cambiar «Rogue» por «War»")[0], []),
+             ("«ambos»: uno por lienzo", nombres(M.elegir_varios(inv, "el vertical", "ambos", "Cambiar «Rogue» por «War»")[0]),
+              ["Navegador 2", "Overlay ttiktok"])]
+    p = M.preparar_cambio("el vertical", "Cambiar «Rogue» por «Warrior»", "ambos", cl=cl, claude=claude)
+    casos += [("prepara los dos juntos (un solo «dale»)", (p["tipo"], len(p["partes"])), ("varios", 2)),
+              ("a Claude tampoco le llega la contraseña", any("SECRETO123" in v for v in pedidos), False),
+              ("antes del «dale» no cambia nada", ((tmp / "overlay-horizontal.html").read_text(encoding="utf-8"),
+                                                    (tmp / "overlay-tiktok-misterache.html").read_text(encoding="utf-8")),
+               (horizontal, vertical))]
+    r = M.aplicar(p, cl=cl)
+    casos += [("con el «dale»: los dos dicen Warrior y la contraseña queda", (
+        (tmp / "overlay-horizontal.html").read_text(encoding="utf-8") == horizontal.replace("Rogue", "Warrior"),
+        (tmp / "overlay-tiktok-misterache.html").read_text(encoding="utf-8") == vertical.replace("Rogue", "Warrior")),
+        (True, True)),
+              ("te dice los dos que cambió", "Navegador 2" in r and "Overlay ttiktok" in r, True)]
+    M.volver(cl=cl)
+    casos.append(("«volvé el overlay como estaba» vuelve los dos", (
+        (tmp / "overlay-horizontal.html").read_text(encoding="utf-8"),
+        (tmp / "overlay-tiktok-misterache.html").read_text(encoding="utf-8")), (horizontal, vertical)))
+    return casos
+
+
+def probar_miniaturas():
+    """Editar la miniatura de ahora (4 nov: «está buena, solo poné el logo oficial de WoW Forever»), sin Edge ni Claude."""
+    import shutil
+    import tempfile
+    from pathlib import Path
+
+    from PIL import Image
+
+    import acciones
+    import cerebro
+    import config
+    import miniaturas_claude as MC
+    tmp = Path(tempfile.mkdtemp(prefix="miniaturas_"))
+    viejos = (config.DATA, config.SALIDA, config.RECURSOS, config.MINIATURA_REVISAR, config.MINIATURA_AGENTE,
+              MC.fotos, MC.mostrar, MC.buscar_imagenes, acciones.log, cerebro.log)
+    config.DATA, config.SALIDA, config.RECURSOS = tmp / "data", tmp / "salida", tmp / "recursos"
+    config.MINIATURA_REVISAR, config.MINIATURA_AGENTE = False, True
+    for c in (config.DATA, config.RECURSOS):
+        c.mkdir(parents=True)
+    vieja = config.SALIDA / "miniaturas" / "2026-11-03_2002_1-al-20-seguido"
+    vieja.mkdir(parents=True)
+    html = ('<!doctype html><html><head><style>.logo{width:30vw}</style></head><body>'
+            '<img class="logo" src="web_logo_wow.png"><h1>1 al 20 seguido</h1></body></html>')
+    (vieja / "diseno.html").write_text(html, encoding="utf-8")
+    for nombre, tam in (("web_logo_wow.png", (400, 200)), ("captura.png", (320, 180)), ("youtube.jpg", (1280, 720)),
+                        ("tiktok.jpg", (1080, 1920))):
+        Image.new("RGB", tam, (40, 30, 20)).save(vieja / nombre)
+    Image.new("RGB", (64, 64)).save(config.SALIDA / "miniaturas" / "x.png")          # un archivo suelto no molesta
+    (config.SALIDA / "miniaturas" / "prueba_opus2").mkdir()
+    (config.SALIDA / "miniaturas" / "prueba_opus2" / "diseno.html").write_text(html, encoding="utf-8")
+    (config.DATA / "historial.log").write_text(
+        "2026-11-03 20:10:25  RESULTADO: Miniaturas listas (diseñadas por Claude) en "
+        "C:\\ElCerebro\\salida\\miniaturas\\2026-11-03_2002_1-al-20-seguido y subida a YouTube.\n", encoding="utf-8")
+
+    def fotos(carpeta, html_):
+        rutas = {}
+        for n, ext in (("youtube", "jpg"), ("kick", "png"), ("tiktok", "jpg")):
+            Image.new("RGB", (128, 72), (200, 160, 60)).save(carpeta / f"{n}.{ext}")
+            rutas[n] = carpeta / f"{n}.{ext}"
+        return rutas
+    pedidos, bajadas = [], []
+
+    def claude_logo(pedido, carpeta):
+        pedidos.append(pedido)
+        return ('{"resumen": "Cambié el logo de WoW por el oficial de WoW Forever.", "cambios": [{"buscar": '
+                '"src=\\"web_logo_wow.png\\"", "poner": "src=\\"logo_wow_forever.png\\""}]}')
+
+    def buscar(idea, carpeta, dicho=""):
+        bajadas.append(idea)
+        return []
+    casos = []
+    try:
+        MC.fotos, MC.mostrar, MC.buscar_imagenes = fotos, (lambda ruta: False), buscar
+        casos += [("la de ahora: la última que subiste (según historial.log)", MC.ultima().name, vieja.name),
+                  ("sin el logo guardado, el agente busca el de Forever", MC.necesita_agente("Poner el logo oficial de WoW Forever"),
+                   True),
+                  ("la búsqueda pide el logo de Forever, no el clásico", "FOREVER" in MC.LOGO_A_BUSCAR
+                   and "logo clásico sin Forever" in MC.LOGO_A_BUSCAR, True)]
+        Image.new("RGBA", (600, 260), (0, 0, 0, 0)).save(config.RECURSOS / MC.LOGO_JUEGO)
+        casos += [("con el logo guardado, no hace falta buscarlo", MC.necesita_agente("Poner el logo oficial de WoW Forever"),
+                   False),
+                  ("pero si pide otra imagen, sí busca", MC.necesita_agente("el logo de wow forever y un warrior"), True)]
+        r = MC.editar("Poner el logo oficial de WoW Forever en vez del logo de WoW", dicho=DIJO_MINIATURA, claude=claude_logo)
+        nuevo = (r["carpeta"] / "diseno.html").read_text(encoding="utf-8")
+        casos += [("al diseñador le llega el diseño de ahora y tus palabras", (html in pedidos[0], DIJO_MINIATURA in pedidos[0]),
+                   (True, True)),
+                  ("le ofrece el logo oficial con su tamaño", f"{MC.LOGO_JUEGO}: logo OFICIAL" in pedidos[0]
+                   and "600x260" in pedidos[0], True),
+                  ("con el logo guardado no salió a buscar", bajadas, []),
+                  ("cambia SOLO el logo (lo demás igual)", nuevo, html.replace("web_logo_wow.png", MC.LOGO_JUEGO)),
+                  ("la de antes no se toca", (vieja / "diseno.html").read_text(encoding="utf-8"), html),
+                  ("carpeta nueva «…-editada» con antes y ahora", (r["carpeta"].name.endswith("_1-al-20-seguido-editada"),
+                                                                    r["comparacion"].exists()), (True, True)),
+                  ("la próxima edición sigue sobre esta", MC.ultima(), r["carpeta"])]
+        try:
+            MC.editar("ponele un dragón", claude=lambda p, c: '{"cambios": [], "resumen": "No tengo ninguna imagen de dragón."}')
+            casos.append(("si no se puede, lo dice (no inventa)", "pasó", "error"))
+        except RuntimeError as e:
+            casos.append(("si no se puede, lo dice (no inventa)", "error" if "dragón" in str(e) else str(e), "error"))
+        try:
+            MC.editar("cambiá el logo", claude=lambda p, c: (
+                '{"resumen": "x", "cambios": [{"buscar": "logo_wow_forever.png", "poner": "no_existe.png"}]}'))
+            casos.append(("un archivo que no está: no lo hace", "pasó", "error"))
+        except RuntimeError as e:
+            casos.append(("un archivo que no está: no lo hace", "error" if "no_existe" in str(e) else str(e), "error"))
+        (config.RECURSOS / MC.LOGO_JUEGO).unlink()
+        Image.new("RGBA", (500, 250), (0, 0, 0, 0)).save(r["carpeta"] / "web_logo_wow_forever.png")
+        (r["carpeta"] / "diseno.html").write_text(nuevo.replace(MC.LOGO_JUEGO, "web_logo_wow_forever.png"), encoding="utf-8")
+        casos.append(("con tu «dale», el logo que bajó queda guardado", (bool(MC.aprender_logo(r["carpeta"])),
+                                                                       (config.RECURSOS / MC.LOGO_JUEGO).exists()),
+                      (True, True)))
+        # El flujo entero: prepara, te pregunta «¿La subo a YouTube?» y sube solo con el «dale»
+        subidas = []
+        acciones.log = cerebro.log = lambda t: None
+        MC.editar = lambda cambio, dicho="": {**fotos(r["carpeta"], ""), "comparacion": r["comparacion"],
+                                               "carpeta": r["carpeta"], "de": vieja.name, "resumen": "Puse el logo de Forever."}
+        vistos, dichos = [], []
+        c = cerebro.Cerebro(lambda t, tipo="info", seg=0: vistos.append(t), simular=False,
+                            avisar=lambda evento, accion=None, detalle="": dichos.append((evento, accion)))
+        c.ejecutor._yt = type("YT", (), {"subir_miniatura": lambda self, ruta: subidas.append(ruta.parent.name)})()
+        c._ejecutar(H.construir("editar_miniatura", {"cambio": "Poner el logo oficial de WoW Forever", "dicho": DIJO_MINIATURA}))
+        pend = c.pendiente
+        casos += [("flujo: la cambia y queda esperando «dale» para subirla", (getattr(pend, "tipo", None), list(subidas)),
+                   ("miniatura_subir", [])),
+                  ("flujo: te dice qué cambió", "Puse el logo de Forever" in (vistos[-1] if vistos else ""), True)]
+        c.confirmar()
+        casos += [("flujo: con «dale» la sube a YouTube", subidas, [r["carpeta"].name]),
+                  ("y queda como «la de ahora»", MC._registro().get("subida", {}).get("nombre"), r["carpeta"].name)]
+    finally:
+        (config.DATA, config.SALIDA, config.RECURSOS, config.MINIATURA_REVISAR, config.MINIATURA_AGENTE,
+         MC.fotos, MC.mostrar, MC.buscar_imagenes, acciones.log, cerebro.log) = viejos
+        import importlib
+        importlib.reload(MC)
+        shutil.rmtree(tmp, ignore_errors=True)
+    bien = 0
+    for nombre, salio, esperado in casos:
+        ok = salio == esperado
+        bien += ok
+        print(f"{'OK ' if ok else 'FALLO'} {nombre}" + ("" if ok else f": salió {salio!r}, tenía que ser {esperado!r}"))
+    print(f"{bien}/{len(casos)} bien (editar la miniatura, con Claude y Edge de mentira).")
+    return bien, len(casos)
+
+
 def probar_todo():
     import memoria
     resultados = []
     for nombre, f in (("rápidas", probar_rapido), ("corregir", probar_corregir), ("overlays", probar_overlays),
+                      ("miniaturas", probar_miniaturas),
                       ("Discord y títulos", probar_general),
                       ("chat", probar_chat),
                       ("flujo", probar_flujo), ("charla", probar_charla)):

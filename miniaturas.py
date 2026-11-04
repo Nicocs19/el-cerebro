@@ -178,7 +178,7 @@ def _slug(texto):
     return re.sub(r"[^a-z0-9]+", "-", t).strip("-")[:40] or "miniatura"
 
 
-def crear(titulo, subtitulo="", fondo=None, idea=""):
+def crear(titulo, subtitulo="", fondo=None, idea="", dicho=""):
     """Crea las tres miniaturas y devuelve {formato: ruta, "quien": "Claude" | "plantilla"}.
 
     Si está el programa claude, el diseño lo hace Claude (HTML que Edge convierte en imagen) siguiendo tu idea;
@@ -199,7 +199,7 @@ def crear(titulo, subtitulo="", fondo=None, idea=""):
     if config.MINIATURA_CLAUDE:
         try:
             import miniaturas_claude
-            rutas = miniaturas_claude.crear(carpeta, titulo, subtitulo, idea)
+            rutas = miniaturas_claude.crear(carpeta, titulo, subtitulo, idea, dicho)
             rutas["quien"] = "Claude"
             return rutas
         except Exception as e:  # noqa: BLE001

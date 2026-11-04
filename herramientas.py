@@ -129,7 +129,7 @@ class ErrorOrden(Exception):
 
 class Accion:
     def __init__(self, tipo, datos, resumen, confirmar):
-        self.tipo = tipo            # hogger, titulo, deshacer, consultar_titulo, restaurar_titulo, miniatura, moderar, chat, guardar_enlace, overlay, mis_overlays, overlay_aplicar, respuesta, busqueda, aclaracion
+        self.tipo = tipo            # hogger, titulo, deshacer, consultar_titulo, restaurar_titulo, miniatura, editar_miniatura, miniatura_subir, moderar, chat, guardar_enlace, overlay, mis_overlays, overlay_aplicar, respuesta, busqueda, aclaracion
         self.datos = datos
         self.resumen = resumen
         self.confirmar = confirmar
@@ -226,6 +226,10 @@ def esquemas():
             "subir_youtube": {"type": "boolean", "description": "true si pide ponerla en YouTube"},
             "idea": {"type": "string", "description": "Cómo la imagina: composición, personajes, colores, efectos (tal como lo dijo); vacío si no dijo"},
         }, ["titulo"]),
+        _f("editar_miniatura", "Cambia algo de la miniatura que YA ESTÁ (la actual, la de YouTube): el logo, una imagen, un color o un texto. Deja lo demás igual y no pide título.", {
+            "cambio": {"type": "string", "description": "Qué le cambia, tal como lo dijo, con los textos EXACTOS"},
+            "subir_youtube": {"type": "boolean", "description": "true salvo que diga que no la suba"},
+        }, ["cambio"]),
         _f("moderar_chat", "Banea, silencia (timeout) o desbanea a alguien del chat del stream en Kick y/o YouTube.", {
             "accion": {"type": "string", "enum": ["banear", "silenciar", "desbanear"],
                        "description": "banear = para siempre; silenciar = un rato (timeout, mutear, castigar); desbanear = quitar el ban"},
@@ -254,7 +258,7 @@ def esquemas():
         _f("mis_overlays", "Los overlays que Nicolas YA TIENE en OBS (los suyos, en el lienzo horizontal o el vertical: el vertical, el de TikTok, el de just chatting, el del nivel): decir cuáles tiene, cambiarles algo (un texto, un color, sacar una palabra), hacer uno nuevo del mismo tamaño y en el mismo lugar, o volver al de antes.", {
             "accion": {"type": "string", "enum": ["ver", "cambiar", "nuevo_igual", "volver"]},
             "cual": {"type": "string", "description": "Cuál de sus overlays, como lo dijo (p. ej. el vertical, el de tiktok, el de just chatting, el del nivel). Vacío si no dijo"},
-            "lienzo": {"type": "string", "enum": ["", "horizontal", "vertical"], "description": "vertical si dijo vertical, TikTok o celular; horizontal si dijo horizontal; si no, vacío"},
+            "lienzo": {"type": "string", "enum": ["", "horizontal", "vertical", "ambos"], "description": "vertical si dijo vertical, TikTok o celular; horizontal si dijo horizontal; ambos si pidió los dos lienzos (el vertical y el horizontal); si no, vacío"},
             "cambio": {"type": "string", "description": "cambiar: qué le cambia, con los textos EXACTOS que dijo. nuevo_igual: qué tiene que mostrar el nuevo"},
             "reemplazar": {"type": "boolean", "description": "nuevo_igual: true solo si dijo que el nuevo va EN VEZ del suyo"},
         }, ["accion"]),
@@ -771,13 +775,26 @@ def construir(nombre, a):
         return Accion("restaurar_titulo", {}, "Restaurar el título anterior", todo)
 
     if nombre == "crear_miniatura":
+        if _vacio(a.get("titulo")):
+            raise ErrorOrden("¿Qué texto grande le pongo a la miniatura nueva? Si querés cambiarle algo a la que ya "
+                             "está, decime «a la miniatura de ahora cambiale…».")
         d = {"titulo": _txt(a, "titulo", 60), "subtitulo": _txt(a, "subtitulo", 60, False),
-             "subir_youtube": bool(a.get("subir_youtube")) or config.MINIATURA_SUBIR_YOUTUBE, "idea": _txt(a, "idea", 1500, False)}
+             "subir_youtube": bool(a.get("subir_youtube")) or config.MINIATURA_SUBIR_YOUTUBE, "idea": _txt(a, "idea", 1500, False),
+             "dicho": _txt(a, "dicho", 1500, False)}
         destino = " y subirla a YouTube" if d["subir_youtube"] else ""
         resumen = f"Miniatura «{d['titulo']}» {d['subtitulo']}{destino}".strip()
         if a.get("_empaquetado"):
             resumen += f"\nArte: {d['idea'][:300]}"
         return Accion("miniatura", d, resumen, d["subir_youtube"] and publica)
+
+    if nombre == "editar_miniatura":
+        d = {"cambio": _txt(a, "cambio", 600, False) or _txt(a, "dicho", 600, False),
+             "subir_youtube": bool(a.get("subir_youtube")) or config.MINIATURA_SUBIR_YOUTUBE,     # siempre con «dale»
+             "dicho": _txt(a, "dicho", 1500, False)}
+        if not d["cambio"]:
+            raise ErrorOrden("¿Qué le cambio a la miniatura?")
+        destino = " (y te pregunto antes de subirla a YouTube)" if d["subir_youtube"] else ""
+        return Accion("editar_miniatura", d, f"Cambio en la miniatura de ahora: {d['cambio']}{destino}", False)
 
     if nombre == "moderar_chat":
         import moderacion
@@ -829,10 +846,12 @@ def construir(nombre, a):
     if nombre == "mis_overlays":
         acc = a.get("accion") if a.get("accion") in ("ver", "cambiar", "nuevo_igual", "volver") else (
             "cambiar" if a.get("cambio") else "ver")
-        lienzo = a.get("lienzo") if a.get("lienzo") in ("horizontal", "vertical") else ""
+        lienzo = a.get("lienzo") if a.get("lienzo") in ("horizontal", "vertical", "ambos") else ""
         d = {"accion": acc, "cual": _txt(a, "cual", 80, False), "lienzo": lienzo, "cambio": _txt(a, "cambio", 600, False),
              "reemplazar": a.get("reemplazar") in (True, "true", "True", "si", "sí"), "dicho": _txt(a, "dicho", 400, False)}
-        cual = d["cual"] or (f"el {lienzo}" if lienzo else "")
+        cual = d["cual"] or (f"el {lienzo}" if lienzo in ("horizontal", "vertical") else "")
+        if lienzo == "ambos":
+            cual = "de los dos lienzos"
         if acc == "cambiar":
             if not d["cambio"]:
                 raise ErrorOrden("¿Qué le cambio al overlay?")

@@ -12,6 +12,9 @@ CORRECCIONES = [
     (r"\b(levi|libi|lebi|leb)(ando|ar|o|eo)\b", r"leve\2"),
     (r"\b(washer|guasher|guacher|wacher|guar|guor|wor)\b", "War"),
     (r"\bwarrior\b", "Warrior"),
+    # «Hogger el H» al principio: Whisper escribió «Joder, Lacher» (4 nov)
+    (r"^(\W*)(?:j[oó]der|hogger|hoger|j[oó]ger|j[oó]guer)[,\s]+(?:lacher|la cher|lache|el ache|el hache)\b", r"\1Hogger el H"),
+    (r"\b(washior|guashior|wachior|guarior|guorior|wuarior)\b", "Warrior"),
     # el nombre del asistente: «Hoger», «Jóger», «Jogger», «Joguer», «Hoguer» (no «ogro»: es palabra de WoW)
     (r"\b(hoger|hogguer|hoguer|j[oó]ger|j[oó]gger|j[oó]guer|oguer|hógger)\b", "Hogger"),
     (r"\bwow forever\b|\bguau forever\b|\bbow forever\b", "WoW Forever"),

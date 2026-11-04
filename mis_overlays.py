@@ -388,11 +388,108 @@ def _en_vivo(cl):
         return False
 
 
+AMBOS = "ambos"                  # «en los dos lienzos»: el horizontal y el vertical
+
+
+def _cita(cambio):
+    """Lo que hay que cambiar: lo primero entre comillas («Rogue» en «Cambiar "Rogue" por "War"»)."""
+    m = re.findall(r"[«\"“']([^»\"”']{2,})[»\"”']", cambio or "")
+    return _slug(m[0]) if m else ""
+
+
+def _contenido(o):
+    if o["archivo"] and Path(str(o["archivo"])).suffix.lower() in (".html", ".htm"):
+        return _slug(_leer(o["archivo"]))
+    if o["tipo"] in TEXTOS:
+        return _slug(o["texto"] or "")
+    return ""
+
+
+def _con_cita(inv, cita, lz=""):
+    """Tus overlays (de ese lienzo) que tienen adentro ese texto, sin repetir el mismo archivo."""
+    if not cita:
+        return []
+    patron = re.compile(rf"(?<![a-z0-9]){re.escape(cita)}(?![a-z0-9])")
+    vistos, hay = set(), []
+    for o in inv["overlays"].values():
+        if o["de_hogger"] or (lz and not any(d["lienzo"] == lz for d in o["donde"])):
+            continue
+        clave = str(o["archivo"] or o["nombre"])
+        if clave not in vistos and patron.search(_contenido(o)):
+            vistos.add(clave)
+            hay.append(o)
+    return hay
+
+
+def elegir_varios(inv, cual="", lienzo="", cambio=""):
+    """Los overlays a cambiar de una: si pidió los dos lienzos, o si lo que quiere cambiar («Rogue») está en
+    overlays de los dos lienzos y no dijo cuál. Devuelve (overlays, lienzos donde no encontré ninguno).
+
+    El 4 nov pidió «en los dos dice Rogue, que diga War» y Hogger cambió solo el vertical.
+    """
+    cita = _cita(cambio)
+    if lienzo != AMBOS:
+        if lienzo or VERTICAL.search(_slug(cual)) or HORIZONTAL.search(_slug(cual)) or not cita:
+            return [], []
+        hay = _con_cita(inv, cita)
+        en = {d["lienzo"] for o in hay for d in o["donde"]}
+        return (hay[:4], []) if len(hay) > 1 and len(en) > 1 else ([], [])
+    elegidos, faltan = [], []
+    for lz in ("horizontal", "vertical"):
+        hay = _con_cita(inv, cita, lz)
+        if not hay:
+            try:
+                o = elegir(inv, cual, lz, cambio)
+                hay = [o] if any(d["lienzo"] == lz for d in o["donde"]) else []
+            except Error:
+                hay = []
+        nuevos = [o for o in hay if str(o["archivo"] or o["nombre"]) not in
+                  {str(e["archivo"] or e["nombre"]) for e in elegidos}]
+        if not hay:
+            faltan.append(lz)
+        elegidos += nuevos
+    if not elegidos:
+        raise Error("No encontré cuál de tus overlays cambiar en los lienzos.")
+    return elegidos[:4], faltan
+
+
 def preparar_cambio(cual, cambio, lienzo="", cl=None, claude=None, dicho=""):
-    """Arma el cambio en una copia (nada cambia en OBS) y devuelve los datos para el «dale»."""
+    """Arma el cambio en una copia (nada cambia en OBS) y devuelve los datos para el «dale».
+
+    lienzo="ambos" (o lo que quiere cambiar está en overlays de los dos lienzos): prepara todos juntos.
+    """
     cl = cl or overlays._obs()
     inv = inventario(cl)
-    o = elegir(inv, cual, lienzo, cambio)
+    varios, faltan = elegir_varios(inv, cual, lienzo, cambio)
+    if len(varios) > 1:
+        partes, fallas = [], []
+        for o in varios:
+            try:
+                partes.append(_preparar_uno(o, cambio, cl, claude, dicho))
+            except Error as e:
+                fallas.append(f"«{o['nombre']}»: {e}")
+        fallas += [f"en el lienzo {lz} no encontré cuál cambiar" for lz in faltan]
+        if len(partes) == 1:
+            partes[0]["fallas"] = fallas
+            return partes[0]
+        if not partes:
+            raise Error("; ".join(fallas) or "No pude preparar el cambio.")
+        return {"tipo": "varios", "partes": partes, "fallas": fallas,
+                "fuente": " y ".join(f"«{p['fuente']}»" for p in partes),
+                "resumen": partes[0]["resumen"], "lienzo": " y ".join(dict.fromkeys(p["lienzo"] for p in partes)),
+                "escena": ", ".join(dict.fromkeys(p["escena"] for p in partes)),
+                "en_vivo": any(p["en_vivo"] for p in partes)}
+    if varios:
+        o = varios[0]
+    else:
+        o = elegir(inv, cual, "" if lienzo == AMBOS else lienzo, cambio)
+    p = _preparar_uno(o, cambio, cl, claude, dicho)
+    if faltan:
+        p["fallas"] = [f"en el lienzo {lz} no encontré cuál cambiar" for lz in faltan]
+    return p
+
+
+def _preparar_uno(o, cambio, cl, claude=None, dicho=""):
     d = next((x for x in o["donde"] if x["visible"]), o["donde"][0])
     if o["tipo"] in TEXTOS:
         nuevo = _pedir_cambios(o, cambio, o["texto"] or "", d, claude, dicho)
@@ -458,6 +555,8 @@ Reglas:
   ni lo que maneja el nivel: si cambia, se pierde el nivel guardado.
 - No achiques ni tapes el hueco de la cámara, salvo que lo pida.
 - Los textos que dictó van EXACTOS. No inventes datos, fechas ni enlaces.
+- Lo dictó por voz: si el pedido trae palabras repetidas o raras del dictado (p. ej. «Mr. HMR espacio H» quiere
+  decir «Mr. H»), quedate con lo que tiene sentido; ante la duda, lo más corto y simple.
 - Nada nuevo que cargue cosas de internet (solo Google Fonts).
 - Si no se puede hacer con este archivo, devolvé {"resumen": "por qué no se puede", "cambios": []}.
 
@@ -559,14 +658,17 @@ def _captura(cl, fuente, ancho, alto):
         return ""
 
 
-def aplicar(datos, cl=None):
+def aplicar(datos, cl=None, grupo=None):
     cl = cl or overlays._obs()
     sello = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+    if datos["tipo"] == "varios":
+        return _aplicar_varios(datos, cl, sello)
     reg = _registro()
+    junto = {"grupo": grupo} if grupo else {}            # los de un mismo «dale» se deshacen juntos
     if datos["tipo"] == "texto":
         _pedir(cl, "SetInputSettings", inputName=datos["fuente"], inputSettings={"text": datos["texto"]}, overlay=True)
         reg.append({"tipo": "texto", "fuente": datos["fuente"], "texto_antes": datos["texto_antes"], "cuando": sello,
-                    "resumen": datos["resumen"]})
+                    "resumen": datos["resumen"], **junto})
         _guardar_registro(reg)
         return f"Listo, cambié «{datos['fuente']}»: {datos['resumen'].rstrip('. ')}."
     if datos["tipo"] == "archivo":
@@ -587,18 +689,38 @@ def aplicar(datos, cl=None):
         except OSError:
             pass
         _recargar(cl, datos["fuente"])
+        inv = inventario(cl)["overlays"]
+        for nombre, otro in inv.items():          # otra fuente con el mismo archivo (p. ej. en el otro lienzo)
+            if nombre != datos["fuente"] and str(otro.get("archivo") or "") == str(orig):
+                _recargar(cl, nombre)
         time.sleep(2.5)
-        o = inventario(cl)["overlays"].get(datos["fuente"]) or {}
+        o = inv.get(datos["fuente"]) or {}
         caja = (o.get("donde") or [{}])[0].get("caja") or [0, 0, o.get("ancho") or 1080, o.get("alto") or 1920]
         foto = _captura(cl, datos["fuente"], caja[2], caja[3])
         reg.append({"tipo": "archivo", "fuente": datos["fuente"], "archivo": str(orig), "copia": str(copia),
-                    "cuando": sello, "resumen": datos["resumen"], "foto": foto})
+                    "cuando": sello, "resumen": datos["resumen"], "foto": foto, **junto})
         _guardar_registro(reg)
         return (f"Listo, cambié «{datos['fuente']}»: {datos['resumen'].rstrip('. ')}. El original quedó en {copia}. "
                 "Si no te gusta, decime «volvé el overlay como estaba».")
     if datos["tipo"] == "nuevo":
         return _poner_nuevo(cl, datos, reg, sello)
     raise Error("No sé qué cambio era ese.")
+
+
+def _aplicar_varios(datos, cl, sello):
+    hechos, fallas = [], []
+    for p in datos["partes"]:
+        try:
+            aplicar(p, cl, grupo=sello)
+            hechos.append(f"«{p['fuente']}» ({p['lienzo']})")
+        except Error as e:
+            fallas.append(f"«{p['fuente']}»: {e}")
+    if not hechos:
+        raise Error("; ".join(fallas))
+    texto = f"Listo, cambié {' y '.join(hechos)}: {datos['resumen'].rstrip('. ')}."
+    if fallas:
+        texto += " No pude con " + "; ".join(fallas) + "."
+    return texto + " Los originales quedaron en _copias. Si no te gusta, decime «volvé el overlay como estaba»."
 
 
 def _poner_nuevo(cl, datos, reg, sello):
@@ -643,11 +765,26 @@ def _poner_nuevo(cl, datos, reg, sello):
 
 
 def volver(cl=None):
+    """Deshace el último cambio (si fueron varios con un mismo «dale», todos)."""
     reg = _registro()
     if not reg:
         raise Error("No tengo ningún cambio de overlay para deshacer.")
-    c = reg[-1]
     cl = cl or overlays._obs()
+    grupo = reg[-1].get("grupo")
+    if not grupo:
+        return _volver_uno(reg, cl)
+    textos = []
+    while reg and reg[-1].get("grupo") == grupo:
+        textos.append(_volver_uno(reg, cl))
+        reg = _registro()
+    if len(textos) == 1:
+        return textos[0]
+    nombres = [m.group(1) for m in (re.search(r"«([^»]+)»", t) for t in textos) if m]
+    return f"Listo, {' y '.join(f'«{n}»' for n in nombres)} volvieron a como estaban."
+
+
+def _volver_uno(reg, cl):
+    c = reg[-1]
     if c["tipo"] == "archivo":
         orig, copia = Path(c["archivo"]), Path(c["copia"])
         if not copia.exists():

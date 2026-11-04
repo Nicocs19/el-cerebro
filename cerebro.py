@@ -65,7 +65,7 @@ class Cerebro:
         log(f"OÍDO: {texto}")
         if self.pendiente and time.time() > self.pendiente_hasta:
             self.pendiente = None
-        r = router.es_confirmacion(texto, estricto=estricto)
+        r = router.es_confirmacion(texto, estricto=estricto, pendiente=self.pendiente)
         if r == "confirmar" and (self.pendiente or not memoria.hay_charla(3)):
             memoria.anotar("Nicolas", texto)
             return self.confirmar()
@@ -204,7 +204,7 @@ class Cerebro:
         if not texto or not self.pendiente:
             return None
         ban = self.pendiente.tipo == "moderar" and self.pendiente.datos.get("accion") == "banear"
-        r = router.es_confirmacion(texto, estricto=ban)       # para banear, un «ya» o «bueno» suelto no alcanza
+        r = router.es_confirmacion(texto, estricto=ban, pendiente=self.pendiente)   # para banear, «ya» o «bueno» solos no alcanzan
         if r or CORRIGE.search(router._norm(texto)):
             return self.manejar_texto(texto, estricto=ban)
         log(f"OÍDO (sin tecla, no era sí ni no; lo ignoro): {texto}")
@@ -243,7 +243,8 @@ class Cerebro:
 
     @staticmethod
     def _tarda(accion):
-        return (accion.tipo == "miniatura" or (accion.tipo == "overlay" and accion.datos.get("accion") == "crear")
+        return (accion.tipo in ("miniatura", "editar_miniatura")
+                or (accion.tipo == "overlay" and accion.datos.get("accion") == "crear")
                 or (accion.tipo == "mis_overlays" and accion.datos.get("accion") in ("cambiar", "nuevo_igual")))
 
     def _ejecutar(self, accion, ejecutor=None):
