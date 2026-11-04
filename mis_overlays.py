@@ -568,7 +568,7 @@ def aplicar(datos, cl=None):
         reg.append({"tipo": "texto", "fuente": datos["fuente"], "texto_antes": datos["texto_antes"], "cuando": sello,
                     "resumen": datos["resumen"]})
         _guardar_registro(reg)
-        return f"Listo, cambié «{datos['fuente']}»: {datos['resumen']}"
+        return f"Listo, cambié «{datos['fuente']}»: {datos['resumen'].rstrip('. ')}."
     if datos["tipo"] == "archivo":
         orig = Path(datos["archivo"])
         actual = orig.read_bytes()
@@ -594,7 +594,7 @@ def aplicar(datos, cl=None):
         reg.append({"tipo": "archivo", "fuente": datos["fuente"], "archivo": str(orig), "copia": str(copia),
                     "cuando": sello, "resumen": datos["resumen"], "foto": foto})
         _guardar_registro(reg)
-        return (f"Listo, cambié «{datos['fuente']}»: {datos['resumen']}. El original quedó en {copia}. "
+        return (f"Listo, cambié «{datos['fuente']}»: {datos['resumen'].rstrip('. ')}. El original quedó en {copia}. "
                 "Si no te gusta, decime «volvé el overlay como estaba».")
     if datos["tipo"] == "nuevo":
         return _poner_nuevo(cl, datos, reg, sello)
