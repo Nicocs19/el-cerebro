@@ -276,6 +276,43 @@ def sintetizar_eleven(texto, voz_id, clave=None, velocidad=None):
     return r.content
 
 
+def sintetizar_eleven_en_vivo(texto, voz_id, clave=None, velocidad=None):
+    """Lo mismo, pero en pedazos a medida que ElevenLabs los genera (bytes PCM 24 kHz).
+
+    Así empieza a sonar en medio segundo en vez de esperar la frase entera.
+    """
+    r = requests.post(
+        f"{ELEVEN_API}/text-to-speech/{voz_id}/stream",
+        params={"output_format": f"pcm_{ELEVEN_SR}"},
+        headers={"xi-api-key": clave or config.ELEVEN_API_KEY},
+        json={"text": texto, "model_id": config.ELEVEN_MODELO, "language_code": "es",
+              "voice_settings": {"stability": 0.45, "similarity_boost": 0.8,
+                                 "speed": max(0.7, min(1.2, velocidad or _velocidad_base()))}},
+        timeout=(5, 15), stream=True)
+    if r.status_code != 200:
+        texto = r.text.lower()
+        if r.status_code in (401, 402, 403) or any(p in texto for p in ("invalid_api_key", "authentication", "quota")):
+            raise PermissionError(f"ElevenLabs dijo {r.status_code}: {motivo_eleven(r)}")
+        r.raise_for_status()
+    try:
+        yield from r.iter_content(chunk_size=4800)          # 0,1 s de audio por pedazo
+    finally:
+        r.close()
+
+
+def _registro_voz(linea):
+    """data/voz.log: cuánto tardó cada frase en empezar a sonar (para saber si la lentitud es de ElevenLabs)."""
+    print(f"[voz] {linea}")
+    try:
+        archivo = config.DATA / "voz.log"
+        if archivo.exists() and archivo.stat().st_size > 1_000_000:
+            archivo.replace(archivo.with_suffix(".log.1"))
+        with archivo.open("a", encoding="utf-8") as f:
+            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')}  {linea}\n")
+    except OSError:
+        pass
+
+
 def motivo_eleven(r):
     """El motivo que da ElevenLabs, corto y sin datos privados (p. ej. «API key is invalid.»)."""
     try:
@@ -303,6 +340,7 @@ class Voz:
         self.ocupada = False      # generando o diciendo una frase
         self.termino = 0.0        # cuándo terminó de decir la última frase
         self._en_curso = False    # el hilo de la voz está con una frase (generándola o diciéndola)
+        self._cortar = False      # callar() pidió cortar la frase en vivo
         self._cola = queue.Queue()
         self._eleven_ok = bool(config.ELEVEN_API_KEY)
         self._voz_id = None
@@ -320,10 +358,13 @@ class Voz:
         self._voz_id = buscar_voz(v)
         return self._voz_id
 
-    def _eleven(self, texto):
+    def _archivo(self, texto):
         import hashlib
         clave = hashlib.sha1(f"{config.ELEVEN_VOZ}|{config.ELEVEN_MODELO}|{_velocidad_base():.3f}|{texto}".encode()).hexdigest()
-        archivo = self.cache / f"{clave}.pcm"
+        return self.cache / f"{clave}.pcm"
+
+    def _eleven(self, texto):
+        archivo = self._archivo(texto)
         if not archivo.exists():
             try:
                 pcm = sintetizar_eleven(texto, self._eleven_voz(), velocidad=_velocidad_base())
@@ -406,11 +447,83 @@ class Voz:
         except queue.Empty:
             pass
         self.ocupada = self._en_curso
+        self._cortar = True
         if self.hablando:
             import sounddevice as sd
             sd.stop()
             self.hablando = False
             self.nivel = 0.0
+
+    def _decir_en_vivo(self, texto, dispositivo, t0):
+        """Suena mientras ElevenLabs la genera. True si ya sonó (o la cortaste); False si no llegó nada."""
+        import sounddevice as sd
+        pedazos = sintetizar_eleven_en_vivo(texto, self._eleven_voz(), velocidad=_velocidad_base())
+        guardado, resto, espera, primero = bytearray(), b"", [], None
+        colchon = int(ELEVEN_SR * 0.15)              # 0,15 s de colchón para que no se entrecorte al arrancar
+        stream = None
+        completa = False
+        try:
+            for pedazo in pedazos:
+                if not pedazo:
+                    continue
+                guardado += pedazo
+                datos = resto + pedazo
+                resto = datos[len(datos) // 2 * 2:]
+                audio = np.frombuffer(datos[:len(datos) // 2 * 2], dtype="<i2").astype(np.float32) / 32768.0
+                audio = cambiar_tono(audio * config.VOZ_VOLUMEN, config.VOZ_TONO)
+                if self._cortar:
+                    break
+                if stream is None:
+                    espera.append(audio)
+                    if sum(len(a) for a in espera) < colchon:
+                        continue
+                    stream = sd.OutputStream(samplerate=ELEVEN_SR, channels=1, dtype="float32", device=dispositivo)
+                    stream.start()
+                    primero = time.time() - t0
+                    self.hablando = True
+                    audio, espera = np.concatenate(espera), []
+                if self._cortar:                     # callar() la cortó
+                    break
+                self.nivel = float(np.sqrt(np.mean(audio ** 2))) * 3 if len(audio) else 0.0
+                stream.write(audio.reshape(-1, 1))
+            else:
+                completa = True
+            if stream is None and espera and not self._cortar:   # frase cortita: entró toda en el colchón
+                audio = np.concatenate(espera)
+                if len(audio):
+                    stream = sd.OutputStream(samplerate=ELEVEN_SR, channels=1, dtype="float32", device=dispositivo)
+                    stream.start()
+                    primero = time.time() - t0
+                    self.hablando = True
+                    stream.write(audio.reshape(-1, 1))
+        except PermissionError:
+            self._eleven_ok = False
+            if stream is None:
+                raise
+        except Exception:  # noqa: BLE001
+            if stream is None:
+                raise
+        finally:
+            if stream is not None:
+                try:
+                    if not self._cortar:
+                        stream.stop()                # espera a que termine de sonar lo que quedó en el buffer
+                    else:
+                        stream.abort()
+                    stream.close()
+                except Exception:  # noqa: BLE001
+                    pass
+        if stream is None:
+            return False
+        if completa and len(guardado) > 1000:        # la próxima vez sale del caché, sin gastar créditos
+            try:
+                self.cache.mkdir(parents=True, exist_ok=True)
+                self._archivo(texto).write_bytes(bytes(guardado) + resto)
+            except OSError:
+                pass
+        _registro_voz(f"ElevenLabs en vivo: empezó a sonar en {primero:.2f} s, terminó en {time.time() - t0:.1f} s "
+                      f"({len(texto)} letras)")
+        return True
 
     def _hilo(self):
         import sounddevice as sd
@@ -424,8 +537,18 @@ class Voz:
         while True:
             texto = self._cola.get()
             self.ocupada = self._en_curso = True
+            self._cortar = False
+            t0 = time.time()
             try:
+                if self._eleven_ok and config.VOZ_EN_VIVO and not self._archivo(texto).exists():
+                    try:
+                        if self._decir_en_vivo(texto, dispositivo, t0):
+                            continue
+                    except Exception as e:  # noqa: BLE001
+                        print(f"[voz] ElevenLabs en vivo falló ({e}); pruebo de la forma normal.")
                 audio, sr = self._sintetizar(texto)
+                _registro_voz(f"{'guardada' if self._eleven_ok else 'voz local'}: lista en {time.time() - t0:.2f} s "
+                              f"({len(texto)} letras)")
                 if not len(audio):
                     continue
                 audio = cambiar_tono(audio, config.VOZ_TONO)
