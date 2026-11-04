@@ -209,7 +209,7 @@ class Cerebrito:
 
         esc[0] = s * 0.88
         # --- el hacha (a tu izquierda): mango de madera y hoja de metal con filo brillante
-        abajo, arriba = (-66, 126), (-98, -8)
+        abajo, arriba = (-70, 112), (-98, -8)
         linea([abajo, arriba], fill=borde, width=9, capstyle="round")
         linea([abajo, arriba], fill=madera, width=5, capstyle="round")
         for k in (0.62, 0.72):                                # tiras de cuero en el mango
@@ -219,13 +219,11 @@ class Cerebrito:
         poligono(hoja, fill=metal, outline=borde, width=3, joinstyle="round")
         linea([(-111, -19), (-121, -9), (-122, 4), (-116, 18), (-107, 23)], smooth=True, fill=plata, width=3)
         ovalo(-97, 4, 3, fill=cuero, outline="")
+        ovalo(abajo[0], abajo[1] + 2, 5, fill=metal, outline=borde, width=2)     # remate del mango
 
-        # --- la maza (abajo a la derecha): mango y bola con pinchos
-        linea([(70, 66), (90, 88)], fill=borde, width=9)
-        linea([(70, 66), (90, 88)], fill=madera, width=5)
-        pinchos(92, 92, 11, 7, 6, plata)
-        ovalo(92, 92, 12, fill="#8E949E", outline=borde, width=3)
-        ovalo(88, 87, 4.5, 3, fill=plata, outline="")
+        # --- el mango de la maza (la bola va delante de la hombrera, más abajo)
+        linea([(72, 60), (92, 86)], fill=borde, width=9)
+        linea([(72, 60), (92, 86)], fill=madera, width=5)
 
         # --- pecho de armadura oscura con trapo rojo, y la H de la hermandad
         poligono([(-44, 48), (44, 48), (58, 110), (-58, 110)], fill="#3A3230", outline=borde, width=3)
@@ -263,6 +261,9 @@ class Cerebrito:
             linea([(-81, 94 + k), (-69, 96 + k)], fill=borde, width=1)
         hombrera(66, 70, 42, 40, oro, oro_luz, False)
         ovalo(48, 44, 5, 3, fill="#FFFAEA", outline="")
+        pinchos(95, 91, 12, 7, 6, plata)                                  # la maza, bien a la vista
+        ovalo(95, 91, 13, fill="#8E949E", outline=borde, width=3)
+        ovalo(90, 86, 5, 3.5, fill=plata, outline="")
         esc[0] = s
 
         # --- collar de cuero con remaches

@@ -515,6 +515,9 @@ class App:
 
 
 def modo_texto(texto, simular, si):
+    import acciones
+    if simular:                     # las pruebas no ensucian historial.log (la regla de los 3 minutos mira los OÍDO)
+        acciones.HISTORIAL = config.DATA / "historial_pruebas.log"
     c = Cerebro(lambda t, tipo="info", s=0: print(f"[{tipo}] {t}"), simular)
     c.manejar_texto(texto, auto_confirmar=si)
     if c.pendiente:
