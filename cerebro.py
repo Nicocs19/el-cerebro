@@ -352,6 +352,9 @@ class App:
         else:
             self.grab.empezar()
         pitido("inicio")
+        if self.voz:
+            import jarvis
+            jarvis.preparar_conexion()       # mientras hablás, deja abierta la conexión con ElevenLabs
         self._estado_txt("🎙 Escuchando…" if modo == "orden" else "🎙 Te escucho…")
 
     def _estado_txt(self, texto):
@@ -395,14 +398,20 @@ class App:
                     t0 = time.time()
                     texto = self.stt.transcribir(dato)
                     print(f"(transcrito en {time.time() - t0:.1f} s): {texto}")
-                    if texto:
+                    if texto and self.voz and self.voz.es_eco(texto):
+                        log(f"OÍDO (era mi propia voz por los parlantes, lo ignoro): {texto}")
+                        self.ui.put(("Me escuché a mí mismo: no lo tomo como orden. Probá con auriculares.", "info", 5))
+                    elif texto:
                         self.cerebro.manejar_texto(texto)
                     else:
                         self.ui.put(("No te escuché bien.", "error", 4))
                 elif tipo == "respuesta":
                     texto = self.stt.transcribir(dato)
                     print(f"(respuesta sin tecla): {texto}")
-                    self.cerebro.respuesta(texto)
+                    if texto and self.voz and self.voz.es_eco(texto):
+                        log(f"OÍDO (era mi propia voz por los parlantes, lo ignoro): {texto}")
+                    else:
+                        self.cerebro.respuesta(texto)
                 elif tipo == "confirmar":
                     self.cerebro.confirmar()
                 elif tipo == "cancelar":

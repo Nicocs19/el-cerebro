@@ -460,6 +460,8 @@ def fecha_hora(fecha, hora, ahora=None):
     cuando = dt.datetime(d.year, d.month, d.day, h, mi)
     if por_nombre and cuando < ahora:
         cuando += dt.timedelta(days=7)      # "el martes" dicho un martes a la noche = el martes que viene
+    if cuando < ahora and d == ahora.date() and h < 6:
+        cuando += dt.timedelta(days=1)      # "hoy a las 12 de la noche" = la medianoche que viene, no la que pasó
     if cuando < ahora:
         raise ErrorOrden(f"El {fecha_legible(cuando)} ya pasó.")
     if cuando > ahora + dt.timedelta(days=120):
@@ -612,6 +614,19 @@ def descripcion_completa(a):
             tags.append(t)
     partes = [texto] + (["\n".join(lineas)] if lineas else []) + ([" ".join("#" + t for t in tags[:8])] if tags else [])
     return "\n\n".join(p for p in partes if p), faltan
+
+
+def corto_para_voz(texto, maximo=220):
+    """Lo que se dice en voz: frases enteras hasta ~220 letras (unos 10 s). Cuanto más largo, más tarda en sonar."""
+    if len(texto) <= maximo:
+        return texto
+    frases = re.split(r"(?<=[.!?…])\s+", texto)
+    salida = frases[0]
+    for f in frases[1:]:
+        if len(salida) + 1 + len(f) > maximo:
+            break
+        salida += " " + f
+    return salida
 
 
 def construir(nombre, a):
@@ -803,6 +818,7 @@ def construir(nombre, a):
 
     if nombre == "responder":
         r = re.sub(r"""\s*["']?\s*,\s*animo\s*[=:].*$""", "", _txt(a, "respuesta", 600), flags=re.I).strip() or "…"
+        r = corto_para_voz(r)
         animo = a.get("animo") if a.get("animo") in ("picado", "feliz") else "normal"
         return Accion("respuesta", {"respuesta": r, "animo": animo}, r, False)
 

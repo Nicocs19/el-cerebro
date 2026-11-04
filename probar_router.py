@@ -7,6 +7,7 @@
   python probar_router.py rapido    -> sí/no, canales, plataformas y dictado (sin la IA, al instante)
   python probar_router.py todo      -> todo lo anterior
 """
+import datetime as dt
 import re
 import sys
 import time
@@ -289,6 +290,11 @@ def probar_rapido():
                   "Eh, Cerebro, mándale un saludo a Lucas.") or ""), True),
               ("saludo al chat: va a la IA", router._saludo_fijo("mandá un saludo al chat"), None),
               ("frase cortada: pregunta", bool(router._frase_cortada("Che, Cerebro, haceme...")), True),
+              ("saludo a «mi primo X»: frase fija con su nombre", "Mauricio Ramos" in (router._saludo_fijo(
+                  "Che, Cerebro, mandale un saludo a mi primo Mauricio Ramos") or ""), True),
+              ("«hoy a las 12 de la noche» = la medianoche que viene",
+               str(H.fecha_hora("hoy", "00:00", dt.datetime(2026, 11, 3, 21, 54))), "2026-11-04 00:00:00"),
+              ("respuesta en voz: corta (frases enteras)", len(H.corto_para_voz("Hola jefe. " * 40)) <= 220, True),
               ("frase cortada en «a…»: pregunta", bool(router._frase_cortada("Cambiá el título a...")), True),
               ("frase completa con «…»: sigue normal", router._frase_cortada("Lo hiciste mal..."), None),
               ("respuesta corta con «…»: sigue normal", router._frase_cortada("Tiene 20..."), None),

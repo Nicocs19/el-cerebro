@@ -115,6 +115,7 @@ VOZ_MODELO = _s("VOZ_MODELO", "es_MX-claude-high")      # voz local de respaldo 
 VOZ_DISPOSITIVO = _s("VOZ_DISPOSITIVO")                  # salida de audio (nombre o número); vacío = la predeterminada
 VOZ_VELOCIDAD = _f("VOZ_VELOCIDAD", 1.1)
 VOZ_EN_VIVO = _b("VOZ_EN_VIVO", True)                    # empieza a sonar mientras ElevenLabs genera el resto
+VOZ_ESPERA_MAX = _f("VOZ_ESPERA_MAX", 3.5)               # si ElevenLabs no empieza en estos segundos, habla la voz local
 # --- Memoria corta de la charla (solo en tu PC; se olvida sola y al cerrar El Cerebro) ---
 MEMORIA = _b("MEMORIA", True)
 MEMORIA_MINUTOS = _f("MEMORIA_MINUTOS", 10)           # cuánto se acuerda de lo que hablaron

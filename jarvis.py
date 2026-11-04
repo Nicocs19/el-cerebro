@@ -216,6 +216,19 @@ def frase(evento, accion=None, detalle=None):
 # ------------------------------------------------------------------ voz
 ELEVEN_API = "https://api.elevenlabs.io/v1"
 ELEVEN_SR = 24000
+# Una sola conexión que se reutiliza: con internet lento, abrir una nueva (TLS) cuesta medio segundo o más cada vez
+_SESION = requests.Session()
+
+
+def preparar_conexion():
+    """Abre (o mantiene viva) la conexión con ElevenLabs mientras hablás, así la respuesta no la espera. No gasta créditos."""
+    def hilo():
+        try:
+            _SESION.head(f"{ELEVEN_API}/models", timeout=5)
+        except requests.RequestException:
+            pass
+    if config.ELEVEN_API_KEY:
+        threading.Thread(target=hilo, daemon=True, name="voz-conexion").start()
 
 
 # Voces de serie de ElevenLabs (por si la clave no tiene permiso para listar voces)
@@ -260,7 +273,7 @@ def buscar_voz(nombre, clave=None):
 
 def sintetizar_eleven(texto, voz_id, clave=None, velocidad=None):
     """Audio PCM 24 kHz (bytes) de ElevenLabs. Lanza RuntimeError con el motivo si no se puede."""
-    r = requests.post(
+    r = _SESION.post(
         f"{ELEVEN_API}/text-to-speech/{voz_id}",
         params={"output_format": f"pcm_{ELEVEN_SR}"},
         headers={"xi-api-key": clave or config.ELEVEN_API_KEY},
@@ -281,14 +294,14 @@ def sintetizar_eleven_en_vivo(texto, voz_id, clave=None, velocidad=None):
 
     Así empieza a sonar en medio segundo en vez de esperar la frase entera.
     """
-    r = requests.post(
+    r = _SESION.post(
         f"{ELEVEN_API}/text-to-speech/{voz_id}/stream",
         params={"output_format": f"pcm_{ELEVEN_SR}"},
         headers={"xi-api-key": clave or config.ELEVEN_API_KEY},
         json={"text": texto, "model_id": config.ELEVEN_MODELO, "language_code": "es",
               "voice_settings": {"stability": 0.45, "similarity_boost": 0.8,
                                  "speed": max(0.7, min(1.2, velocidad or _velocidad_base()))}},
-        timeout=(5, 15), stream=True)
+        timeout=(3.05, config.VOZ_ESPERA_MAX), stream=True)
     if r.status_code != 200:
         texto = r.text.lower()
         if r.status_code in (401, 402, 403) or any(p in texto for p in ("invalid_api_key", "authentication", "quota")):
@@ -298,6 +311,11 @@ def sintetizar_eleven_en_vivo(texto, voz_id, clave=None, velocidad=None):
         yield from r.iter_content(chunk_size=4800)          # 0,1 s de audio por pedazo
     finally:
         r.close()
+
+
+def _sin_tildes(t):
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFD", str(t).lower()) if unicodedata.category(c) != "Mn")
 
 
 def _registro_voz(linea):
@@ -341,6 +359,7 @@ class Voz:
         self.termino = 0.0        # cuándo terminó de decir la última frase
         self._en_curso = False    # el hilo de la voz está con una frase (generándola o diciéndola)
         self._cortar = False      # callar() pidió cortar la frase en vivo
+        self.dichos = []          # (cuándo, texto) de lo último que dijo: para no tomarse a sí misma como una orden
         self._cola = queue.Queue()
         self._eleven_ok = bool(config.ELEVEN_API_KEY)
         self._voz_id = None
@@ -432,8 +451,30 @@ class Voz:
     def decir(self, texto):
         texto = para_voz(texto)
         if texto:
+            self.dichos = [d for d in self.dichos if time.time() - d[0] < 120][-7:] + [(time.time(), texto)]
             self.ocupada = True       # ya desde ahora: así nadie abre el micrófono mientras la prepara
             self._cola.put(texto)
+
+    def es_eco(self, oido, segundos=90):
+        """¿Lo que oyó el micrófono es lo que ella misma acaba de decir por los parlantes?
+
+        El 3 nov a las 21:53 anotó como orden su propio «Jefe, el cerebro está aquí…». Si pasa con «Decime dale y lo
+        saco volando», podría confirmarse sola. Cuenta como eco si casi todo lo oído es un pedazo seguido de una frase
+        suya reciente (un «dale» tuyo solo no lo es).
+        """
+        import difflib
+        pal = re.findall(r"\w+", _sin_tildes(oido))
+        if len(pal) < 3:
+            return False
+        for cuando, dicho in self.dichos:
+            if time.time() - cuando > segundos:
+                continue
+            suyas = re.findall(r"\w+", _sin_tildes(dicho))
+            bloques = difflib.SequenceMatcher(None, pal, suyas, autojunk=False).get_matching_blocks()
+            iguales = sum(b.size for b in bloques)
+            if iguales / len(pal) >= 0.75 and max(b.size for b in bloques) >= 3:
+                return True
+        return False
 
     def callado(self, pausa=0.35):
         """¿Terminó de hablar (hace al menos «pausa» segundos)? Para abrir el micrófono sin que se escuche a sí misma."""
@@ -529,11 +570,15 @@ class Voz:
         import sounddevice as sd
         dispositivo = config.VOZ_DISPOSITIVO
         dispositivo = int(dispositivo) if dispositivo.isdigit() else (dispositivo or None)
-        if not self._eleven_ok:
+        def cargar_local():
             try:
-                self._piper("hola")          # deja la voz local cargada (y descargada la primera vez)
+                self._piper("hola")          # deja la voz local cargada: es el respaldo si internet anda lento
             except Exception as e:  # noqa: BLE001
                 print(f"[voz] No pude preparar la voz local ({e}).")
+        if self._eleven_ok:
+            threading.Thread(target=cargar_local, daemon=True, name="voz-local").start()
+        else:
+            cargar_local()
         while True:
             texto = self._cola.get()
             self.ocupada = self._en_curso = True
@@ -541,12 +586,25 @@ class Voz:
             t0 = time.time()
             try:
                 if self._eleven_ok and config.VOZ_EN_VIVO and not self._archivo(texto).exists():
+                    lenta = False
                     try:
                         if self._decir_en_vivo(texto, dispositivo, t0):
                             continue
+                    except (requests.Timeout, requests.ConnectionError):   # internet lento o cortado
+                        lenta = True
+                        _registro_voz(f"ElevenLabs no contestó en {config.VOZ_ESPERA_MAX:.1f} s: hablo con la voz local")
                     except Exception as e:  # noqa: BLE001
                         print(f"[voz] ElevenLabs en vivo falló ({e}); pruebo de la forma normal.")
-                audio, sr = self._sintetizar(texto)
+                    if self._cortar:
+                        continue
+                    if lenta:
+                        audio, sr = self._piper(texto)
+                    else:
+                        audio, sr = self._sintetizar(texto)
+                else:
+                    audio, sr = self._sintetizar(texto)
+                if self._cortar:                     # la cortaste mientras se generaba: no suena encima de tu orden
+                    continue
                 _registro_voz(f"{'guardada' if self._eleven_ok else 'voz local'}: lista en {time.time() - t0:.2f} s "
                               f"({len(texto)} letras)")
                 if not len(audio):
