@@ -334,6 +334,13 @@ def probar_rapido():
                   "respuesta": "¡Buenas, gente!"})["respuesta"].startswith("¡Soy Hogger el H"), True),
               ("«presentate» con su nombre: igual", router._con_su_nombre("presentate", "responder", {
                   "respuesta": "¡Soy Hogger el H!"})["respuesta"], "¡Soy Hogger el H!"),
+              ("«el sábado» y la IA puso «sábado 14» → el 7 (4 nov)", H.corregir_dia(
+                  "arma una banda para deadmines el sábado a las 6", "sábado 14", dt.date(2026, 11, 4)), "sabado"),
+              ("«el sábado» y la IA puso el 7 → se queda", H.corregir_dia(
+                  "arma una banda el sábado a las 6", "sábado 7", dt.date(2026, 11, 4)), "sábado 7"),
+              ("«el sábado de la semana que viene» → el 14", str(H.resolver_dia(H.corregir_dia(
+                  "una banda el sábado de la semana que viene", "sábado 14", dt.date(2026, 11, 4)),
+                  dt.date(2026, 11, 4))[0]), "2026-11-14"),
               ("«Buenas noche» → «Buenas noches»", router._buenas_noches("responder", {
                   "respuesta": "¡Buenas noche, gente! Buenos día no."})["respuesta"], "¡Buenas noches, gente! Buenos días no."),
               ("«Buenas noches» queda igual", router._buenas_noches("responder", {
@@ -706,14 +713,17 @@ def probar_overlays():
         propuesta = Path(p["propuesta"]).read_bytes()
         casos += [("a Claude no le llega la contraseña de OBS", any("SECRETO123" in v for v in vio), False),
                   ("propuesta: sin BETA", b'realmTag: ""' in propuesta and b"BETA" not in propuesta, True),
-                  ("propuesta: la contraseña sigue igual en el archivo", b'obsPassword: "SECRETO123"' in propuesta, True),
+                  ("la copia de trabajo no tiene la contraseña en claro", b"SECRETO123" in propuesta, False),
                   ("propuesta: bytes raros y saltos de línea intactos", (b"Caf\xe9" in propuesta, b"\r\n" in propuesta),
                    (True, True)),
                   ("antes del «dale», tu archivo no cambia", (tmp / "overlay-tiktok-misterache.html").read_bytes() == original,
                    True)]
         r = M.aplicar(p, cl=cl)
         copias = list((tmp / "_copias").glob("overlay-tiktok-misterache_*.html"))
-        casos += [("con el «dale»: cambia el archivo", (tmp / "overlay-tiktok-misterache.html").read_bytes() == propuesta, True),
+        casos += [("con el «dale»: cambia el archivo y la contraseña queda", (tmp / "overlay-tiktok-misterache.html"
+                                                                             ).read_bytes() == original.replace(
+                       b'realmTag: "BETA"', b'realmTag: ""'), True),
+                  ("con el «dale»: borra la copia de trabajo", Path(p["propuesta"]).exists(), False),
                   ("guarda una copia idéntica del original", len(copias) == 1 and copias[0].read_bytes() == original, True),
                   ("recarga solo esa fuente", ("PressInputPropertiesButton", {"inputName": "Overlay ttiktok",
                                                                            "propertyName": "refreshnocache"}) in cl.llamadas, True),

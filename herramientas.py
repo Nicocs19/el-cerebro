@@ -406,8 +406,11 @@ def corregir_dia(texto, fecha_ia, hoy=None):
         d_ia, _ = resolver_dia(fecha_ia, hoy)
     except ErrorOrden:
         return dicho
-    if solo_nombre:                       # dijo "el viernes": basta con que la IA haya puesto un viernes
-        return fecha_ia if d_ia.weekday() == d_dicho.weekday() else dicho
+    if solo_nombre:                       # dijo "el sábado": el que viene (la IA puso «sábado 14» y era el 7)
+        hoy_ = hoy or dt.date.today()
+        if d_ia == d_dicho or (d_dicho == hoy_ and d_ia == hoy_ + dt.timedelta(days=7)):
+            return fecha_ia
+        return dicho
     return fecha_ia if d_ia == d_dicho else dicho
 
 

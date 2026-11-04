@@ -241,8 +241,11 @@ def ver(cl=None):
             if partes:
                 lineas.append(f"- {e['nombre']}: " + "; ".join(partes))
         propios = [n for n in dict.fromkeys(nombres) if not n.startswith(overlays.PREFIJO)]
+        locales = [n for n in propios if inv["overlays"][n]["archivo"]]
+        de_internet = len(propios) - len(locales)
         if propios:
-            cortas.append(f"en el {lz['tipo']}, " + ", ".join(propios[:3]) + (" y más" if len(propios) > 3 else ""))
+            cortas.append(f"en el {lz['tipo']}, " + (", ".join(locales[:4]) or "ninguno tuyo") +
+                          (f" y {de_internet} de internet" if de_internet else ""))
     corta = ("Tenés " + "; ".join(cortas) + ". Te dejo el detalle en pantalla.") if cortas else "No encontré overlays en tu OBS."
     return corta, "\n".join(lineas)
 
@@ -410,14 +413,26 @@ def preparar_cambio(cual, cambio, lienzo="", cl=None, claude=None, dicho=""):
     texto = crudo.decode("utf-8", "surrogateescape")
     tapado, ocultos = tapar(texto)
     propuesta = _pedir_cambios(o, cambio, tapado, d, claude, dicho)
-    nuevo = destapar(aplicar_cambios(tapado, propuesta["cambios"]), ocultos)
-    nuevo_bytes = nuevo.encode("utf-8", "surrogateescape")
+    nuevo_tapado = aplicar_cambios(tapado, propuesta["cambios"])
+    destapar(nuevo_tapado, ocultos)                  # que se pueda destapar; se destapa recién con el «dale»
+    _limpiar_propuestas()
     sello = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
     copia_nueva = _carpeta_trabajo() / f"{archivo.stem}_{sello}_propuesta{archivo.suffix}"
-    copia_nueva.write_bytes(nuevo_bytes)
+    copia_nueva.write_bytes(nuevo_tapado.encode("utf-8", "surrogateescape"))   # sin la contraseña en claro
     return {"tipo": "archivo", "fuente": o["nombre"], "archivo": str(archivo), "propuesta": str(copia_nueva),
             "sha_antes": hashlib.sha1(crudo).hexdigest(), "resumen": propuesta["resumen"], "lienzo": d["lienzo"],
             "escena": d["escena"], "en_vivo": _en_vivo(cl)}
+
+
+def _limpiar_propuestas(horas=2):
+    """Las propuestas viejas (cambios que no se aplicaron) se borran: son copias de trabajo de Hogger."""
+    limite = time.time() - horas * 3600
+    for f in _carpeta_trabajo().glob("*_propuesta.*"):
+        try:
+            if f.stat().st_mtime < limite:
+                f.unlink()
+        except OSError:
+            pass
 
 
 def _pedir_cambios(o, cambio, contenido, d, claude=None, dicho=""):
@@ -559,11 +574,18 @@ def aplicar(datos, cl=None):
         actual = orig.read_bytes()
         if hashlib.sha1(actual).hexdigest() != datos["sha_antes"]:
             raise Error("El archivo del overlay cambió desde que preparé el cambio. Pedímelo de nuevo.")
+        _, ocultos = tapar(actual.decode("utf-8", "surrogateescape"))      # las mismas marcas que vio Claude
+        propuesta = Path(datos["propuesta"])
+        nuevo = destapar(propuesta.read_bytes().decode("utf-8", "surrogateescape"), ocultos)
         copias = orig.parent / "_copias"
         copias.mkdir(exist_ok=True)
         copia = copias / f"{orig.stem}_{sello}{orig.suffix}"
         shutil.copy2(orig, copia)                   # el original, siempre
-        orig.write_bytes(Path(datos["propuesta"]).read_bytes())
+        orig.write_bytes(nuevo.encode("utf-8", "surrogateescape"))
+        try:
+            propuesta.unlink()                      # ya no hace falta la copia de trabajo
+        except OSError:
+            pass
         _recargar(cl, datos["fuente"])
         time.sleep(2.5)
         o = inventario(cl)["overlays"].get(datos["fuente"]) or {}
