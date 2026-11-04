@@ -326,6 +326,10 @@ def probar_rapido():
                   "respuesta": "¡Buenas, gente!"})["respuesta"].startswith("¡Soy Hogger el H"), True),
               ("«presentate» con su nombre: igual", router._con_su_nombre("presentate", "responder", {
                   "respuesta": "¡Soy Hogger el H!"})["respuesta"], "¡Soy Hogger el H!"),
+              ("«Buenas noche» → «Buenas noches»", router._buenas_noches("responder", {
+                  "respuesta": "¡Buenas noche, gente! Buenos día no."})["respuesta"], "¡Buenas noches, gente! Buenos días no."),
+              ("«Buenas noches» queda igual", router._buenas_noches("responder", {
+                  "respuesta": "¡Buenas noches!"})["respuesta"], "¡Buenas noches!"),
               ("otra charla: no agrega el nombre", router._con_su_nombre("contame un chiste", "responder", {
                   "respuesta": "¿Qué hace un gnoll?"})["respuesta"], "¿Qué hace un gnoll?")]
     bien = 0

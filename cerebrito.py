@@ -164,10 +164,10 @@ class Cerebrito:
         oro, oro_luz, hierro, hierro_luz = "#D2A848", "#F3DE9E", "#4A4A53", "#6F7080"
         metal, plata, madera, cuero, tela = "#C3C9D1", "#E2E5EA", "#7A4E2A", "#2E2422", "#8A2222"
 
-        grados = {"escuchando": 0.0, "pensando": 6 + 2 * math.sin(t * 2), "hablando": 2.5 * math.sin(t * 2.4),
+        grados = {"escuchando": 0.0, "pensando": 5 + 1.5 * math.sin(t * 2), "hablando": 2.5 * math.sin(t * 2.4),
                   "ok": 4 * math.sin(t * 5), "error": 5 * math.sin(t * 7)}.get(estado, 3 * math.sin(t * 0.8))
         salto = {"escuchando": 7 * n, "hablando": 4 * n}.get(estado, 0) + 2 * math.sin(t * 1.6)
-        cx, cy = m, m + 8 - salto
+        cx, cy = m, m + 5 - salto
         if picado:
             grados = 3 * math.sin(t * 9)
             cx += random.uniform(-1.5, 1.5)
@@ -221,11 +221,11 @@ class Cerebrito:
         ovalo(-97, 4, 3, fill=cuero, outline="")
 
         # --- la maza (abajo a la derecha): mango y bola con pinchos
-        linea([(74, 74), (98, 100)], fill=borde, width=9)
-        linea([(74, 74), (98, 100)], fill=madera, width=5)
-        pinchos(100, 104, 12, 7, 7, plata)
-        ovalo(100, 104, 13, fill="#8E949E", outline=borde, width=3)
-        ovalo(96, 99, 5, 3.5, fill=plata, outline="")
+        linea([(70, 66), (90, 88)], fill=borde, width=9)
+        linea([(70, 66), (90, 88)], fill=madera, width=5)
+        pinchos(92, 92, 11, 7, 6, plata)
+        ovalo(92, 92, 12, fill="#8E949E", outline=borde, width=3)
+        ovalo(88, 87, 4.5, 3, fill=plata, outline="")
 
         # --- pecho de armadura oscura con trapo rojo, y la H de la hermandad
         poligono([(-44, 48), (44, 48), (58, 110), (-58, 110)], fill="#3A3230", outline=borde, width=3)
@@ -270,32 +270,31 @@ class Cerebrito:
         for x in (-28, -10, 10, 28):
             ovalo(x, 42, 2.6, fill=plata, outline="")
 
-        # --- orejas redondas de hiena: paradas cuando te escucha, caídas si algo salió mal, con un tic
+        # --- orejas de gnoll, puntiagudas y hacia afuera: se paran cuando te escucha, se caen si algo salió mal
         tic = 6 * max(0.0, math.sin(t * 2.7)) ** 12
-        punta = {"escuchando": (-52, -96), "error": (-80, -54), "pensando": (-64, -82),
-                 "ok": (-58, -88)}.get(estado, (-60 - tic, -84 + tic))
+        punta = {"escuchando": (-66, -92), "error": (-88, -46), "pensando": (-78, -72),
+                 "ok": (-72, -84)}.get(estado, (-77 - tic, -78 + tic))
         for lado in (-1, 1):
             px_, py_ = punta
             if estado == "pensando" and lado == 1:
-                px_, py_ = -54, -94                        # una oreja más parada que la otra
-            ext = [(-46, -40), (px_ - 7, py_ + 10), (px_, py_), (px_ + 10, py_ + 2), (-24, -58)]
-            inn = [(-42, -46), (px_ * 0.9 - 4, py_ * 0.92 + 8), (px_ * 0.9, py_ * 0.92), (px_ * 0.9 + 7, py_ * 0.92 + 3),
-                   (-28, -58)]
-            poligono(ext if lado < 0 else espejo(ext), smooth=True, fill="#3E2C1C", outline=borde, width=3)
-            poligono(inn if lado < 0 else espejo(inn), smooth=True, fill="#8E5E50", outline="")
+                px_, py_ = -66, -90                        # una oreja más parada que la otra
+            ext = [(-47, -34), (px_ * 0.6 - 24, py_ * 0.6 - 12), (px_, py_), (-26, -60)]
+            inn = [(-44, -40), (px_ * 0.85 - 5, py_ * 0.85 - 4), (-31, -57)]
+            poligono(ext if lado < 0 else espejo(ext), fill="#3E2C1C", outline=borde, width=3, joinstyle="round")
+            poligono(inn if lado < 0 else espejo(inn), fill="#8E5E50", outline="", joinstyle="round")
 
-        # --- cresta de mechones con rayas negras (como la foto) que se mece
-        vaiven = 3 * math.sin(t * 1.9)
-        sube = 3 if estado == "escuchando" else 0
-        for i, x in enumerate((-15, 15, -7.5, 7.5, 0)):
-            alto = -110 + abs(x) * 0.6 - sube
-            punta_x = x * 1.9 + vaiven * (1 + abs(x) / 15)
-            mechon = [(x - 10, -54), (punta_x, alto), (x + 10, -54)]
-            poligono(mechon, fill="#E9E5DD" if i % 2 == 0 else "#D2CDC4", outline=borde, width=2)
-            for y0, y1 in ((-82, -75), (-98, -91)):          # rayas negras parejas: melena de cebra
-                raya = _recortar(_recortar(mechon, y0, True), y1, False)
-                if len(raya) >= 3:
-                    poligono(raya, fill="#24201E", outline="")
+        # --- cresta: mohicano de pelo parado con puntas, a rayas blancas y negras como la foto, que se mece
+        v = 3 * math.sin(t * 1.9)
+        sube = 4 if estado == "escuchando" else 0
+        forma = [(-12, -56), (-16, -72), (-23, -86), (-15, -85), (-18, -100), (-8, -93), (-4, -110), (1, -98),
+                 (8, -108), (10, -93), (19, -99), (15, -84), (22, -85), (15, -71), (12, -56)]
+        cresta = [(x * 1.35 + v * (-56 - y) / 50, y - sube * (-56 - y) / 50) for x, y in forma]
+        poligono(cresta, fill="#E6E2DA", outline="")
+        for y0 in (-70, -81, -92, -103):                  # rayas negras finitas: pelo de cebra
+            franja = _recortar(_recortar(cresta, y0 - 4.5, True), y0, False)
+            if len(franja) >= 3:
+                poligono(franja, fill="#2A2522", outline="")
+        poligono(cresta, fill="", outline=borde, width=3, joinstyle="round")
 
         # --- cabeza: hiena gris parda con manchas negras y mechones en los cachetes
         for lado in (-1, 1):
@@ -318,11 +317,11 @@ class Cerebrito:
                  outline="#120C0A", width=2)
         for x in (-40, -20, 0, 20, 40):
             y = (arriba_(x) + abajo_(x)) / 2 + 1
-            largo = 16 if abs(x) == 40 else 11
+            largo = 24 if abs(x) == 40 else 17
             dx, dy = x, y + 15                               # apuntan hacia afuera de la cabeza
             d = math.hypot(dx, dy) or 1
             ux, uy = dx / d, dy / d
-            base = [(x - uy * 5.5, y + ux * 5.5), (x + uy * 5.5, y - ux * 5.5)]
+            base = [(x - uy * 7, y + ux * 7), (x + uy * 7, y - ux * 7)]
             poligono(base + [(x + ux * largo, y + uy * largo)], fill="#D9B465", outline=borde, width=2)
             ovalo(x, y, 2.6, fill=plata, outline="")
 

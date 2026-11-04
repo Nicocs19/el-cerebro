@@ -527,6 +527,15 @@ def _suavizar(texto, nombre, args):
     return args
 
 
+def _buenas_noches(nombre, args):
+    """La IA a veces dice «¡Buenas noche!» o «Buen día» mal: «Buenas noches», «Buenas tardes», «Buenos días»."""
+    if nombre != "responder" or not isinstance(args.get("respuesta"), str):
+        return args
+    t = re.sub(r"\b(buenas) (noche|tarde)\b", r"\1 \2s", args["respuesta"], flags=re.I)
+    t = re.sub(r"\b(buenos) (dia|día)\b", r"\1 días", t, flags=re.I)
+    return {**args, "respuesta": t} if t != args["respuesta"] else args
+
+
 PIDE_PRESENTARSE = re.compile(r"\bpresent(a|á|e)te\b|\bpresentar(te|se)\b|\bquien (sos|eres)\b|"
                               r"\bcomo te (llamas|llamás)\b|\btu nombre\b")
 
@@ -966,7 +975,7 @@ def _pulir(texto, pendiente, nombre, args):
     nombre, args = _descripcion_si_la_pidio(texto, nombre, args)
     nombre, args = _completar_combo(texto, nombre, args)
     nombre, args = _ban_de_la_charla(texto, nombre, _sin_groserias(texto, nombre, _limpiar_respuesta(nombre, args)))
-    args = _con_su_nombre(texto, nombre, _suavizar(texto, nombre, args))
+    args = _con_su_nombre(texto, nombre, _suavizar(texto, nombre, _buenas_noches(nombre, args)))
     nombre, args = _variar(texto, pendiente, nombre, args)
     args = _usuario_de_la_charla(nombre, args)
     _no_en_tiktok(texto, nombre, args)
