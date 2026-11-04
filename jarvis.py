@@ -500,9 +500,12 @@ class Voz:
         import sounddevice as sd
         pedazos = sintetizar_eleven_en_vivo(texto, self._eleven_voz(), velocidad=_velocidad_base())
         guardado, resto, espera, primero = bytearray(), b"", [], None
-        colchon = int(ELEVEN_SR * 0.15)              # 0,15 s de colchón para que no se entrecorte al arrancar
+        colchon = 0.15                               # segundos de audio antes de arrancar (con internet bueno)
+        estimada = max(1.0, len(texto) / 17.0)       # cuánto va a durar la frase (unas 17 letras por segundo)
+        llegada = None                               # cuándo llegó el primer pedazo
         stream = None
         completa = False
+        cortes = 0
         try:
             for pedazo in pedazos:
                 if not pedazo:
@@ -516,8 +519,16 @@ class Voz:
                     break
                 if stream is None:
                     espera.append(audio)
-                    if sum(len(a) for a in espera) < colchon:
-                        continue
+                    llegada = llegada or time.time()
+                    tengo = sum(len(a) for a in espera) / ELEVEN_SR
+                    pasado = time.time() - llegada
+                    necesito = colchon
+                    if pasado > 0.4 and tengo / pasado < 1.0:
+                        # Llega más lento de lo que se dice: junto lo justo para que no se entrecorte en el medio
+                        # (con un ritmo parejo alcanza con duración × (1 − ritmo), más un margen).
+                        necesito = max(colchon, estimada * (1 - tengo / pasado) + 0.3)
+                    if tengo < min(necesito, estimada) or (pasado < 0.3 and tengo < 0.6):
+                        continue                 # (los primeros 0,3 s sirven para medir a qué ritmo llega)
                     stream = sd.OutputStream(samplerate=ELEVEN_SR, channels=1, dtype="float32", device=dispositivo)
                     stream.start()
                     primero = time.time() - t0
@@ -526,7 +537,8 @@ class Voz:
                 if self._cortar:                     # callar() la cortó
                     break
                 self.nivel = float(np.sqrt(np.mean(audio ** 2))) * 3 if len(audio) else 0.0
-                stream.write(audio.reshape(-1, 1))
+                if stream.write(audio.reshape(-1, 1)):   # True = se quedó sin datos un momento (se entrecortó)
+                    cortes += 1
             else:
                 completa = True
             if stream is None and espera and not self._cortar:   # frase cortita: entró toda en el colchón
@@ -563,7 +575,7 @@ class Voz:
             except OSError:
                 pass
         _registro_voz(f"ElevenLabs en vivo: empezó a sonar en {primero:.2f} s, terminó en {time.time() - t0:.1f} s "
-                      f"({len(texto)} letras)")
+                      f"({len(texto)} letras)" + (f", se entrecortó {cortes} veces" if cortes > 1 else ""))
         return True
 
     def _hilo(self):
