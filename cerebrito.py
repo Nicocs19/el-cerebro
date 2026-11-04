@@ -2,7 +2,7 @@
 
 Diseño «hogger» (CEREBRO_DISENO, el de siempre ahora): ver Cerebrito._dibujar_hogger.
 
-Diseño «gafas» (el de siempre ahora): un cerebro relajado y medio bobo, con gafas redondas de colores,
+Diseño «gafas» (el de antes): un cerebro relajado y medio bobo, con gafas redondas de colores,
 ojos a media asta, dientes de conejo y colores que cambian despacito.
 - quieto: se balancea tranquilo, con los ojos a media asta y la mirada perdida.
 - escuchando: se baja las gafas y te mira con los ojos bien abiertos; le salen ondas con tu voz.
@@ -144,29 +144,30 @@ class Cerebrito:
 
     # ------------------------------------------------------------ Hogger el H
     def _dibujar_hogger(self, estado, t, n):
-        """Hogger el H: un gnoll de dibujito, jefe de la manada de The H's.
+        """Hogger el H: un gnoll de dibujito, jefe de la manada de The H's (diseño propio, no el modelo del juego).
 
-        Hiena con manchas, cresta a rayas blancas y negras, orejas que se paran cuando te escucha, hocico oscuro
-        con colmillos, collar con pinchos y la medalla de la H, hombreras de bronce. Diseño propio (no es el
-        modelo del juego).
+        Como la foto de referencia: hiena gris parda con manchas negras, cresta a rayas, vincha con pinchos en la
+        frente, sonrisa llena de dientes, hombrera dorada grande de un lado y una de hierro con anillos del otro,
+        el hacha a tu izquierda y la maza asomando abajo a la derecha. La H de la hermandad va en el pecho.
+        Las orejas se paran cuando te escucha y se caen si algo salió mal.
         """
         c = self.c
         c.delete("all")
         m = self.TAM / 2
         color = COLOR_ESTADO.get(estado, "#E8C468")
-        arcoiris = t / 24.0
         animo = getattr(self, "animo", None)
         picado = bool(animo) and animo[0] == "picado" and time.time() < animo[1] and estado in ("hablando", "quieto", "oculto")
-        pelo, pelo_luz, mancha, borde = "#C99B5B", "#E2BE84", "#5E3B1C", "#2E1C0C"
+        pelo, pelo_luz, mancha, borde = "#B49C72", "#D2BE93", "#2B2016", "#24170C"
         if picado:                                            # se calentó: pelo rojizo
-            pelo, pelo_luz, mancha = "#D9714E", "#F0A27E", "#6E1E12"
-        hocico, nariz, boca = "#463C36", "#120E0C", "#5B1020"
-        bronce, bronce_luz, metal, tela = "#A9772F", "#D8AE5E", "#E6E0D0", "#7A2020"
+            pelo, pelo_luz, mancha = "#D06A48", "#EE9C78", "#5E1A10"
+        hocico, nariz, boca = "#5A544E", "#120E0C", "#5B1020"
+        oro, oro_luz, hierro, hierro_luz = "#D2A848", "#F3DE9E", "#4A4A53", "#6F7080"
+        metal, plata, madera, cuero, tela = "#C3C9D1", "#E2E5EA", "#7A4E2A", "#2E2422", "#8A2222"
 
-        grados = {"escuchando": 0.0, "pensando": 7 + 2 * math.sin(t * 2), "hablando": 2.5 * math.sin(t * 2.4),
-                  "ok": 4 * math.sin(t * 5), "error": 6 * math.sin(t * 7)}.get(estado, 3 * math.sin(t * 0.8))
-        salto = {"escuchando": 8 * n, "hablando": 4 * n}.get(estado, 0) + 2 * math.sin(t * 1.6)
-        cx, cy = m, m + 9 - salto
+        grados = {"escuchando": 0.0, "pensando": 6 + 2 * math.sin(t * 2), "hablando": 2.5 * math.sin(t * 2.4),
+                  "ok": 4 * math.sin(t * 5), "error": 5 * math.sin(t * 7)}.get(estado, 3 * math.sin(t * 0.8))
+        salto = {"escuchando": 7 * n, "hablando": 4 * n}.get(estado, 0) + 2 * math.sin(t * 1.6)
+        cx, cy = m, m + 8 - salto
         if picado:
             grados = 3 * math.sin(t * 9)
             cx += random.uniform(-1.5, 1.5)
@@ -194,63 +195,136 @@ class Cerebrito:
         def espejo(puntos):
             return [(-x, y) for x, y in puntos]
 
+        def pinchos(x0, y0, r, n_, largo, fill):              # pinchos alrededor de una bola (la maza)
+            for k in range(n_):
+                a = k * 2 * math.pi / n_ + 0.3
+                base = [(x0 + r * math.cos(a + d), y0 + r * math.sin(a + d)) for d in (-0.32, 0.32)]
+                poligono(base + [(x0 + (r + largo) * math.cos(a), y0 + (r + largo) * math.sin(a))], fill=fill,
+                         outline=borde, width=2)
+
         # aura del estado (quieto no tiene)
         for i, a in enumerate((0.28, 0.18) if estado in COLOR_ESTADO else ()):
-            r = (92 + i * 10 + 6 * n) * s
+            r = (94 + i * 10 + 6 * n) * s
             c.create_oval(cx - r, cy - r * 0.85, cx + r, cy + r * 0.85, outline=_mezclar(color, a + 0.4 * n), width=3)
 
-        # --- cuerpo: pecho de tela roja, hombreras de bronce con un pincho
-        esc[0] = s * 0.92
-        poligono([(-42, 54), (42, 54), (58, 104), (-58, 104)], fill=tela, outline=borde, width=3)
-        for lado in (-1, 1):
-            poligono([(lado * 60, 56), (lado * 76, 56), (lado * 88, 30)], fill=metal, outline=borde, width=2)
-            ovalo(lado * 68, 80, 34, 25, fill=bronce, outline=borde, width=3)
-            ovalo(lado * 66, 74, 25, 15, fill=bronce_luz, outline="")
-            ovalo(lado * 60, 69, 9, 4, fill="#F3D99A", outline="")
-            linea([(lado * 38, 90), (lado * 68, 99), (lado * 98, 90)], smooth=True, fill=borde, width=3)
-            for rx_, ry_ in ((50, 86), (86, 86)):
-                ovalo(lado * rx_, ry_, 3, fill="#3A2A1A", outline="")
-        esc[0] = s * 1.1
+        esc[0] = s * 0.88
+        # --- el hacha (a tu izquierda): mango de madera y hoja de metal con filo brillante
+        abajo, arriba = (-66, 126), (-98, -8)
+        linea([abajo, arriba], fill=borde, width=9, capstyle="round")
+        linea([abajo, arriba], fill=madera, width=5, capstyle="round")
+        for k in (0.62, 0.72):                                # tiras de cuero en el mango
+            x, y = abajo[0] + (arriba[0] - abajo[0]) * k, abajo[1] + (arriba[1] - abajo[1]) * k
+            linea([(x - 5, y - 2), (x + 5, y + 2)], fill=cuero, width=3)
+        hoja = [(-99, -14), (-108, -22), (-120, -16), (-124, 2), (-118, 20), (-106, 26), (-92, 20)]
+        poligono(hoja, fill=metal, outline=borde, width=3, joinstyle="round")
+        linea([(-111, -19), (-121, -9), (-122, 4), (-116, 18), (-107, 23)], smooth=True, fill=plata, width=3)
+        ovalo(-97, 4, 3, fill=cuero, outline="")
 
-        # --- collar de cuero con pinchos y la medalla de la H
-        poligono([(-48, 38), (48, 38), (52, 60), (-52, 60)], fill="#2B2220", outline="#120C0A", width=3)
-        for x in (-40, -22, 22, 40):
-            lado = -1 if x < 0 else 1
-            poligono([(x - 6, 40), (x + 6, 40), (x + lado * 5, 22)], fill=metal, outline=borde, width=2)
-        ovalo(0, 50, 15, fill="#E8C468", outline="#6B4A12", width=3)
-        mx, my = P(0, 50.5)
-        c.create_text(mx, my, text="H", fill="#5A1A1A", font=("Georgia", int(15 * s), "bold"), angle=-grados)
+        # --- la maza (abajo a la derecha): mango y bola con pinchos
+        linea([(74, 74), (98, 100)], fill=borde, width=9)
+        linea([(74, 74), (98, 100)], fill=madera, width=5)
+        pinchos(100, 104, 12, 7, 7, plata)
+        ovalo(100, 104, 13, fill="#8E949E", outline=borde, width=3)
+        ovalo(96, 99, 5, 3.5, fill=plata, outline="")
 
-        # --- orejas: paradas cuando te escucha, caídas si algo salió mal, con un tic de vez en cuando
+        # --- pecho de armadura oscura con trapo rojo, y la H de la hermandad
+        poligono([(-44, 48), (44, 48), (58, 110), (-58, 110)], fill="#3A3230", outline=borde, width=3)
+        poligono([(-54, 98), (54, 98), (58, 110), (-58, 110)], fill=tela, outline=borde, width=2)
+        for x in (-26, 26):
+            ovalo(x, 64, 3, fill=plata, outline="")
+        ovalo(0, 80, 16, fill="#E8C468", outline="#6B4A12", width=3)
+        ovalo(-5, 74, 5, 3, fill="#F8E7AE", outline="")
+        mx, my = P(0, 80.5)
+        c.create_text(mx, my, text="H", fill="#5A1A1A", font=("Georgia", max(8, int(13 * s)), "bold"), angle=-grados)
+
+        # --- hombreras de metal (cúpula con borde y remaches, no de pan): de hierro con anillos a tu izquierda
+        #     y la dorada grande a tu derecha, como en la foto
+        def hombrera(x0, y0, rx, ry, fill, luz, anillos):
+            arco = [(x0 + rx * math.cos(math.radians(a)), y0 + ry * math.sin(math.radians(a))) for a in range(180, 361, 10)]
+            panza = [(x0 + rx * math.cos(math.radians(a)), y0 + 9 * math.sin(math.radians(a))) for a in range(15, 166, 15)]
+            poligono(arco + panza, fill=fill, outline=borde, width=3)
+            brillo = [(x0 + rx * 0.72 * math.cos(math.radians(a)), y0 - 4 + ry * 0.72 * math.sin(math.radians(a)))
+                      for a in range(200, 271, 10)]
+            linea(brillo, fill=luz, width=5, capstyle="round")
+            abajo_ = [(x0 + (rx + 2) * math.cos(math.radians(a)), y0 + 17 * math.sin(math.radians(a)))
+                      for a in range(0, 181, 15)]
+            poligono(panza[::-1] + [(x0 - rx, y0)] + abajo_[::-1] + [(x0 + rx + 2, y0)], fill="#26221F", outline=borde,
+                     width=2)
+            for a in (25, 60, 90, 120, 155):
+                x, y = x0 + (rx - 2) * math.cos(math.radians(a)), y0 + 13 * math.sin(math.radians(a))
+                if anillos:
+                    ovalo(x, y, 4, fill="", outline=plata, width=2)
+                else:
+                    ovalo(x, y, 2.6, fill=plata, outline="")
+
+        hombrera(-66, 74, 32, 30, hierro, hierro_luz, True)
+        ovalo(-74, 98, 10, 9, fill="#5A3B26", outline=borde, width=3)   # el puño que agarra el hacha
+        for k in (-3, 1, 5):
+            linea([(-81, 94 + k), (-69, 96 + k)], fill=borde, width=1)
+        hombrera(66, 70, 42, 40, oro, oro_luz, False)
+        ovalo(48, 44, 5, 3, fill="#FFFAEA", outline="")
+        esc[0] = s
+
+        # --- collar de cuero con remaches
+        poligono([(-40, 34), (40, 34), (44, 50), (-44, 50)], fill=cuero, outline="#120C0A", width=3)
+        for x in (-28, -10, 10, 28):
+            ovalo(x, 42, 2.6, fill=plata, outline="")
+
+        # --- orejas redondas de hiena: paradas cuando te escucha, caídas si algo salió mal, con un tic
         tic = 6 * max(0.0, math.sin(t * 2.7)) ** 12
-        punta = {"escuchando": (-56, -104), "error": (-86, -60), "pensando": (-70, -90),
-                 "ok": (-62, -98)}.get(estado, (-66 - tic, -94 + tic))
+        punta = {"escuchando": (-52, -96), "error": (-80, -54), "pensando": (-64, -82),
+                 "ok": (-58, -88)}.get(estado, (-60 - tic, -84 + tic))
         for lado in (-1, 1):
             px_, py_ = punta
             if estado == "pensando" and lado == 1:
-                px_, py_ = -60, -100                       # una oreja más parada que la otra
-            ext = [(-46, -42), (px_, py_), (-18, -60)]
-            inn = [(-40, -46), (px_ * 0.85 - 4, py_ * 0.88), (-24, -58)]
-            poligono(ext if lado < 0 else espejo(ext), fill="#4E3720", outline=borde, width=3)
-            poligono(inn if lado < 0 else espejo(inn), fill="#B9786A", outline="")
+                px_, py_ = -54, -94                        # una oreja más parada que la otra
+            ext = [(-46, -40), (px_ - 7, py_ + 10), (px_, py_), (px_ + 10, py_ + 2), (-24, -58)]
+            inn = [(-42, -46), (px_ * 0.9 - 4, py_ * 0.92 + 8), (px_ * 0.9, py_ * 0.92), (px_ * 0.9 + 7, py_ * 0.92 + 3),
+                   (-28, -58)]
+            poligono(ext if lado < 0 else espejo(ext), smooth=True, fill="#3E2C1C", outline=borde, width=3)
+            poligono(inn if lado < 0 else espejo(inn), smooth=True, fill="#8E5E50", outline="")
 
-        # --- cresta a rayas (blanco, negro y gris) que se mece
+        # --- cresta de mechones con rayas negras (como la foto) que se mece
         vaiven = 3 * math.sin(t * 1.9)
-        for i, x in enumerate((-27, 27, -18, 18, -9, 9, 0)):
-            alto = -98 + abs(x) * 0.8 - (8 if estado == "escuchando" else 0)
-            punta_x = x * 1.6 + vaiven * (1 + abs(x) / 27)
-            poligono([(x - 8, -46), (x + 8, -46), (punta_x, alto)], fill=("#E3E0D8", "#1C1A1A", "#8E8A84")[i % 3],
-                     outline=borde, width=2)
+        sube = 3 if estado == "escuchando" else 0
+        for i, x in enumerate((-15, 15, -7.5, 7.5, 0)):
+            alto = -110 + abs(x) * 0.6 - sube
+            punta_x = x * 1.9 + vaiven * (1 + abs(x) / 15)
+            mechon = [(x - 10, -54), (punta_x, alto), (x + 10, -54)]
+            poligono(mechon, fill="#E9E5DD" if i % 2 == 0 else "#D2CDC4", outline=borde, width=2)
+            for y0, y1 in ((-82, -75), (-98, -91)):          # rayas negras parejas: melena de cebra
+                raya = _recortar(_recortar(mechon, y0, True), y1, False)
+                if len(raya) >= 3:
+                    poligono(raya, fill="#24201E", outline="")
 
-        # --- cabeza: hiena con manchas y mechones en los cachetes
+        # --- cabeza: hiena gris parda con manchas negras y mechones en los cachetes
         for lado in (-1, 1):
             mechon = [(-44, -26), (-62, -14), (-49, -8), (-60, 4), (-44, 6), (-50, 16), (-34, 14)]
             poligono(mechon if lado < 0 else espejo(mechon), fill=pelo, outline=borde, width=3)
-        ovalo(0, -12, 50, 46, fill=pelo, outline=borde, width=3)
-        ovalo(-20, -40, 16, 8, fill=pelo_luz, outline="")
-        for dx, dy, rx_, ry_ in ((-28, -38, 5, 4), (-12, -46, 4, 3), (12, -46, 5, 3.5), (28, -38, 4, 3.5),
-                                 (-38, -16, 4, 4), (38, -14, 4.5, 4), (-34, 6, 3, 3), (34, 8, 3.5, 3)):
+        ovalo(0, -15, 50, 50, fill=pelo, outline=borde, width=3)
+        ovalo(-22, -56, 12, 4, fill=pelo_luz, outline="")
+        for dx, dy, rx_, ry_ in ((-44, -14, 4, 4), (44, -12, 4.5, 4), (-38, 4, 3.5, 3.5), (38, 6, 4, 3), (-34, -4, 2.5, 2.5),
+                                 (33, -4, 2.5, 2.5), (-44, 14, 3, 3), (44, 16, 3, 2.5), (-8, -63, 3, 2), (10, -62, 3, 2)):
             ovalo(dx, dy, rx_, ry_, fill=mancha, outline="")
+
+        # --- vincha de cuero en la frente con pinchos de hueso
+        def arriba_(x):
+            return -62 + 22 * (x / 50) ** 2
+
+        def abajo_(x):
+            return -52 + 22 * (x / 48) ** 2
+        xs = [-48 + 8 * k for k in range(13)]
+        poligono([(x, arriba_(x)) for x in xs] + [(x, abajo_(x) + 1) for x in reversed(xs)], fill="#3B2C24",
+                 outline="#120C0A", width=2)
+        for x in (-40, -20, 0, 20, 40):
+            y = (arriba_(x) + abajo_(x)) / 2 + 1
+            largo = 16 if abs(x) == 40 else 11
+            dx, dy = x, y + 15                               # apuntan hacia afuera de la cabeza
+            d = math.hypot(dx, dy) or 1
+            ux, uy = dx / d, dy / d
+            base = [(x - uy * 5.5, y + ux * 5.5), (x + uy * 5.5, y - ux * 5.5)]
+            poligono(base + [(x + ux * largo, y + uy * largo)], fill="#D9B465", outline=borde, width=2)
+            ovalo(x, y, 2.6, fill=plata, outline="")
 
         # --- ojos ámbar con pupila de fiera
         self._mover_mirada(estado, t)
@@ -260,8 +334,8 @@ class Cerebrito:
         parpadea = estado not in ("ok", "error", "escuchando") and ahora >= self.prox_parpadeo
         for lado in (-1, 1):
             ox, oy = P(lado * 21, -20)
-            grande = 1.25 if estado == "escuchando" else 1.0
-            rx, ry = 11 * s * grande, 8.5 * s * grande
+            grande = 1.2 if estado == "escuchando" else 1.0
+            rx, ry = 10.5 * s * grande, 8 * s * grande
             if estado == "ok":                                   # ojos felices ^ ^
                 c.create_arc(ox - rx, oy - ry * 0.4, ox + rx, oy + ry * 1.4, start=20, extent=140,
                              style="arc", outline=borde, width=4)
@@ -270,7 +344,7 @@ class Cerebrito:
                 pts = []
                 for k in range(26):
                     a = k * 0.6 + t * 8 * lado
-                    rr = 1.2 + k * 0.36
+                    rr = 1.2 + k * 0.34
                     pts += [ox + rr * s * math.cos(a), oy + rr * s * math.sin(a)]
                 c.create_oval(ox - rx, oy - ry, ox + rx, oy + ry, fill="#F4E3B0", outline=borde, width=2)
                 c.create_line(*pts, fill=borde, width=2, smooth=True)
@@ -285,84 +359,84 @@ class Cerebrito:
             if estado == "escuchando":                           # pupila redonda y grande: atento
                 c.create_oval(px - 5 * s, py - 5 * s, px + 5 * s, py + 5 * s, fill=PUPILA, outline="")
             else:                                                # pupila de fiera
-                c.create_oval(px - 2.6 * s, py - 6.5 * s, px + 2.6 * s, py + 6.5 * s, fill=PUPILA, outline="")
+                c.create_oval(px - 2.6 * s, py - 6.2 * s, px + 2.6 * s, py + 6.2 * s, fill=PUPILA, outline="")
             c.create_oval(px - 4, py - 5, px - 1, py - 2, fill="#FFFFFF", outline="")
 
-        # --- cejas de fiera
+        # --- cejas de fiera (debajo de la vincha)
         for lado in (-1, 1):
             if picado:
-                linea([(lado * 36, -40), (lado * 9, -27)], fill="#2A170A", width=7, capstyle="round")
+                linea([(lado * 34, -38), (lado * 9, -27)], fill="#2A170A", width=7, capstyle="round")
                 continue
-            alto = -33 - (7 if estado == "escuchando" else 0) - (3 * n if estado == "hablando" else 0)
+            alto = -32 - (5 if estado == "escuchando" else 0) - (2 * n if estado == "hablando" else 0)
             if estado == "pensando":
-                alto += -6 if lado == 1 else 2
-            caida = 4 if estado != "error" else -4
-            linea([(lado * 34, alto - caida), (lado * 10, alto + caida)], fill="#3A2614", width=6, capstyle="round")
+                alto += -4 if lado == 1 else 2
+            caida = 3 if estado != "error" else -3
+            linea([(lado * 32, alto - caida), (lado * 10, alto + caida)], fill="#2E1C0E", width=6, capstyle="round")
 
-        # --- hocico oscuro, nariz y boca con colmillos
+        # --- hocico gris, nariz y la sonrisa llena de dientes
         ovalo(0, 14, 31, 22, fill=hocico, outline=borde, width=3)
         ovalo(0, -2, 13, 12, fill=hocico, outline="")
         ovalo(0, 3, 11, 7, fill=nariz, outline="")
         ovalo(-4, 0, 3, 1.8, fill="#8F8F8F", outline="")
         by = 21
+        diente = "#FFFDF2"
         if estado == "hablando":
             alto = 6 + 22 * n
             ovalo(0, by + alto / 2, 20 + 4 * n, alto / 2 + 2, fill=boca, outline=borde, width=3)
             if alto > 14:
                 ovalo(0, by + alto - 3, 9, 4, fill="#E0607A", outline="")
             for x in (-13, -6.5, 0, 6.5, 13):
-                poligono([(x - 3.2, by), (x + 3.2, by), (x, by + 6)], fill="#FFFDF2", outline="")
+                poligono([(x - 3.2, by), (x + 3.2, by), (x, by + 6)], fill=diente, outline="")
             for x in (-10, 10):
-                poligono([(x - 3, by + alto + 2), (x + 3, by + alto + 2), (x, by + alto - 5)], fill="#FFFDF2", outline="")
+                poligono([(x - 3, by + alto + 2), (x + 3, by + alto + 2), (x, by + alto - 5)], fill=diente, outline="")
         elif picado:                                              # gruñido: dientes apretados
-            poligono([(-20, by - 2), (20, by - 2), (18, by + 10), (-18, by + 10)], fill="#FFFDF2", outline=borde, width=2)
+            poligono([(-20, by - 2), (20, by - 2), (18, by + 10), (-18, by + 10)], fill=diente, outline=borde, width=2)
             linea([(-19, by + 4), (19, by + 4)], fill=borde, width=2)
             for x in (-12, -4, 4, 12):
                 linea([(x, by - 2), (x, by + 10)], fill=borde, width=2)
-        elif estado == "ok":                                      # sonrisa grande con colmillos
-            poligono([(-24, by - 4), (24, by - 4), (14, by + 12), (0, by + 15), (-14, by + 12)], smooth=True,
-                     fill=boca, outline=borde, width=3)
-            for x in (-14, -7, 0, 7, 14):
-                poligono([(x - 3.2, by - 3), (x + 3.2, by - 3), (x, by + 3)], fill="#FFFDF2", outline="")
         elif estado == "error":
-            linea([(-16, by + 4), (-6, by - 1), (4, by + 4), (14, by - 1)], smooth=True, fill="#FFFDF2", width=3)
+            linea([(-16, by + 4), (-6, by - 1), (4, by + 4), (14, by - 1)], smooth=True, fill=diente, width=3)
         elif estado == "pensando":                                # boca de costado, un colmillo afuera
-            linea([(-14, by + 2), (4, by + 4), (18, by - 2)], smooth=True, fill="#FFFDF2", width=3, capstyle="round")
-            poligono([(9, by + 2), (15, by + 1), (12, by + 9)], fill="#FFFDF2", outline="")
-        else:                                                     # sonrisa canchera con colmillos
-            linea([(-20, by), (-8, by + 6), (8, by + 6), (22, by - 3)], smooth=True, fill="#FFFDF2", width=3,
-                  capstyle="round")
-            for x in (-11, 11):
-                poligono([(x - 3, by + 3), (x + 3, by + 3), (x, by + 11)], fill="#FFFDF2", outline="")
+            linea([(-14, by + 2), (4, by + 4), (18, by - 2)], smooth=True, fill=diente, width=3, capstyle="round")
+            poligono([(9, by + 2), (15, by + 1), (12, by + 9)], fill=diente, outline="")
+        else:                                                     # sonrisa ancha llena de dientes (como la foto)
+            grande = 3 if estado == "ok" else 0
+            poligono([(-25, by - 4), (25, by - 4), (16, by + 9 + grande), (0, by + 12 + grande), (-16, by + 9 + grande)],
+                     smooth=True, fill=boca, outline=borde, width=2)
+            for x in (-17, -11, -5.5, 0, 5.5, 11, 17):            # fila de arriba
+                largo = 7 if abs(x) == 17 else 4.5
+                poligono([(x - 3, by - 3), (x + 3, by - 3), (x, by - 3 + largo)], fill=diente, outline="")
+            for x in (-9, -3, 3, 9):                              # fila de abajo
+                poligono([(x - 2.6, by + 9 + grande), (x + 2.6, by + 9 + grande), (x, by + 4 + grande)], fill=diente,
+                         outline="")
 
-        # --- extras de cada estado
+        # --- extras de cada estado (por fuera de las orejas, el hacha y la maza)
         if picado:                                                # vapor de enojo
             for i in range(3):
                 fase = (t * 1.4 + i / 3) % 1.0
                 for lado in (-1, 1):
-                    x, y = P(lado * (58 + 10 * fase), -50 - 36 * fase)
-                    r = 4 + 7 * fase
+                    x, y = P(lado * (80 + 12 * fase), -44 - 40 * fase)
+                    r = 4 + 6 * fase
                     c.create_oval(x - r, y - r, x + r, y + r, outline=_mezclar("#FFFFFF", 0.9 - 0.6 * fase), width=2)
         elif estado == "escuchando":                              # ondas de sonido que siguen tu voz
             for lado in (-1, 1):
                 for i in range(3):
-                    r = (18 + i * 12) * (0.6 + n)
-                    x = cx + lado * 102 * s
-                    c.create_arc(x - r, cy - 20 - r, x + r, cy - 20 + r, start=-40 if lado > 0 else 140, extent=80,
+                    r = (8 + i * 10) * (0.7 + 0.5 * n)
+                    x = cx + lado * 80 * s
+                    c.create_arc(x - r, cy - 58 - r, x + r, cy - 58 + r, start=-40 if lado > 0 else 140, extent=80,
                                  style="arc", outline=_hsv(0.12 + i * 0.05, 0.6, 0.6 + 0.4 * n), width=3)
         elif estado == "pensando":                                # burbujitas que suben
             for i in range(3):
                 fase = (t * 0.9 + i / 3) % 1.0
-                r = 5 + 6 * fase
-                x, y = cx + 70 + 10 * i, cy - 80 - 30 * fase
+                r = 4 + 6 * fase
+                x, y = cx + 82 + 7 * i, cy - 40 - 52 * fase
                 c.create_oval(x - r, y - r, x + r, y + r, outline=_hsv(0.12 + i * 0.08, 0.6, 1.0), width=2)
-        elif estado == "ok":                                      # estrellitas doradas
-            for i in range(5):
-                ang = t * 2 + i * 2 * math.pi / 5
-                x, y = cx + 100 * math.cos(ang), cy - 20 + 76 * math.sin(ang)
-                _estrella(c, x, y, 7, _hsv(0.11 + 0.05 * math.sin(i), 0.65, 1.0))
+        elif estado == "ok":                                      # estrellitas doradas que titilan a los costados
+            for i, (dx, dy) in enumerate(((-98, -72), (98, -66), (-104, -42), (102, -24), (-80, -102), (80, -102))):
+                brillo = 0.5 + 0.5 * math.sin(t * 6 + i * 1.7)
+                _estrella(c, cx + dx, cy + dy, 4 + 4 * brillo, _hsv(0.11 + 0.05 * math.sin(i), 0.65, 1.0))
         elif estado == "quieto":
-            for i, (dx, dy) in enumerate(((-92, -70), (94, -56), (-96, 20))):
+            for i, (dx, dy) in enumerate(((-96, -70), (96, -60), (100, -14))):
                 brillo = 0.5 + 0.5 * math.sin(t * 1.3 + i * 2.1)
                 if brillo > 0.35:
                     _estrella(c, cx + dx, cy + dy, 2 + 4 * brillo, _hsv(0.12 + i * 0.03, 0.45, 1.0))
@@ -695,6 +769,21 @@ class Cerebrito:
                 ang = t * 2 + i * 2 * math.pi / 5
                 x, y = cx + 95 * math.cos(ang), cy - 10 + 70 * math.sin(ang)
                 _estrella(c, x, y, 7, color)
+
+
+def _recortar(puntos, y0, debajo):
+    """Recorta un polígono con una línea horizontal: se queda con lo que está debajo (y >= y0) o arriba."""
+    dentro = (lambda p: p[1] >= y0) if debajo else (lambda p: p[1] <= y0)
+    salida = []
+    for i, p in enumerate(puntos):
+        q = puntos[i - 1]
+        if dentro(p):
+            if not dentro(q):
+                salida.append((q[0] + (p[0] - q[0]) * (y0 - q[1]) / (p[1] - q[1]), y0))
+            salida.append(p)
+        elif dentro(q):
+            salida.append((q[0] + (p[0] - q[0]) * (y0 - q[1]) / (p[1] - q[1]), y0))
+    return salida
 
 
 def _estrella(c, x, y, r, color):

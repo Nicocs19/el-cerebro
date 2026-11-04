@@ -309,7 +309,25 @@ def probar_rapido():
                   "accion": "quitar", "nombre": "raid"})[0], "overlay"),
               ("«lo hiciste mal» no lo quita", router._no_quitar_sin_pedir("lo hiciste mal", "overlay", {
                   "accion": "quitar", "nombre": "raid"})[0], "pedir_aclaracion"),
-              ("saludo + otra orden: va a la IA", router._saludo_fijo("saludá a Lucas y decile que se suscriba"), None)]
+              ("saludo + otra orden: va a la IA", router._saludo_fijo("saludá a Lucas y decile que se suscriba"), None),
+              ("presentarse sin «cagadas»", router._suavizar("Hogger, preséntate al stream", "responder", {
+                  "respuesta": "¡Vamos a farmear cagadas, manada!"})["respuesta"], "¡Vamos a farmear macanas, manada!"),
+              ("bardeo: «mierda» se deja", router._suavizar("hogger, sos un inútil", "responder", {
+                  "respuesta": "¡Mirá quién habla, pedazo de mierda!"})["respuesta"], "¡Mirá quién habla, pedazo de mierda!"),
+              ("bardeo: «puto» nunca", router._suavizar("hogger, sos un inútil", "responder", {
+                  "respuesta": "Andá a farmear, puto inútil."})["respuesta"], "Andá a farmear, inútil."),
+              ("«hijo de puta» nunca", router._suavizar("decile algo a pepe", "responder", {
+                  "respuesta": "Pepe, hijo de puta, andá a farmear."})["respuesta"], "Pepe, pedazo de gil, andá a farmear."),
+              ("«Puta, qué difícil» → «Qué difícil»", router._suavizar("¿qué tal la raid?", "responder", {
+                  "respuesta": "Puta, qué difícil estuvo."})["respuesta"], "Qué difícil estuvo."),
+              ("«disputa» no se toca", router._suavizar("¿qué tal?", "responder", {
+                  "respuesta": "Una disputa por el loot."})["respuesta"], "Una disputa por el loot."),
+              ("«presentate» sin su nombre: se lo agrega", router._con_su_nombre("Hogger, preséntate al stream", "responder", {
+                  "respuesta": "¡Buenas, gente!"})["respuesta"].startswith("¡Soy Hogger el H"), True),
+              ("«presentate» con su nombre: igual", router._con_su_nombre("presentate", "responder", {
+                  "respuesta": "¡Soy Hogger el H!"})["respuesta"], "¡Soy Hogger el H!"),
+              ("otra charla: no agrega el nombre", router._con_su_nombre("contame un chiste", "responder", {
+                  "respuesta": "¿Qué hace un gnoll?"})["respuesta"], "¿Qué hace un gnoll?")]
     bien = 0
     for nombre, salio, esperado in casos:
         ok = salio == esperado

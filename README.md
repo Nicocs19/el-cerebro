@@ -38,7 +38,7 @@ Las miniaturas y los overlays los diseña Claude con el programa `claude` de tu 
 
 ## Hogger el H en pantalla y con voz
 
-Desde el 4 nov 2026 el asistente se llama **Hogger el H** (`NOMBRE_ASISTENTE`) y en pantalla es un gnoll de dibujito: hiena con manchas, cresta a rayas, orejas que se paran cuando te escucha, colmillos, collar con pinchos y la medalla de la H. Se lo llama «Hogger, …» (también sigue andando «Cerebro, …»). Es un diseño propio, no el modelo del juego. Para volver al cerebro: `CEREBRO_DISENO=gafas` (o `clasico`) en el `.env`. En voz se dice «Jóguer el Ache».
+Desde el 4 nov 2026 el asistente se llama **Hogger el H** (`NOMBRE_ASISTENTE`) y en pantalla es un gnoll de dibujito parecido a la foto de referencia: hiena parda con manchas negras, cresta a rayas, vincha con pinchos en la frente, sonrisa llena de dientes, hombrera dorada grande y una de hierro con anillos, el hacha a la izquierda, la maza abajo a la derecha y la H de la hermandad en el pecho. Las orejas se paran cuando te escucha. Se lo llama «Hogger, …» (también sigue andando «Cerebro, …»). Es un diseño propio, no el modelo del juego. Para volver al cerebro: `CEREBRO_DISENO=gafas` (o `clasico`) en el `.env`. En voz se dice «Jóguer el Ache».
 
 Cuando lo llamás aparece arriba a la derecha: abre los ojos y salta con tu voz mientras escucha, mira para arriba y le salen burbujitas mientras piensa, mueve la boca cuando habla, pone ojos felices cuando sale bien y ojos en cruz si algo falla. El cartel con el texto aparece arriba de él, como un globo de diálogo, solo cuando hay algo para leer (la confirmación o el resultado).
 

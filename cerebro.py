@@ -209,13 +209,22 @@ class Cerebro:
         log(f"CONFIRMADO: {accion.resumen.splitlines()[0]}")
         self._ejecutar(accion)
 
-    def cancelar(self):
+    def cancelar(self, origen="voz"):
+        """origen: «voz» (dijo «no»), «tecla» (CANCEL_HOTKEY) o «texto». Queda anotado en historial.log."""
+        habia = bool(self.pendiente or self.contexto)
         if self.pendiente:
-            log(f"CANCELADO: {self.pendiente.resumen.splitlines()[0]}")
+            log(f"CANCELADO ({origen}): {self.pendiente.resumen.splitlines()[0]}")
             memoria.anotar("Vos", f"cancelaste «{self.pendiente.resumen.splitlines()[0]}» (no se hizo)")
+        elif self.contexto:
+            log(f"CANCELADO ({origen}): la pregunta que estaba esperando respuesta")
+        else:
+            log(f"CANCELAR ({origen}): no había nada pendiente")
         self.pendiente = None
         self.contexto = None
         pitido("fin")
+        if not habia:                       # no dice «Cancelado.» de la nada
+            self.mostrar("No había nada para cancelar.", "info", 3)
+            return
         self.avisar("cancelado")
         self.mostrar("Cancelado.", "info", 3)
 
@@ -415,7 +424,9 @@ class App:
                 elif tipo == "confirmar":
                     self.cerebro.confirmar()
                 elif tipo == "cancelar":
-                    self.cerebro.cancelar()
+                    if self.voz:
+                        self.voz.callar()             # la tecla de cancelar también lo hace callar
+                    self.cerebro.cancelar("tecla")
                 elif tipo == "precargar":
                     router.precargar()
             except Exception as e:  # noqa: BLE001
@@ -510,7 +521,7 @@ def modo_texto(texto, simular, si):
         if input("\n¿Publico? [s/N] ").strip().lower() in ("s", "si", "sí", "dale"):
             c.confirmar()
         else:
-            c.cancelar()
+            c.cancelar("texto")
 
 
 def registrar_fallos():
