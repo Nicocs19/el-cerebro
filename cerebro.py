@@ -348,7 +348,7 @@ class App:
                              f"Hablar: {config.HOTKEY.upper()} · Dale: {config.CONFIRM_HOTKEY.upper()} · "
                              f"Cancelar: {config.CANCEL_HOTKEY.upper()}", "ok", 8)
         if config.USE_OLLAMA:
-            self.tareas.put(("precargar", None))
+            self.tareas.put(("precargar", "abrir"))
         try:  # escucha el chat de Kick para la moderación por voz
             import chat_vivo
             chat_vivo.empezar()
@@ -447,7 +447,14 @@ class App:
                         self.voz.callar()             # la tecla de cancelar también lo hace callar
                     self.cerebro.cancelar("tecla")
                 elif tipo == "precargar":
-                    router.precargar()
+                    tardo = router.precargar(al_abrir=dato == "abrir")
+                    if tardo is None:
+                        self.ui.put(("La IA no terminó de cargar. Si WoW está abierto, la placa de video está llena: "
+                                     "cerrá algo pesado o abrí Hogger antes que WoW. Igual podés hablarme (la primera "
+                                     "orden puede tardar).", "error", 15))
+                    elif tardo > 30:
+                        self.ui.put((f"IA lista (tardó {tardo:.0f} s: la placa de video estaba llena). La próxima, "
+                                     "abrime antes que WoW.", "info", 10))
             except Exception as e:  # noqa: BLE001
                 log(f"ERROR en {tipo}: {traceback.format_exc()}")
                 self.ui.put((f"Error: {e}", "error", 10))

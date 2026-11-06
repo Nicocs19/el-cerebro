@@ -367,7 +367,7 @@ ULTIMO_USO = [0.0]
 DICHO = deque(maxlen=6)             # lo último que El Cerebro dijo en voz alta (para no repetirse)
 
 
-def _llamar_ollama(texto, pendiente=None, solo=None, temperatura=0.2, nota="", hecha=None):
+def _llamar_ollama(texto, pendiente=None, solo=None, temperatura=0.2, nota="", hecha=None, espera=90):
     """(herramienta, argumentos) que eligió la IA. solo=[nombres] limita las herramientas (para completar combos).
 
     nota va al final del pedido (no cambia las instrucciones fijas, así Ollama no las vuelve a leer).
@@ -386,7 +386,7 @@ def _llamar_ollama(texto, pendiente=None, solo=None, temperatura=0.2, nota="", h
             "think": False,
             "keep_alive": config.OLLAMA_KEEP_ALIVE,
             "options": {"temperature": temperatura if intento == 1 else max(0.6, temperatura), "num_ctx": config.OLLAMA_CTX},
-        }, timeout=90)
+        }, timeout=espera)
         try:
             if r.status_code >= 500:
                 raise ValueError(f"Ollama {r.status_code}: {r.text[:300]}")
@@ -1336,15 +1336,20 @@ def interpretar(texto, pendiente=None, nota="", hecha=None):
     return _accion(nombre, args, corrige), origen
 
 
-def precargar():
+def precargar(al_abrir=False):
     """Carga el modelo en la GPU con la MISMA configuración que las órdenes y deja leídas las instrucciones.
 
     Así la primera orden no espera a que el modelo se cargue (ni se recargue con otra configuración).
     El Cerebro lo repite cada tanto mientras está abierto para que Ollama no lo descargue.
+    Con WoW y OBS abiertos la placa de video está casi llena y cargarlo puede tardar minutos (6 nov: más de 90 s y
+    falló): al abrir se espera más y se reintenta. Devuelve los segundos que tardó, o None si no cargó.
     """
     t0 = time.time()
-    try:
-        _llamar_ollama("hola")
-        _p(f"[router] {config.OLLAMA_MODEL} listo ({time.time() - t0:.1f} s).")
-    except Exception as e:  # noqa: BLE001
-        _p(f"[router] No pude precargar {config.OLLAMA_MODEL}: {e}")
+    for intento in ((1, 2, 3) if al_abrir else (1,)):
+        try:
+            _llamar_ollama("hola", espera=config.OLLAMA_ESPERA_CARGA if al_abrir else 90)
+            _p(f"[router] {config.OLLAMA_MODEL} listo ({time.time() - t0:.1f} s).")
+            return time.time() - t0
+        except Exception as e:  # noqa: BLE001
+            _p(f"[router] No pude precargar {config.OLLAMA_MODEL} (intento {intento}): {e}")
+    return None
