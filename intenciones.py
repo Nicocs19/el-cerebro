@@ -101,8 +101,8 @@ def por_ollama(texto):
             "format": _ESQUEMA,
             "stream": False,
             "think": False,
-            "keep_alive": "10m",
-            "options": {"temperature": 0},
+            "keep_alive": config.keep_alive(),
+            "options": {"temperature": 0, "num_ctx": config.OLLAMA_CTX},     # igual que el router: no recarga
         }, timeout=60)
         r.raise_for_status()
         data = json.loads(r.json()["message"]["content"])

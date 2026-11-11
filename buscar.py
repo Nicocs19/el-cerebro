@@ -155,8 +155,9 @@ def _resumir(pregunta, resultados):
         "model": config.OLLAMA_MODEL,
         "messages": [{"role": "system", "content": INSTRUCCIONES},
                      {"role": "user", "content": f"Pregunta: {pregunta}\n\nResultados de la búsqueda:\n{material}"}],
-        "stream": False, "think": False, "keep_alive": config.OLLAMA_KEEP_ALIVE,
-        "options": {"temperature": 0.3, "num_ctx": 8192},   # misma configuración que el router: no recarga el modelo
+        "stream": False, "think": False, "keep_alive": config.keep_alive(),
+        # el MISMO num_ctx que el router: con otro, Ollama recarga el modelo (con WoW abierto, minutos)
+        "options": {"temperature": 0.3, "num_ctx": config.OLLAMA_CTX},
     }, timeout=60)
     r.raise_for_status()
     texto = (r.json().get("message", {}).get("content") or "").strip()

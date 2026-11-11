@@ -384,7 +384,7 @@ def _llamar_ollama(texto, pendiente=None, solo=None, temperatura=0.2, nota="", h
             "tools": herramientas,
             "stream": False,
             "think": False,
-            "keep_alive": config.OLLAMA_KEEP_ALIVE,
+            "keep_alive": config.keep_alive(),
             "options": {"temperature": temperatura if intento == 1 else max(0.6, temperatura), "num_ctx": config.OLLAMA_CTX},
         }, timeout=espera)
         try:
@@ -1334,6 +1334,14 @@ def interpretar(texto, pendiente=None, nota="", hecha=None):
         args = _enlaces_de_la_descripcion(texto, nombre, args, corrige)
     _p(f"[router] {origen}: {nombre} {json.dumps(args, ensure_ascii=False)}")
     return _accion(nombre, args, corrige), origen
+
+
+def descargar():
+    """Al cerrar Hogger: saca la IA de la placa de video para que WoW la tenga entera."""
+    try:
+        _sesion.post(f"{config.OLLAMA_URL}/api/generate", json={"model": config.OLLAMA_MODEL, "keep_alive": 0}, timeout=5)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def precargar(al_abrir=False):

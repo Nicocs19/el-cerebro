@@ -447,7 +447,11 @@ class App:
                         self.voz.callar()             # la tecla de cancelar también lo hace callar
                     self.cerebro.cancelar("tecla")
                 elif tipo == "precargar":
+                    if dato == "abrir":
+                        self.ui.put(("Cargando la IA… esperá a que diga «IA lista» (y abrí WoW después).", "info", 0))
                     tardo = router.precargar(al_abrir=dato == "abrir")
+                    if tardo is not None and dato == "abrir" and tardo <= 30:
+                        self.ui.put((f"IA lista ({tardo:.0f} s). Ya podés hablarme.", "ok", 5))
                     if tardo is None:
                         self.ui.put(("La IA no terminó de cargar. Si WoW está abierto, la placa de video está llena: "
                                      "cerrá algo pesado o abrí Hogger antes que WoW. Igual podés hablarme (la primera "
@@ -536,6 +540,9 @@ class App:
         self.tareas.put(("respuesta" if modo == "respuesta" else "audio", audio))
 
     def correr(self):
+        import atexit
+        if config.USE_OLLAMA:
+            atexit.register(router.descargar)      # al cerrar, la placa de video queda libre para el juego
         self.root.after(50, self._tick)
         self.root.mainloop()
 

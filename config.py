@@ -1,5 +1,6 @@
 """Carga la configuración desde el archivo .env."""
 import os
+import re
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -56,7 +57,13 @@ USE_OLLAMA = _b("USE_OLLAMA", True)
 # 127.0.0.1 y no «localhost»: en Windows «localhost» prueba primero IPv6 y pierde 2 s en cada pedido.
 OLLAMA_URL = _s("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/").replace("//localhost", "//127.0.0.1")
 OLLAMA_MODEL = _s("OLLAMA_MODEL", "qwen3.5:9b")
-OLLAMA_KEEP_ALIVE = _s("OLLAMA_KEEP_ALIVE", "30m")
+OLLAMA_KEEP_ALIVE = _s("OLLAMA_KEEP_ALIVE", "3h")    # la IA queda en la placa de video (se renueva sola cada 20 min)
+
+
+def keep_alive():
+    """Para Ollama: «3h», «30m» o un número de segundos (-1 = para siempre)."""
+    v = str(OLLAMA_KEEP_ALIVE).strip()
+    return int(v) if re.fullmatch(r"-?\d+", v) else v
 OLLAMA_CTX = int(_f("OLLAMA_CTX", 16384))                # memoria de trabajo de la IA (instrucciones + orden + respuesta)
 OLLAMA_ESPERA_CARGA = int(_f("OLLAMA_ESPERA_CARGA", 300))  # segundos para cargar la IA al abrir (con WoW abierto tarda)
 OLLAMA_API_KEY = _s("OLLAMA_API_KEY")                     # cuenta gratis de ollama.com: búsqueda web (conectar_busqueda.bat)
